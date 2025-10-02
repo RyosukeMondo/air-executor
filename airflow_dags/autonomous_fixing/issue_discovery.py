@@ -132,20 +132,20 @@ class IssueDiscovery:
 
     def _parse_analysis_issue(self, line: str, issue_type: str, phase: str) -> Task:
         """Parse analysis output line into Task"""
-        # Format: "  error • message at file:line:col • code"
-        # Example: "  error • Undefined name 'foo' at lib/main.dart:10:5 • undefined_identifier"
+        # Format: "  error • message • file:line:col • code"
+        # Example: "  error • Undefined name 'foo' • lib/main.dart:10:5 • undefined_identifier"
 
         try:
-            # Extract location
-            location_match = re.search(r'at\s+([\w/._-]+):(\d+):\d+', line)
+            # Extract location (file:line:col)
+            location_match = re.search(r'•\s+([\w/._-]+):(\d+):\d+\s+•', line)
             if not location_match:
                 return None
 
             file_path = location_match.group(1)
             line_num = int(location_match.group(2))
 
-            # Extract message
-            message_match = re.search(r'(error|warning|info)\s+•\s+([^•]+)\s+at', line)
+            # Extract message (between first and second •)
+            message_match = re.search(r'(error|warning|info)\s+•\s+([^•]+)\s+•', line)
             if not message_match:
                 return None
 
