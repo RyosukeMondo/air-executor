@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import List, Dict, Optional
 from dataclasses import dataclass, field
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Handle both module import and script execution
 try:
@@ -228,43 +229,70 @@ class MultiLanguageOrchestrator:
 
     def execute_priority_1(self, projects_by_language: Dict[str, List[str]]) -> PriorityPhaseResult:
         """
-        Priority 1: Fast static analysis.
+        Priority 1: Fast static analysis (PARALLEL).
 
         - Static analysis errors
         - File size violations
         - Cyclomatic complexity
         - Code smells
 
-        Should complete in ~30 seconds per language (parallel).
+        All projects analyzed in parallel for maximum speed.
         """
         start_time = time.time()
         result = PriorityPhaseResult(phase='p1_static')
 
+        # Get max concurrent projects from config
+        max_workers = self.config.get('execution', {}).get('max_concurrent_projects', 3)
+
+        # Prepare all analysis tasks
+        tasks = []
         for lang_name, projects in projects_by_language.items():
             adapter = self.adapters[lang_name]
-            print(f"\n🔍 {lang_name.upper()}: Analyzing {len(projects)} project(s)...")
-
             for project_path in projects:
-                print(f"   📁 {project_path}")
-                analysis = adapter.static_analysis(project_path)
-                result.language_results[f"{lang_name}:{project_path}"] = analysis
+                tasks.append((lang_name, adapter, project_path))
 
-                # Print summary
-                total_issues = (
-                    len(analysis.errors) +
-                    len(analysis.file_size_violations) +
-                    len(analysis.complexity_violations)
-                )
-                print(f"      Issues: {total_issues} (errors: {len(analysis.errors)}, "
-                      f"size: {len(analysis.file_size_violations)}, "
-                      f"complexity: {len(analysis.complexity_violations)})")
+        print(f"\n🚀 Analyzing {len(tasks)} project(s) in parallel (max {max_workers} concurrent)...\n")
+
+        # Execute all projects in parallel
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all tasks
+            future_to_project = {
+                executor.submit(self._analyze_project_p1, lang_name, adapter, project_path):
+                (lang_name, project_path)
+                for lang_name, adapter, project_path in tasks
+            }
+
+            # Collect results as they complete
+            for future in as_completed(future_to_project):
+                lang_name, project_path = future_to_project[future]
+                try:
+                    analysis = future.result()
+                    result.language_results[f"{lang_name}:{project_path}"] = analysis
+
+                    # Print summary
+                    total_issues = (
+                        len(analysis.errors) +
+                        len(analysis.file_size_violations) +
+                        len(analysis.complexity_violations)
+                    )
+                    print(f"✓ {lang_name.upper()}: {project_path.split('/')[-1]}")
+                    print(f"   Issues: {total_issues} (errors: {len(analysis.errors)}, "
+                          f"size: {len(analysis.file_size_violations)}, "
+                          f"complexity: {len(analysis.complexity_violations)})")
+                except Exception as e:
+                    print(f"✗ {lang_name.upper()}: {project_path.split('/')[-1]} - Error: {e}")
 
         # Calculate score
         result.score = self._calculate_p1_score(result.language_results)
         result.execution_time = time.time() - start_time
         result.passed_gate = result.score >= self.priority_config.get('p1_static', {}).get('success_threshold', 0.90)
 
+        print(f"\n⏱️  Completed in {result.execution_time:.1f}s")
         return result
+
+    def _analyze_project_p1(self, lang_name: str, adapter: LanguageAdapter, project_path: str) -> AnalysisResult:
+        """Helper function to analyze a single project (for parallel execution)."""
+        return adapter.static_analysis(project_path)
 
     def execute_priority_2(
         self,
@@ -272,12 +300,14 @@ class MultiLanguageOrchestrator:
         p1_result: PriorityPhaseResult
     ) -> PriorityPhaseResult:
         """
-        Priority 2: Strategic unit tests (time-aware).
+        Priority 2: Strategic unit tests (time-aware, PARALLEL).
 
         Test strategy based on P1 health:
         - health < 30%: minimal tests (5 min)
         - health 30-60%: selective tests (15 min)
         - health > 60%: comprehensive tests (30 min)
+
+        All projects tested in parallel for maximum speed.
         """
         start_time = time.time()
         result = PriorityPhaseResult(phase='p2_tests')
@@ -286,28 +316,52 @@ class MultiLanguageOrchestrator:
         strategy = self._determine_test_strategy(p1_result.score)
         print(f"📊 Test strategy: {strategy.upper()} (based on P1 health: {p1_result.score:.1%})")
 
+        # Get max concurrent projects from config
+        max_workers = self.config.get('execution', {}).get('max_concurrent_projects', 3)
+
+        # Prepare all test tasks
+        tasks = []
         for lang_name, projects in projects_by_language.items():
             adapter = self.adapters[lang_name]
-            print(f"\n🧪 {lang_name.upper()}: Running {strategy} tests...")
-
             for project_path in projects:
-                print(f"   📁 {project_path}")
-                description = adapter.get_test_strategy_description(strategy)
-                print(f"      {description}")
+                tasks.append((lang_name, adapter, project_path, strategy))
 
-                analysis = adapter.run_tests(project_path, strategy)
-                result.language_results[f"{lang_name}:{project_path}"] = analysis
+        print(f"\n🚀 Running tests on {len(tasks)} project(s) in parallel (max {max_workers} concurrent)...\n")
 
-                # Print summary
-                total = analysis.tests_passed + analysis.tests_failed
-                print(f"      Results: {analysis.tests_passed}/{total} passed")
+        # Execute all tests in parallel
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all tasks
+            future_to_project = {
+                executor.submit(self._run_tests_p2, lang_name, adapter, project_path, strategy):
+                (lang_name, project_path)
+                for lang_name, adapter, project_path, strategy in tasks
+            }
+
+            # Collect results as they complete
+            for future in as_completed(future_to_project):
+                lang_name, project_path = future_to_project[future]
+                try:
+                    analysis = future.result()
+                    result.language_results[f"{lang_name}:{project_path}"] = analysis
+
+                    # Print summary
+                    total = analysis.tests_passed + analysis.tests_failed
+                    print(f"✓ {lang_name.upper()}: {project_path.split('/')[-1]}")
+                    print(f"   Tests: {analysis.tests_passed}/{total} passed")
+                except Exception as e:
+                    print(f"✗ {lang_name.upper()}: {project_path.split('/')[-1]} - Error: {e}")
 
         # Calculate score
         result.score = self._calculate_p2_score(result.language_results)
         result.execution_time = time.time() - start_time
         result.passed_gate = result.score >= self.priority_config.get('p2_tests', {}).get('success_threshold', 0.85)
 
+        print(f"\n⏱️  Completed in {result.execution_time:.1f}s")
         return result
+
+    def _run_tests_p2(self, lang_name: str, adapter: LanguageAdapter, project_path: str, strategy: str) -> AnalysisResult:
+        """Helper function to run tests on a single project (for parallel execution)."""
+        return adapter.run_tests(project_path, strategy)
 
     def execute_priority_3(self, projects_by_language: Dict[str, List[str]]) -> PriorityPhaseResult:
         """Priority 3: Coverage analysis and test generation."""
