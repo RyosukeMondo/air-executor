@@ -129,9 +129,11 @@ class MultiLanguageOrchestrator:
             p1_threshold = self.priority_config.get('p1_static', {}).get('success_threshold', 0.90)
             if p1_result.score < p1_threshold:
                 print(f"\n⚠️  P1 score ({p1_result.score:.1%}) < threshold ({p1_threshold:.0%})")
-                print(f"🔧 Fixing P1 issues in iteration {iteration}...")
-                # TODO: Call fix_p1_issues() here
-                print("⚠️  Fixing not yet implemented - will be added in next iteration")
+                fixes_applied = self.fix_p1_issues(p1_result, iteration)
+                if fixes_applied:
+                    print(f"\n✅ Fixes applied, re-running analysis in next iteration...")
+                else:
+                    print(f"\n⚠️  No fixes could be applied")
                 continue  # Re-run analysis in next iteration
 
             # P1 gate passed!
@@ -148,9 +150,11 @@ class MultiLanguageOrchestrator:
             p2_threshold = self.priority_config.get('p2_tests', {}).get('success_threshold', 0.85)
             if p2_result.score < p2_threshold:
                 print(f"\n⚠️  P2 score ({p2_result.score:.1%}) < threshold ({p2_threshold:.0%})")
-                print(f"🔧 Fixing P2 issues in iteration {iteration}...")
-                # TODO: Call fix_p2_issues() here
-                print("⚠️  Fixing not yet implemented - will be added in next iteration")
+                fixes_applied = self.fix_p2_issues(p2_result, iteration)
+                if fixes_applied:
+                    print(f"\n✅ Fixes applied, re-running analysis in next iteration...")
+                else:
+                    print(f"\n⚠️  No fixes could be applied")
                 continue  # Re-run analysis in next iteration
 
             # P2 gate passed!
@@ -501,6 +505,149 @@ class MultiLanguageOrchestrator:
         successful = sum(1 for r in results.values() if r.success)
 
         return successful / total
+
+    def fix_p1_issues(self, p1_result: PriorityPhaseResult, iteration: int) -> bool:
+        """
+        Fix P1 (static analysis) issues using claude_wrapper.
+
+        Returns: True if fixes were applied successfully
+        """
+        import subprocess
+        import json
+
+        print(f"\n🔧 Fixing P1 issues (iteration {iteration})...")
+
+        # Get wrapper config
+        wrapper_path = self.config.get('wrapper', {}).get('path', 'scripts/claude_wrapper.py')
+        python_exec = self.config.get('wrapper', {}).get('python_executable', 'python')
+
+        # Collect all issues across all projects
+        all_issues = []
+        for project_key, analysis in p1_result.language_results.items():
+            lang_name, project_path = project_key.split(':', 1)
+
+            # Add errors
+            for error in analysis.errors[:5]:  # Top 5 errors per project
+                all_issues.append({
+                    'project': project_path,
+                    'language': lang_name,
+                    'type': 'error',
+                    'file': error.get('file', ''),
+                    'line': error.get('line', 0),
+                    'message': error.get('message', '')
+                })
+
+            # Add complexity violations
+            for violation in analysis.complexity_violations[:3]:  # Top 3 complexity issues
+                all_issues.append({
+                    'project': project_path,
+                    'language': lang_name,
+                    'type': 'complexity',
+                    'file': violation.get('file', ''),
+                    'complexity': violation.get('complexity', 0),
+                    'threshold': violation.get('threshold', 0)
+                })
+
+        if not all_issues:
+            print("   No issues to fix")
+            return False
+
+        # Limit to top 10 issues per iteration
+        all_issues = all_issues[:10]
+
+        print(f"   Selected {len(all_issues)} issues to fix")
+
+        # Call claude_wrapper for each issue
+        fixes_applied = 0
+        for idx, issue in enumerate(all_issues, 1):
+            print(f"\n   [{idx}/{len(all_issues)}] Fixing {issue['type']} in {issue['file']}")
+
+            # Build fix prompt
+            if issue['type'] == 'error':
+                prompt = f"Fix this {issue['language']} error in {issue['file']}:\n{issue['message']}"
+            elif issue['type'] == 'complexity':
+                prompt = f"Refactor {issue['file']} to reduce complexity from {issue['complexity']} to below {issue['threshold']}"
+            else:
+                continue
+
+            try:
+                # Call claude_wrapper
+                result = subprocess.run(
+                    [python_exec, wrapper_path, '--prompt', prompt, '--project', issue['project']],
+                    capture_output=True,
+                    text=True,
+                    timeout=300  # 5 min per fix
+                )
+
+                if result.returncode == 0:
+                    print(f"      ✓ Fixed successfully")
+                    fixes_applied += 1
+                else:
+                    print(f"      ✗ Fix failed: {result.stderr[:100]}")
+            except Exception as e:
+                print(f"      ✗ Error: {str(e)[:100]}")
+
+        print(f"\n   Applied {fixes_applied}/{len(all_issues)} fixes")
+        return fixes_applied > 0
+
+    def fix_p2_issues(self, p2_result: PriorityPhaseResult, iteration: int) -> bool:
+        """
+        Fix P2 (test) issues using claude_wrapper.
+
+        Returns: True if fixes were applied successfully
+        """
+        import subprocess
+
+        print(f"\n🔧 Fixing P2 test failures (iteration {iteration})...")
+
+        # Get wrapper config
+        wrapper_path = self.config.get('wrapper', {}).get('path', 'scripts/claude_wrapper.py')
+        python_exec = self.config.get('wrapper', {}).get('python_executable', 'python')
+
+        # Collect failing tests
+        failing_tests = []
+        for project_key, analysis in p2_result.language_results.items():
+            lang_name, project_path = project_key.split(':', 1)
+
+            if analysis.tests_failed > 0:
+                failing_tests.append({
+                    'project': project_path,
+                    'language': lang_name,
+                    'failed': analysis.tests_failed,
+                    'total': analysis.tests_passed + analysis.tests_failed
+                })
+
+        if not failing_tests:
+            print("   No failing tests to fix")
+            return False
+
+        print(f"   Found {len(failing_tests)} projects with test failures")
+
+        # Fix tests for each project
+        fixes_applied = 0
+        for test_info in failing_tests[:5]:  # Top 5 projects
+            print(f"\n   Fixing {test_info['failed']} failing tests in {test_info['project'].split('/')[-1]}")
+
+            prompt = f"Fix failing {test_info['language']} tests. {test_info['failed']} tests are failing. Run tests and fix the code until all tests pass."
+
+            try:
+                result = subprocess.run(
+                    [python_exec, wrapper_path, '--prompt', prompt, '--project', test_info['project']],
+                    capture_output=True,
+                    text=True,
+                    timeout=600  # 10 min per project for test fixes
+                )
+
+                if result.returncode == 0:
+                    print(f"      ✓ Fixed successfully")
+                    fixes_applied += 1
+                else:
+                    print(f"      ✗ Fix failed: {result.stderr[:100]}")
+            except Exception as e:
+                print(f"      ✗ Error: {str(e)[:100]}")
+
+        print(f"\n   Applied fixes to {fixes_applied}/{len(failing_tests)} projects")
+        return fixes_applied > 0
 
     def _calculate_overall_health(
         self,
