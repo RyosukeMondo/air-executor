@@ -1,0 +1,55 @@
+# Autonomous Fixing Configuration
+
+# Target project
+target_project:
+  path: "/home/rmondo/repos/money-making-app"
+  type: "flutter"
+
+# Completion criteria
+completion_criteria:
+  build_passes: true
+  min_test_pass_rate: 0.95
+  max_lint_errors: 0
+  stability_runs: 3
+
+# Circuit breaker
+circuit_breaker:
+  max_consecutive_failures: 5
+  max_total_runs: 20
+  max_duration_hours: 4
+
+# Session management
+session_mode: "separate"  # 'separate' | 'keep' | 'hybrid'
+
+# Batch sizes (how many issues to fix per phase per run)
+batch_sizes:
+  build_fixes: 3
+  test_fixes: 2
+  lint_fixes: 5
+
+# Air-executor settings
+air_executor:
+  wrapper_path: "/home/rmondo/repos/air-executor/scripts/claude_wrapper.py"
+  timeout: 300
+  auto_commit: true
+  max_retries: 2
+
+# Redis connection
+redis:
+  host: "localhost"
+  port: 6379
+  db: 0
+
+# Health check configuration (smart tiered monitoring)
+health_check:
+  # Static checks (fast ~2-10s)
+  file_size_threshold: 300        # Lines per file threshold
+  static_pass_threshold: 0.6      # Score needed to run dynamic checks
+
+  # Code quality thresholds
+  complexity_threshold: 15        # Max cyclomatic complexity
+  nesting_threshold: 4            # Max nesting depth levels
+
+  # Dynamic checks (slow ~2-5min, only if static passes)
+  coverage_threshold: 80          # Target coverage percentage
+  test_timeout: 180               # Test execution timeout (seconds)
