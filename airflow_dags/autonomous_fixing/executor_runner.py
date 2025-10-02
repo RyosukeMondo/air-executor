@@ -13,6 +13,12 @@ from dataclasses import dataclass
 
 from state_manager import Task, StateManager
 
+# Import BatchTask if available
+try:
+    from issue_grouping import BatchTask
+except ImportError:
+    BatchTask = None
+
 
 @dataclass
 class ExecutionResult:
@@ -47,8 +53,13 @@ class AirExecutorRunner:
         """Execute a single fix task"""
         print(f"\n🚀 Running task: {task.type} ({task.id})")
 
+        # Check if this is a batch task
+        is_batch = BatchTask and isinstance(task, BatchTask)
+
         # Build prompt based on task type
-        if task.type == "fix_build_error":
+        if is_batch:
+            prompt = self._batch_fix_prompt(task, session_summary)
+        elif task.type == "fix_build_error":
             prompt = self._build_fix_prompt(task, session_summary)
         elif task.type == "fix_test_failure":
             prompt = self._test_fix_prompt(task, session_summary)
@@ -159,6 +170,57 @@ class AirExecutorRunner:
                 stderr=f"Execution timeout after {self.timeout}s"
             )
 
+    def _batch_fix_prompt(self, task, summary: Optional[Dict]) -> str:
+        """Generate prompt for batch fix"""
+        batch_type = task.batch_type if hasattr(task, 'batch_type') else 'issues'
+        related_issues = task.related_issues if hasattr(task, 'related_issues') else []
+
+        # Create readable issue list
+        issue_list = []
+        for i, issue in enumerate(related_issues[:15], 1):  # Max 15 in prompt
+            issue_list.append(f"{i}. {issue['file']}:{issue['line']} - {issue['message'][:80]}")
+
+        if len(related_issues) > 15:
+            issue_list.append(f"... and {len(related_issues) - 15} more similar issues")
+
+        issues_text = '\n'.join(issue_list)
+
+        # Get unique files
+        files = list(set(issue['file'] for issue in related_issues if issue.get('file')))
+        files_text = '\n'.join([f"  - {f}" for f in files[:10]])
+        if len(files) > 10:
+            files_text += f"\n  ... and {len(files) - 10} more files"
+
+        prompt = f"""Fix batch of {len(related_issues)} related {batch_type} issues in Flutter project.
+
+**Batch Type**: {batch_type}
+**Files Affected** ({len(files)} total):
+{files_text}
+
+**Issues to Fix**:
+{issues_text}
+
+**Instructions**:
+1. Analyze the pattern across all these issues
+2. Fix ALL related issues comprehensively (you can modify multiple files)
+3. Apply consistent solution across all affected files
+4. Consider root cause - if these issues share a common cause, fix that
+5. Run `flutter analyze --no-pub` to verify all fixes
+6. **IMPORTANT**: Stage and commit your changes with:
+   ```bash
+   git add -A
+   git commit -m "fix: {batch_type} across {len(files)} files"
+   ```
+
+This is a BATCH fix - handle multiple files together for efficiency.
+DO NOT skip the commit step. Make comprehensive changes that fix all related issues.
+"""
+
+        if summary:
+            prompt += f"\n\n**Previous session**: Fixed {summary.get('fixed_count', 0)} batches\n"
+
+        return prompt
+
     def _build_fix_prompt(self, task: Task, summary: Optional[Dict]) -> str:
         """Generate prompt for build error fix"""
         # Truncate message for commit to avoid errors
@@ -177,9 +239,10 @@ class AirExecutorRunner:
 
 **Instructions**:
 1. Analyze the error carefully
-2. Fix ONLY this specific error (surgical fix, minimal changes)
-3. Run `flutter analyze --no-pub` to verify the fix
-4. **IMPORTANT**: Stage and commit your changes with:
+2. Implement a proper fix (make necessary changes, don't be overly minimal)
+3. Consider if related code needs updates for consistency
+4. Run `flutter analyze --no-pub` to verify the fix
+5. **IMPORTANT**: Stage and commit your changes with:
    ```bash
    git add -A
    git commit -m "fix: {commit_msg}"
@@ -210,8 +273,9 @@ DO NOT skip the commit step. Changes must be committed before finishing.
 **Instructions**:
 1. Understand why the test is failing
 2. Fix the implementation (NOT the test unless it's clearly wrong)
-3. Run `flutter test` to verify
-4. **IMPORTANT**: Stage and commit your changes with:
+3. Make comprehensive changes if needed across related files
+4. Run `flutter test` to verify
+5. **IMPORTANT**: Stage and commit your changes with:
    ```bash
    git add -A
    git commit -m "fix(test): {commit_msg}"
@@ -242,8 +306,9 @@ Fix the root cause, not the symptoms. DO NOT skip the commit step.
 **Instructions**:
 1. Understand the lint rule violation
 2. Fix according to Dart/Flutter best practices
-3. Run `flutter analyze --no-pub` to verify
-4. **IMPORTANT**: Stage and commit your changes with:
+3. Apply similar fixes to related code if applicable
+4. Run `flutter analyze --no-pub` to verify
+5. **IMPORTANT**: Stage and commit your changes with:
    ```bash
    git add -A
    git commit -m "style: {commit_msg}"

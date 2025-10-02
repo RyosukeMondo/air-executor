@@ -15,6 +15,7 @@ from smart_health_monitor import SmartHealthMonitor
 from state_manager import StateManager, Task
 from issue_discovery import IssueDiscovery
 from executor_runner import AirExecutorRunner
+from issue_grouping import IssueGrouper
 
 
 class FixOrchestrator:
@@ -42,6 +43,14 @@ class FixOrchestrator:
             redis_db=self.config['redis']['db']
         )
         self.issue_discovery = IssueDiscovery(str(self.project_path))
+
+        # Issue grouper for batch processing
+        grouping_config = self.config.get('issue_grouping', {})
+        self.issue_grouper = IssueGrouper(
+            min_batch_size=grouping_config.get('min_batch_size', 3),
+            max_batch_size=grouping_config.get('max_batch_size', 10)
+        )
+
         self.executor = AirExecutorRunner(
             wrapper_path=self.config['air_executor']['wrapper_path'],
             working_dir=str(self.project_path),
@@ -214,15 +223,23 @@ class FixOrchestrator:
         return 'build'  # Default
 
     def _discover_issues(self, phase: str) -> List[Task]:
-        """Discover issues for the given phase"""
+        """Discover issues for the given phase and group them"""
+        # Discover raw issues
         if phase == 'build':
-            return self.issue_discovery.discover_build_issues()
+            raw_tasks = self.issue_discovery.discover_build_issues()
         elif phase == 'test':
-            return self.issue_discovery.discover_test_failures()
+            raw_tasks = self.issue_discovery.discover_test_failures()
         elif phase == 'lint':
-            return self.issue_discovery.discover_lint_issues()
+            raw_tasks = self.issue_discovery.discover_lint_issues()
         else:
             return []
+
+        # Group similar issues for batch processing
+        if raw_tasks:
+            grouped_tasks = self.issue_grouper.group_tasks(raw_tasks)
+            return grouped_tasks
+
+        return raw_tasks
 
     def _queue_tasks(self, tasks: List[Task], phase: str):
         """Queue discovered tasks"""
