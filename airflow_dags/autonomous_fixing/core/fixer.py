@@ -236,6 +236,63 @@ class IssueFixer:
         except Exception:
             return False
 
+    def discover_test_config(self, project_path: str, language: str) -> FixResult:
+        """
+        SETUP PHASE: Discover how to run tests for this project.
+
+        Delegates to claude_wrapper to:
+        1. Analyze project structure
+        2. Detect package manager, test framework, test locations
+        3. Try running tests to verify
+        4. Save discovered config to config/test-cache/
+
+        Args:
+            project_path: Path to project
+            language: Project language
+
+        Returns: FixResult with stats
+        """
+        project_name = Path(project_path).name
+        cache_path = Path('config/test-cache') / f'{project_name}-tests.yaml'
+
+        # Check if already discovered
+        if cache_path.exists():
+            print(f"   ✓ Test config already exists: {cache_path}")
+            return FixResult(success=False)  # No discovery needed
+
+        print(f"\n🔍 SETUP: Discovering test configuration for {project_name}...")
+
+        # Build prompt from config template
+        template = self.prompts['setup']['discover_tests']['template']
+        prompt = template.format(
+            language=language,
+            project_name=project_name,
+            project_path=project_path,
+            timestamp="$(date -Iseconds)"
+        )
+
+        # Get timeout from config
+        timeout = self.prompts.get('timeouts', {}).get('discover_tests', 600)
+
+        try:
+            result = subprocess.run(
+                [self.python_exec, self.wrapper_path, '--prompt', prompt, '--project', project_path],
+                capture_output=True,
+                text=True,
+                timeout=timeout
+            )
+
+            if result.returncode == 0 and cache_path.exists():
+                print(f"   ✓ Test config discovered and saved to {cache_path}")
+                return FixResult(fixes_applied=1, fixes_attempted=1, success=True)
+            else:
+                print(f"   ✗ Test discovery failed (config not created)")
+                return FixResult(fixes_applied=0, fixes_attempted=1, success=False)
+
+        except Exception as e:
+            print(f"   ✗ Test discovery error: {e}")
+            return FixResult(fixes_applied=0, fixes_attempted=1, success=False)
+
     def create_tests(self, analysis_result, iteration: int) -> FixResult:
         """
         Create tests for projects with no tests (P2 critical failure).

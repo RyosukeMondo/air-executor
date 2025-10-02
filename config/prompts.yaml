@@ -7,6 +7,132 @@
 # - Easy to iterate on prompt engineering without code changes
 
 # =============================================================================
+# SETUP: Test Discovery Prompt (NEW)
+# =============================================================================
+
+setup:
+  discover_tests:
+    template: |
+      You are setting up automated testing for a {language} project.
+
+      **Your task: Discover and document how to run tests for this project.**
+
+      Analyze the project and create a test configuration file that answers:
+
+      1. **How to run tests?**
+         - Which command/tool? (npm, yarn, pnpm, pytest, flutter, go test)
+         - Which script? (test, test:unit, test:ci, etc.)
+         - Example: `pnpm run test` or `pytest tests/` or `flutter test`
+
+      2. **Where are tests located?**
+         - Test directories (tests/, __tests__/, test/, spec/)
+         - Test file patterns (*.test.js, test_*.py, *_test.dart)
+
+      3. **What test framework is used?**
+         - Jest, Vitest, Mocha (JavaScript)
+         - pytest, unittest (Python)
+         - flutter_test (Flutter)
+         - go test (Go)
+
+      4. **How to run different test strategies?**
+         - Minimal: Fast unit tests only (~5 min)
+         - Selective: Unit + integration (~15 min)
+         - Comprehensive: Full suite (~30 min)
+
+      **Steps to follow:**
+
+      1. Analyze project files:
+         - package.json (JavaScript)
+         - pyproject.toml, setup.py, requirements.txt (Python)
+         - pubspec.yaml (Flutter)
+         - go.mod (Go)
+
+      2. Check for lock files to detect package manager:
+         - pnpm-lock.yaml → pnpm
+         - yarn.lock → yarn
+         - package-lock.json → npm
+
+      3. Find test directories and files:
+         - Use `find` or `ls` to locate test files
+         - Identify naming patterns
+
+      4. Try running tests:
+         - Execute the test command you discovered
+         - Verify it works
+         - Note any errors
+
+      5. Create config file:
+         - Save to: `config/test-cache/{project_name}-tests.yaml`
+         - Use the template below
+
+      **Output format (YAML):**
+
+      ```yaml
+      # Auto-discovered test configuration
+      project_name: {project_name}
+      project_path: {project_path}
+      language: {language}
+      discovered_at: {timestamp}
+
+      test_execution:
+        # How to run tests
+        runner: pnpm              # npm, yarn, pnpm, pytest, flutter, go
+        command: test             # Script name or subcommand
+        framework: jest           # Test framework detected
+
+        # Example full commands
+        examples:
+          full: "pnpm run test"
+          minimal: "pnpm run test -- --testPathPattern=unit --bail"
+
+      test_locations:
+        # Where tests are located
+        directories:
+          - tests/
+          - __tests__/
+        patterns:
+          - "**/*.test.js"
+          - "**/*.spec.js"
+
+      strategies:
+        # Fast tests only
+        minimal:
+          args: ["--testPathPattern=unit", "--bail"]
+          timeout: 300
+
+        # Unit + integration
+        selective:
+          args: ["--testPathPattern=(unit|integration)"]
+          timeout: 900
+
+        # Full suite
+        comprehensive:
+          args: []
+          timeout: 1800
+
+      validation:
+        # Did test execution work?
+        verified: true
+        last_run: {timestamp}
+        notes: "Tests run successfully with pnpm"
+      ```
+
+      **Important:**
+      - If no tests exist, set `verified: false` and note: "No tests found"
+      - If test command fails, document the error in `notes`
+      - Create the file even if tests don't work (document what you tried)
+      - Be accurate - this config will be used for automated testing
+
+      Use LLM-as-a-judge: Analyze, test, verify, then document findings.
+
+    timeout: 600  # 10 minutes for discovery
+
+    notes: |
+      This is the SETUP phase - runs once per project.
+      Claude discovers how to run tests by analyzing the project.
+      Saves discovered config to config/test-cache/ for reuse.
+
+# =============================================================================
 # P1: Static Issue Fixing Prompts
 # =============================================================================
 
@@ -141,6 +267,7 @@ language_overrides:
 # =============================================================================
 
 timeouts:
+  discover_tests: 600      # 10 minutes for test discovery (SETUP)
   fix_static_issue: 300    # 5 minutes per static issue fix
   fix_test_failure: 600    # 10 minutes per project test fixing
   create_tests: 900        # 15 minutes for test creation

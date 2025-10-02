@@ -43,6 +43,7 @@ class IterationEngine:
         Run the improvement loop until gates pass or max iterations reached.
 
         Algorithm:
+        0. SETUP: Discover test configuration (runs once, cached)
         1. Analyze (P1 static)
         2. Score
         3. If score < threshold: Fix → repeat
@@ -52,6 +53,15 @@ class IterationEngine:
 
         Returns: Dict with final results and iteration stats
         """
+        # === SETUP PHASE: Test Discovery (runs once) ===
+        print(f"\n{'='*80}")
+        print("🔧 SETUP PHASE: Test Configuration Discovery")
+        print(f"{'='*80}")
+
+        for lang_name, project_list in projects_by_language.items():
+            for project_path in project_list:
+                self.fixer.discover_test_config(project_path, lang_name)
+
         print(f"\n🔄 Starting improvement iterations (max: {self.max_iterations})")
 
         for iteration in range(1, self.max_iterations + 1):
