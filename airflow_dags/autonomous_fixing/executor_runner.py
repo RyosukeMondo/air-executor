@@ -77,7 +77,7 @@ class AirExecutorRunner:
     def _execute(self, prompt: str) -> subprocess.CompletedProcess:
         """Execute claude_wrapper.py with prompt via stdin"""
         import json
-        import sys
+        import os
 
         cmd = ["python", str(self.wrapper_path)]
 
@@ -92,6 +92,11 @@ class AirExecutorRunner:
             }
         }
 
+        # Ensure /usr/local/bin is in PATH for claude CLI
+        env = os.environ.copy()
+        if "/usr/local/bin" not in env.get("PATH", ""):
+            env["PATH"] = f"/usr/local/bin:{env.get('PATH', '')}"
+
         try:
             # Send prompt and keep stdin open by not closing it immediately
             # Wrapper will exit when task completes due to exit_on_complete=True
@@ -101,15 +106,34 @@ class AirExecutorRunner:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                cwd=self.wrapper_path.parent
+                cwd=self.wrapper_path.parent,
+                env=env  # Pass updated environment
             )
 
-            # Send prompt
+            # Send prompt (keep stdin open - don't close it)
             proc.stdin.write(json.dumps(payload) + "\n")
             proc.stdin.flush()
 
-            # Wait for completion (wrapper will exit due to exit_on_complete)
-            stdout, stderr = proc.communicate(timeout=self.timeout)
+            # Wait for process to complete (wrapper will exit due to exit_on_complete)
+            # Don't use communicate() as it closes stdin - just wait for process
+            stdout_lines = []
+            stderr_lines = []
+
+            import select
+            import time
+            start_time = time.time()
+
+            while proc.poll() is None:  # While process is running
+                if time.time() - start_time > self.timeout:
+                    proc.kill()
+                    raise subprocess.TimeoutExpired(cmd, self.timeout)
+
+                # Read available output without blocking
+                time.sleep(0.1)
+
+            # Process finished, collect all output
+            stdout = proc.stdout.read()
+            stderr = proc.stderr.read()
 
             return subprocess.CompletedProcess(
                 args=cmd,
