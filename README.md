@@ -11,9 +11,18 @@ A lightweight, flexible job execution system for Python that enables asynchronou
 - **CLI Interface**: Easy-to-use command-line interface
 - **Airflow Integration**: Compatible with Apache Airflow workflows
 
+## 📖 Documentation
+
+**Complete documentation available in [docs/](./docs/)**
+
+- **[Getting Started](./docs/getting-started/)** - Installation, quick start, configuration
+- **[User Guides](./docs/guides/)** - Airflow integration, Claude SDK, DAG development
+- **[Reference](./docs/reference/)** - Configuration, troubleshooting, patterns
+- **[Architecture](./docs/architecture/)** - System design and architecture decisions
+
 ## Installation
 
-### From Source
+### Quick Install
 
 ```bash
 # Clone the repository
