@@ -1,0 +1,200 @@
+# Multi-Language Autonomous Fixing Configuration
+# Priority-based, time-efficient execution for monorepos
+
+# Target monorepo path
+target_project: "/home/rmondo/repos/money-making-app"
+
+# Language Configuration
+languages:
+  # Enabled languages
+  enabled:
+    - flutter
+    - python
+    - javascript
+    - go
+
+  # Auto-detect projects in monorepo
+  auto_detect: true
+
+  # Flutter/Dart Configuration
+  flutter:
+    analyzer_args: "--fatal-infos --fatal-warnings"
+    test_timeout: 600
+    complexity_threshold: 10
+    max_file_lines: 500
+
+  # Python Configuration
+  python:
+    linters:
+      - "pylint"
+      - "mypy"
+    test_framework: "pytest"
+    complexity_threshold: 10
+    max_file_lines: 500
+
+  # JavaScript/TypeScript Configuration
+  javascript:
+    linters:
+      - "eslint"
+    type_checker: "tsc"
+    test_framework: "jest"  # or "vitest"
+    complexity_threshold: 10
+    max_file_lines: 500
+
+  # Go Configuration
+  go:
+    linters:
+      - "go vet"
+      - "staticcheck"
+    test_timeout: 300
+    complexity_threshold: 10
+    max_file_lines: 500
+
+# Priority-Based Execution Strategy
+priorities:
+  # Priority 1: Fast Static Analysis (ALWAYS RUN)
+  p1_static:
+    enabled: true
+    max_duration_seconds: 120  # 2 min per language
+    success_threshold: 0.90  # 90% to proceed to P3
+    checks:
+      - static_analysis_errors
+      - file_size_violations
+      - cyclomatic_complexity
+      - code_smells
+
+  # Priority 2: Strategic Unit Tests (TIME-AWARE)
+  p2_tests:
+    enabled: true
+    adaptive_strategy: true  # Adjust based on P1 health
+    time_budgets:
+      minimal: 300      # 5 min when health < 30%
+      selective: 900    # 15 min when health 30-60%
+      comprehensive: 1800  # 30 min when health > 60%
+    success_threshold: 0.85  # 85% passing to proceed
+    strategies:
+      minimal:
+        description: "Critical path only"
+        time: "~5 min"
+      selective:
+        description: "Changed files + smoke tests"
+        time: "~15 min"
+      comprehensive:
+        description: "Full test suite"
+        time: "~30 min"
+
+  # Priority 3: Coverage Analysis (CONDITIONAL)
+  p3_coverage:
+    enabled: true
+    gate_requirements:
+      p1_score: 0.90  # P1 must be 90%+
+      p2_score: 0.85  # P2 must be 85%+
+    max_duration_seconds: 3600  # 60 min
+    target_coverage: 0.80  # Aim for 80% coverage
+    skip_if_gate_not_met: true
+
+  # Priority 4: E2E & Runtime Testing (FINAL PHASE)
+  p4_e2e:
+    enabled: true
+    gate_requirements:
+      overall_health: 0.90  # Overall health must be 90%+
+    max_duration_seconds: 7200  # 120 min
+    retry_on_flaky: true
+    skip_if_gate_not_met: true
+
+# Execution Settings
+execution:
+  # Parallel execution
+  parallel_languages: true  # Run all language checks in parallel
+  max_concurrent_projects: 4  # Max projects to process concurrently
+
+  # Error handling
+  fail_fast: false  # Continue even if one language fails
+  priority_gates: true  # Enforce priority gates (recommended)
+
+  # Iteration settings
+  max_iterations: 10
+  max_duration_hours: 4
+
+# Issue Grouping (for fixes)
+issue_grouping:
+  enabled: true
+  mega_batch_mode: false  # Human-friendly batches by default
+  max_cleanup_batch_size: 50
+  max_location_batch_size: 20
+
+# Batch Sizes (tasks per phase per run)
+batch_sizes:
+  p1_fixes: 3  # 3 batches of static fixes
+  p2_fixes: 2  # 2 batches of test fixes
+  p3_fixes: 1  # 1 batch of coverage improvements
+  p4_fixes: 1  # 1 batch of E2E fixes
+
+# Health Check Configuration
+health_check:
+  method: "priority_based"  # Use priority-based health checks
+  static_only_threshold: 0.60  # If static < 60%, skip dynamic
+  comprehensive_threshold: 0.80  # If overall > 80%, run full health
+
+# Claude Code Wrapper
+wrapper:
+  path: "/home/rmondo/repos/air-executor/scripts/claude_wrapper.py"
+  python_executable: "/home/rmondo/.venv/air-executor/bin/python"
+  timeout: 900  # 15 minutes per Claude session
+
+# State Management (Redis)
+state_manager:
+  redis_host: "localhost"
+  redis_port: 6379
+  namespace: "multi_lang_fix"
+
+# Logging
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(levelname)s - %(message)s"
+  file: "logs/multi_language_fixing.log"
+
+# Git Configuration
+git:
+  auto_commit: true
+  commit_prefix: "fix"  # or "chore", "refactor", etc.
+  push_after_commit: false  # Manual push by default
+
+# Coverage Generation Prompts
+coverage_prompts:
+  generate_tests: true
+  focus_areas:
+    - "Critical business logic with no coverage"
+    - "Public APIs with low coverage"
+    - "Error handling paths"
+  test_quality:
+    - "Meaningful assertions"
+    - "Edge cases covered"
+    - "Happy path + error cases"
+
+# E2E Testing Configuration
+e2e_testing:
+  capture_runtime_errors: true
+  add_regression_tests: true
+  error_categories:
+    - "Uncaught exceptions"
+    - "API failures"
+    - "UI rendering errors"
+    - "Performance issues"
+
+# Time Efficiency Targets
+time_targets:
+  p1_static: "0-2 min"     # Fast static analysis
+  p1_fixes: "2-10 min"     # Quick fixes
+  p2_tests: "10-40 min"    # Adaptive testing
+  p2_fixes: "40-60 min"    # Test fixes
+  p3_coverage: "60-90 min" # Coverage (if gate passed)
+  p4_e2e: "90-180 min"     # E2E (if healthy)
+
+# Success Criteria
+success_criteria:
+  minimum_health: 0.80  # Overall health target
+  p1_score: 0.90  # Static analysis health
+  p2_score: 0.85  # Test pass rate
+  p3_score: 0.80  # Coverage percentage
+  p4_score: 0.90  # E2E success rate

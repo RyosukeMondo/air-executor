@@ -40,7 +40,7 @@ Quick guide to run the autonomous fixing orchestrator.
 ./scripts/run_autonomous_fixing.sh --max-iterations=5 --simulation
 ```
 
-## Running with PM2 (Best for Monitoring)
+## Running with PM2 (Best for Terminal Monitoring)
 
 ```bash
 # Start orchestrator in background
@@ -61,6 +61,41 @@ pm2 stop autonomous-fixing
 # Restart
 pm2 restart autonomous-fixing
 ```
+
+## Running with Airflow (Best for Web UI Monitoring)
+
+```bash
+# 1. Ensure Airflow is running
+# Check if Airflow webserver and scheduler are running
+
+# 2. Sync DAG to Airflow
+./scripts/sync_dags_to_airflow.sh
+
+# 3. Open Airflow web UI
+# Go to: http://localhost:8080
+
+# 4. Trigger the DAG with parameters
+# - Find "autonomous_fixing" in the DAG list
+# - Click "Trigger DAG w/ config"
+# - Enter JSON parameters:
+{
+  "max_iterations": 10,
+  "target_project": "/home/rmondo/repos/money-making-app",
+  "simulation": false
+}
+
+# 5. Monitor streaming output in real-time
+# - Click on the running task
+# - Click "Logs" tab
+# - See streaming Claude output with health checks, fixes, commits
+```
+
+**Airflow Benefits**:
+- ✅ Real-time streaming logs in web browser
+- ✅ Full Claude wrapper output visible
+- ✅ Task history and execution times
+- ✅ Can trigger with custom parameters
+- ✅ Accessible from anywhere on network
 
 ## Configuration
 
@@ -89,6 +124,20 @@ batch_sizes:
 ```
 
 ## Monitoring Progress
+
+### With Airflow Web UI (Recommended)
+```bash
+# 1. Open browser to http://localhost:8080
+# 2. Click on "autonomous_fixing" DAG
+# 3. Click on running task instance
+# 4. Click "Logs" tab
+# 5. See streaming output with:
+#    - Health check results
+#    - Issues being fixed
+#    - Claude's reasoning
+#    - Commit messages
+#    - Progress through iterations
+```
 
 ### With PM2
 ```bash
