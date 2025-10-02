@@ -46,18 +46,23 @@ Comprehensive DAG validation tool with detailed checks.
 - Summary of all DAGs
 - List of registered DAGs in Airflow
 
-### `sync_wrapper_to_airflow.sh`
+### `sync_claude_wrapper_to_airflow.sh`
 
 Syncs the Claude wrapper script to Airflow scripts directory.
 
 **Usage:**
 ```bash
-./scripts/sync_wrapper_to_airflow.sh
+./scripts/sync_claude_wrapper_to_airflow.sh
 ```
 
 **What it does:**
 - Copies `claude_wrapper.py` to `/home/rmondo/airflow/scripts/`
 - Sets executable permissions
+
+**When to use:**
+- After modifying `scripts/claude_wrapper.py`
+- When fixing bugs in Claude SDK execution
+- When adding new features to the wrapper
 
 ## Error Detection
 
