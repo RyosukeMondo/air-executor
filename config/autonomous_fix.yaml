@@ -22,17 +22,18 @@ circuit_breaker:
 session_mode: "separate"  # 'separate' | 'keep' | 'hybrid'
 
 # Batch sizes (how many tasks to execute per phase per run)
-# Note: Tasks can be individual issues or batches of related issues
+# In mega_batch_mode: 1 = fix ALL issues in phase at once
 batch_sizes:
-  build_fixes: 3  # Increased to allow batch processing
-  test_fixes: 2
-  lint_fixes: 2
+  build_fixes: 1  # One mega-task with ALL build errors
+  test_fixes: 1   # One mega-task with ALL test failures
+  lint_fixes: 1   # One mega-task with ALL lint issues
 
 # Issue grouping configuration
 issue_grouping:
-  min_batch_size: 3    # Minimum issues to create a batch
-  max_batch_size: 10   # Maximum issues per batch task
-  enabled: true        # Enable batch processing of similar issues
+  max_cleanup_batch_size: 50    # Max issues in cleanup batches (unused imports, etc.)
+  max_location_batch_size: 20   # Max issues per directory batch
+  enabled: true
+  mega_batch_mode: true  # Combine ALL issues into one comprehensive task per phase
 
 # Air-executor settings
 air_executor:

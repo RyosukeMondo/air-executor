@@ -47,8 +47,9 @@ class FixOrchestrator:
         # Issue grouper for batch processing
         grouping_config = self.config.get('issue_grouping', {})
         self.issue_grouper = IssueGrouper(
-            min_batch_size=grouping_config.get('min_batch_size', 3),
-            max_batch_size=grouping_config.get('max_batch_size', 10)
+            max_cleanup_batch_size=grouping_config.get('max_cleanup_batch_size', 50),
+            max_location_batch_size=grouping_config.get('max_location_batch_size', 20),
+            mega_batch_mode=grouping_config.get('mega_batch_mode', False)
         )
 
         self.executor = AirExecutorRunner(

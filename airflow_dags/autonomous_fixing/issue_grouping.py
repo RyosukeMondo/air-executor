@@ -25,7 +25,7 @@ class BatchTask(Task):
 
 
 class IssueGrouper:
-    """Group similar issues for efficient batch fixing"""
+    """Group similar issues for efficient batch fixing (human-like strategy)"""
 
     # Issue patterns to group together
     BATCH_PATTERNS = {
@@ -57,28 +57,43 @@ class IssueGrouper:
         ]
     }
 
-    # Trivial issues that should be batched (not fixed individually)
-    TRIVIAL_PATTERNS = [
+    # Cleanup issues: Fix ALL at once (human: "I'll clean up all X today")
+    CLEANUP_PATTERNS = [
         'unused_imports',
         'formatting',
     ]
 
-    # Substantial issues that can be batched if many exist
-    SUBSTANTIAL_PATTERNS = [
+    # Location-based: Group by directory/screen if multiple issues in same area
+    LOCATION_BASED_PATTERNS = [
         'type_mismatches',
         'null_safety',
-        'missing_overrides',
+        'missing_imports',
     ]
 
-    def __init__(self, min_batch_size: int = 3, max_batch_size: int = 10):
-        self.min_batch_size = min_batch_size
-        self.max_batch_size = max_batch_size
+    def __init__(self, max_cleanup_batch_size: int = 50, max_location_batch_size: int = 20, mega_batch_mode: bool = False):
+        """
+        Args:
+            max_cleanup_batch_size: Max issues in cleanup batch (unused imports, etc.)
+            max_location_batch_size: Max issues per directory/screen batch
+            mega_batch_mode: If True, create one comprehensive mega-batch per phase
+        """
+        self.max_cleanup_batch_size = max_cleanup_batch_size
+        self.max_location_batch_size = max_location_batch_size
+        self.mega_batch_mode = mega_batch_mode
 
     def group_tasks(self, tasks: List[Task]) -> List[Task]:
         """
-        Group similar tasks into batches.
-        Returns list of individual and batch tasks.
+        Group tasks for human-reviewable commits with clear separation of concerns.
+
+        Strategies:
+        1. Cleanup commits: "Remove all unused imports" (project-wide, one type)
+        2. Location commits: "Fix errors in home screen" (one screen/module)
+        3. Type + Location: "Fix type errors in auth/" (similar issue, same area)
         """
+        if self.mega_batch_mode:
+            # Mega mode: ONE comprehensive batch for everything
+            return self._create_mega_batch(tasks)
+
         # Categorize tasks by pattern
         categorized = self._categorize_tasks(tasks)
 
@@ -88,20 +103,22 @@ class IssueGrouper:
             if len(task_list) == 0:
                 continue
 
-            is_trivial = batch_type in self.TRIVIAL_PATTERNS
-            is_substantial = batch_type in self.SUBSTANTIAL_PATTERNS
+            is_cleanup = batch_type in self.CLEANUP_PATTERNS
+            is_location_based = batch_type in self.LOCATION_BASED_PATTERNS
 
-            # Trivial issues: always batch (don't fix individually)
-            if is_trivial:
-                batches = self._create_batches(task_list, batch_type, force_batch=True)
+            # Cleanup commits: "Remove all unused imports" (clear, atomic)
+            if is_cleanup and len(task_list) >= 2:
+                print(f"  🧹 Cleanup batch: {len(task_list)} {batch_type}")
+                batches = self._create_cleanup_batches(task_list, batch_type)
                 result_tasks.extend(batches)
 
-            # Substantial issues: batch if many exist
-            elif is_substantial and len(task_list) >= self.min_batch_size:
-                batches = self._create_batches(task_list, batch_type)
+            # Location-based commits: "Fix type errors in home/" (scoped, reviewable)
+            elif is_location_based and len(task_list) >= 3:
+                print(f"  📍 Location-based batching: {len(task_list)} {batch_type}")
+                batches = self._create_location_batches(task_list, batch_type)
                 result_tasks.extend(batches)
 
-            # Otherwise: keep as individual tasks
+            # Keep as individual if too complex to batch
             else:
                 result_tasks.extend(task_list)
 
@@ -118,6 +135,67 @@ class IssueGrouper:
         print(f"   Individual tasks: {len(result_tasks) - batch_count}")
 
         return result_tasks
+
+    def _create_mega_batch(self, tasks: List[Task]) -> List[Task]:
+        """
+        Mega batch mode: Create ONE comprehensive task with ALL issues.
+
+        Human thinking: "Fix all build errors comprehensively in one session"
+        """
+        if not tasks:
+            return []
+
+        # Group all tasks into one mega batch
+        related_issues = [
+            {'file': t.file, 'line': t.line, 'message': t.message, 'type': t.type}
+            for t in tasks
+        ]
+
+        unique_files = list(set(t.file for t in tasks if t.file))
+
+        # Create categorized summary
+        by_type = defaultdict(list)
+        for t in tasks:
+            msg = t.message
+            # Categorize
+            if 'import' in msg.lower():
+                by_type['unused_imports'].append(t)
+            elif 'type' in msg.lower():
+                by_type['type_errors'].append(t)
+            elif 'null' in msg.lower():
+                by_type['null_safety'].append(t)
+            else:
+                by_type['other'].append(t)
+
+        context_parts = [f"Fix ALL issues comprehensively ({len(tasks)} total):"]
+        context_parts.append(f"\nAffected files: {len(unique_files)}")
+
+        for category, cat_tasks in sorted(by_type.items()):
+            if cat_tasks:
+                context_parts.append(f"\n\n**{category.upper()}** ({len(cat_tasks)} issues):")
+                for t in cat_tasks[:10]:  # Show first 10 per category
+                    context_parts.append(f"  - {t.file}:{t.line} - {t.message[:60]}")
+                if len(cat_tasks) > 10:
+                    context_parts.append(f"  ... and {len(cat_tasks) - 10} more")
+
+        mega_task = BatchTask(
+            id=generate_task_id(),
+            type="fix_mega_batch",
+            priority=1,
+            phase=tasks[0].phase if tasks else "build",
+            file="project-wide",
+            message=f"Fix all issues comprehensively ({len(tasks)} issues, {len(unique_files)} files)",
+            context='\n'.join(context_parts),
+            created_at=datetime.now().isoformat(),
+            related_issues=related_issues,
+            batch_type="mega_comprehensive"
+        )
+
+        print(f"\n📦 Mega Batch Mode:")
+        print(f"   Input tasks: {len(tasks)}")
+        print(f"   Output: 1 comprehensive mega-batch")
+
+        return [mega_task]
 
     def _categorize_tasks(self, tasks: List[Task]) -> Dict[str, List[Task]]:
         """Categorize tasks by issue pattern"""
@@ -141,50 +219,33 @@ class IssueGrouper:
 
         return dict(categorized)
 
-    def _create_batches(
-        self,
-        tasks: List[Task],
-        batch_type: str,
-        force_batch: bool = False
-    ) -> List[Task]:
+    def _create_cleanup_batches(self, tasks: List[Task], batch_type: str) -> List[Task]:
         """
-        Create batch tasks from list of similar tasks.
+        Create cleanup batches: Fix ALL issues of this type (split only if >50 files).
 
-        Args:
-            tasks: List of similar tasks
-            batch_type: Type of batch
-            force_batch: If True, create batches even for small groups
+        Human thinking: "I'll clean up all unused imports today"
         """
-        if not force_batch and len(tasks) < self.min_batch_size:
-            return tasks
-
         batches = []
 
-        # Split into chunks of max_batch_size
-        for i in range(0, len(tasks), self.max_batch_size):
-            chunk = tasks[i:i + self.max_batch_size]
+        # Split only if really necessary (>max_cleanup_batch_size)
+        for i in range(0, len(tasks), self.max_cleanup_batch_size):
+            chunk = tasks[i:i + self.max_cleanup_batch_size]
 
-            # Create batch task
             related_issues = [
-                {
-                    'file': t.file,
-                    'line': t.line,
-                    'message': t.message,
-                }
+                {'file': t.file, 'line': t.line, 'message': t.message}
                 for t in chunk
             ]
 
-            # Aggregate context from all files
             unique_files = list(set(t.file for t in chunk if t.file))
             context_summary = self._create_context_summary(chunk)
 
             batch_task = BatchTask(
                 id=generate_task_id(),
-                type=f"fix_batch_{batch_type}",
+                type=f"fix_cleanup_{batch_type}",
                 priority=chunk[0].priority if chunk else 5,
                 phase=chunk[0].phase if chunk else "build",
-                file=", ".join(unique_files[:3]),  # List first 3 files
-                message=f"Batch fix: {len(chunk)} {batch_type} issues across {len(unique_files)} files",
+                file="project-wide",
+                message=f"Clean up ALL {batch_type} ({len(chunk)} issues, {len(unique_files)} files)",
                 context=context_summary,
                 created_at=datetime.now().isoformat(),
                 related_issues=related_issues,
@@ -194,6 +255,67 @@ class IssueGrouper:
             batches.append(batch_task)
 
         return batches
+
+    def _create_location_batches(self, tasks: List[Task], batch_type: str) -> List[Task]:
+        """
+        Create location-based batches: Group by directory/screen.
+
+        Human thinking: "I'll fix all the home screen errors"
+        """
+        # Group by directory
+        by_directory = defaultdict(list)
+        for task in tasks:
+            if task.file:
+                # Extract directory (e.g., lib/screens/home/ from lib/screens/home/home_screen.dart)
+                parts = task.file.split('/')
+                if len(parts) > 2:
+                    directory = '/'.join(parts[:-1])  # Remove filename
+                else:
+                    directory = parts[0] if parts else 'root'
+                by_directory[directory].append(task)
+            else:
+                by_directory['unknown'].append(task)
+
+        batches = []
+        individual = []
+
+        for directory, dir_tasks in by_directory.items():
+            # If multiple issues in same directory, batch them
+            if len(dir_tasks) >= 3:
+                # Split if too many
+                for i in range(0, len(dir_tasks), self.max_location_batch_size):
+                    chunk = dir_tasks[i:i + self.max_location_batch_size]
+
+                    related_issues = [
+                        {'file': t.file, 'line': t.line, 'message': t.message}
+                        for t in chunk
+                    ]
+
+                    unique_files = list(set(t.file for t in chunk if t.file))
+                    context_summary = self._create_context_summary(chunk)
+
+                    # Create friendly name for directory
+                    dir_name = directory.split('/')[-1] if '/' in directory else directory
+
+                    batch_task = BatchTask(
+                        id=generate_task_id(),
+                        type=f"fix_location_{batch_type}",
+                        priority=chunk[0].priority if chunk else 5,
+                        phase=chunk[0].phase if chunk else "build",
+                        file=directory,
+                        message=f"Fix {batch_type} in {dir_name}/ ({len(chunk)} issues, {len(unique_files)} files)",
+                        context=context_summary,
+                        created_at=datetime.now().isoformat(),
+                        related_issues=related_issues,
+                        batch_type=f"{batch_type}_in_{dir_name}"
+                    )
+
+                    batches.append(batch_task)
+            else:
+                # Keep as individual tasks
+                individual.extend(dir_tasks)
+
+        return batches + individual
 
     def _create_context_summary(self, tasks: List[Task]) -> str:
         """Create summarized context for batch task"""

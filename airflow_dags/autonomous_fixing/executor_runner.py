@@ -175,49 +175,135 @@ class AirExecutorRunner:
         batch_type = task.batch_type if hasattr(task, 'batch_type') else 'issues'
         related_issues = task.related_issues if hasattr(task, 'related_issues') else []
 
+        # Check if this is a mega batch
+        is_mega = batch_type == "mega_comprehensive"
+
+        if is_mega:
+            # Mega batch: comprehensive fix of everything
+            return self._mega_batch_prompt(task, summary)
+
+        # Regular batch: focused on one type or location
         # Create readable issue list
         issue_list = []
-        for i, issue in enumerate(related_issues[:15], 1):  # Max 15 in prompt
+        for i, issue in enumerate(related_issues[:20], 1):  # Show more for batch
             issue_list.append(f"{i}. {issue['file']}:{issue['line']} - {issue['message'][:80]}")
 
-        if len(related_issues) > 15:
-            issue_list.append(f"... and {len(related_issues) - 15} more similar issues")
+        if len(related_issues) > 20:
+            issue_list.append(f"... and {len(related_issues) - 20} more similar issues")
 
         issues_text = '\n'.join(issue_list)
 
         # Get unique files
         files = list(set(issue['file'] for issue in related_issues if issue.get('file')))
-        files_text = '\n'.join([f"  - {f}" for f in files[:10]])
-        if len(files) > 10:
-            files_text += f"\n  ... and {len(files) - 10} more files"
+        files_text = '\n'.join([f"  - {f}" for f in files[:15]])
+        if len(files) > 15:
+            files_text += f"\n  ... and {len(files) - 15} more files"
 
-        prompt = f"""Fix batch of {len(related_issues)} related {batch_type} issues in Flutter project.
+        # Determine commit message based on batch type
+        if 'cleanup' in str(task.type):
+            commit_prefix = "chore"
+            commit_desc = f"remove all {batch_type}"
+        elif 'location' in str(task.type):
+            commit_prefix = "fix"
+            commit_desc = batch_type.replace('_', ' ')
+        else:
+            commit_prefix = "fix"
+            commit_desc = f"{batch_type} across {len(files)} files"
 
-**Batch Type**: {batch_type}
+        prompt = f"""Fix ALL {len(related_issues)} {batch_type} issues in Flutter project.
+
+**Scope**: {batch_type}
 **Files Affected** ({len(files)} total):
 {files_text}
 
-**Issues to Fix**:
+**All Issues to Fix**:
 {issues_text}
 
-**Instructions**:
-1. Analyze the pattern across all these issues
-2. Fix ALL related issues comprehensively (you can modify multiple files)
-3. Apply consistent solution across all affected files
-4. Consider root cause - if these issues share a common cause, fix that
+**Your Task**:
+1. Fix ALL {len(related_issues)} issues listed above
+2. Work through files systematically
+3. Apply consistent patterns across similar issues
+4. Look for root causes that affect multiple issues
 5. Run `flutter analyze --no-pub` to verify all fixes
-6. **IMPORTANT**: Stage and commit your changes with:
+6. **IMPORTANT**: Create ONE commit with all changes:
    ```bash
    git add -A
-   git commit -m "fix: {batch_type} across {len(files)} files"
+   git commit -m "{commit_prefix}: {commit_desc}"
    ```
 
-This is a BATCH fix - handle multiple files together for efficiency.
-DO NOT skip the commit step. Make comprehensive changes that fix all related issues.
+This is a focused batch fix. Handle all {len(related_issues)} issues comprehensively in one session.
+DO NOT skip any issues. DO NOT skip the commit step.
 """
 
         if summary:
             prompt += f"\n\n**Previous session**: Fixed {summary.get('fixed_count', 0)} batches\n"
+
+        return prompt
+
+    def _mega_batch_prompt(self, task, summary: Optional[Dict]) -> str:
+        """Generate prompt for mega batch (all issues in phase)"""
+        related_issues = task.related_issues if hasattr(task, 'related_issues') else []
+
+        # Categorize issues for organized presentation
+        by_category = {}
+        for issue in related_issues:
+            msg = issue.get('message', '')
+            # Simple categorization
+            if 'import' in msg.lower() and 'unused' in msg.lower():
+                category = 'Unused Imports'
+            elif 'type' in msg.lower():
+                category = 'Type Errors'
+            elif 'null' in msg.lower():
+                category = 'Null Safety'
+            elif 'override' in msg.lower():
+                category = 'Missing Overrides'
+            else:
+                category = 'Other Issues'
+
+            if category not in by_category:
+                by_category[category] = []
+            by_category[category].append(issue)
+
+        # Build categorized summary
+        issues_by_category = []
+        for category, issues in sorted(by_category.items()):
+            issues_by_category.append(f"\n**{category}** ({len(issues)} issues):")
+            for i, issue in enumerate(issues[:10], 1):  # First 10 per category
+                issues_by_category.append(f"  {i}. {issue['file']}:{issue['line']} - {issue['message'][:70]}")
+            if len(issues) > 10:
+                issues_by_category.append(f"  ... and {len(issues) - 10} more")
+
+        files = list(set(issue['file'] for issue in related_issues if issue.get('file')))
+
+        prompt = f"""COMPREHENSIVE FIX: Fix ALL {len(related_issues)} issues in Flutter project.
+
+**Scope**: Complete phase fix (all discovered issues)
+**Total Issues**: {len(related_issues)}
+**Affected Files**: {len(files)}
+
+**Issues Organized by Category**:
+{chr(10).join(issues_by_category)}
+
+**Your Mission**:
+1. Fix ALL {len(related_issues)} issues across all categories
+2. Start with cleanup issues (unused imports, formatting)
+3. Then fix type errors and null safety systematically
+4. Work through files logically (by directory/module)
+5. Run `flutter analyze --no-pub` frequently to track progress
+6. **IMPORTANT**: Create ONE comprehensive commit:
+   ```bash
+   git add -A
+   git commit -m "fix: comprehensive cleanup of {len(related_issues)} issues"
+   ```
+
+This is a COMPREHENSIVE fix session. Take your time, be systematic, and fix everything.
+You can modify as many files as needed. This is your opportunity to clean up the entire codebase.
+
+DO NOT skip any issues. DO NOT skip the commit step.
+"""
+
+        if summary:
+            prompt += f"\n\n**Previous session**: Fixed {summary.get('fixed_count', 0)} comprehensive batches\n"
 
         return prompt
 
