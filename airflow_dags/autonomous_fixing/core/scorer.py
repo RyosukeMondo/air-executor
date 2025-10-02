@@ -81,13 +81,15 @@ class HealthScorer:
 
         threshold = self.priority_config.get('p2_tests', {}).get('success_threshold', 0.85)
 
-        # If no tests exist, treat as passing (nothing to fail)
+        # If no tests exist, treat as CRITICAL FAILURE (0%)
+        # Can't verify health without tests - must create them
         if total_tests == 0:
             return {
-                'score': 1.0,  # 100% - no tests means no failures
-                'passed_gate': True,  # Pass the gate
+                'score': 0.0,  # 0% - no tests means no way to verify health
+                'passed_gate': False,  # FAIL the gate - must create tests
                 'threshold': threshold,
-                'phase': 'p2_tests'
+                'phase': 'p2_tests',
+                'needs_test_creation': True  # Signal to create tests
             }
 
         score = total_passed / total_tests

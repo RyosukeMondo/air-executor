@@ -212,3 +212,84 @@ class IssueFixer:
             return result.returncode == 0
         except Exception:
             return False
+
+    def create_tests(self, analysis_result, iteration: int) -> FixResult:
+        """
+        Create tests for projects with no tests (P2 critical failure).
+
+        Delegates to claude_wrapper to:
+        1. Find/install appropriate test framework
+        2. Create meaningful tests based on code analysis
+        3. Set up test infrastructure if needed
+
+        Args:
+            analysis_result: AnalysisResult from ProjectAnalyzer
+            iteration: Current iteration number (for logging)
+
+        Returns: FixResult with stats
+        """
+        print(f"\n🧪 Creating tests (iteration {iteration})...")
+
+        # Find projects with 0 tests
+        projects_needing_tests = []
+        for project_key, analysis in analysis_result.results_by_project.items():
+            lang_name, project_path = project_key.split(':', 1)
+            total_tests = analysis.tests_passed + analysis.tests_failed
+
+            if total_tests == 0:
+                projects_needing_tests.append({
+                    'project': project_path,
+                    'language': lang_name
+                })
+
+        if not projects_needing_tests:
+            print("   All projects have tests")
+            return FixResult(success=False)
+
+        print(f"   Found {len(projects_needing_tests)} projects needing tests")
+
+        # Create tests for each project
+        tests_created = 0
+        for project_info in projects_needing_tests:
+            print(f"\n   Creating tests for {project_info['project'].split('/')[-1]} ({project_info['language']})")
+
+            if self._create_tests_for_project(project_info):
+                print(f"      ✓ Tests created successfully")
+                tests_created += 1
+            else:
+                print(f"      ✗ Test creation failed")
+
+        print(f"\n   Created tests for {tests_created}/{len(projects_needing_tests)} projects")
+
+        return FixResult(
+            fixes_applied=tests_created,
+            fixes_attempted=len(projects_needing_tests),
+            success=tests_created > 0
+        )
+
+    def _create_tests_for_project(self, project_info: Dict) -> bool:
+        """Create tests for a single project using claude_wrapper."""
+        prompt = (
+            f"This {project_info['language']} project has NO TESTS. "
+            f"Your task:\n"
+            f"1. Find or install appropriate test framework (pytest, jest, flutter test, go test)\n"
+            f"2. Analyze the codebase to understand main functionality\n"
+            f"3. Create meaningful unit tests for core functions/classes\n"
+            f"4. Set up test infrastructure (test directories, config files)\n"
+            f"5. Run tests to verify they work\n"
+            f"6. Commit with message: 'test: Add initial test suite'\n"
+            f"\n"
+            f"Create at least 3-5 tests covering main functionality. "
+            f"Use LLM-as-a-judge: analyze code, determine what's testable, create appropriate tests."
+        )
+
+        try:
+            result = subprocess.run(
+                [self.python_exec, self.wrapper_path, '--prompt', prompt, '--project', project_info['project']],
+                capture_output=True,
+                text=True,
+                timeout=900  # 15 min for test creation
+            )
+            return result.returncode == 0
+        except Exception:
+            return False

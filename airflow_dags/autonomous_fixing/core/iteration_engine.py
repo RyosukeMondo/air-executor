@@ -104,13 +104,26 @@ class IterationEngine:
             if not p2_score_data['passed_gate']:
                 print(f"\n⚠️  P2 score ({p2_score_data['score']:.1%}) < threshold ({p2_score_data['threshold']:.0%})")
 
-                # Fix P2 issues
-                fix_result = self.fixer.fix_test_failures(p2_result, iteration)
+                # Check if this is a "no tests" situation (critical failure)
+                if p2_score_data.get('needs_test_creation', False):
+                    print("\n⚠️  CRITICAL: No tests found - delegating test creation to claude_wrapper")
 
-                if fix_result.success:
-                    print(f"\n✅ Fixes applied, re-running analysis in next iteration...")
+                    # Create tests using LLM-as-a-judge
+                    fix_result = self.fixer.create_tests(p2_result, iteration)
+
+                    if fix_result.success:
+                        print(f"\n✅ Tests created, re-running analysis in next iteration...")
+                    else:
+                        print(f"\n⚠️  Test creation failed")
+
                 else:
-                    print(f"\n⚠️  No fixes could be applied")
+                    # Fix P2 issues (failing tests)
+                    fix_result = self.fixer.fix_test_failures(p2_result, iteration)
+
+                    if fix_result.success:
+                        print(f"\n✅ Fixes applied, re-running analysis in next iteration...")
+                    else:
+                        print(f"\n⚠️  No fixes could be applied")
 
                 continue  # Re-run analysis in next iteration
 
