@@ -110,29 +110,37 @@ class AirExecutorRunner:
                 env=env  # Pass updated environment
             )
 
-            # Send prompt (keep stdin open - don't close it)
+            # Send prompt
             proc.stdin.write(json.dumps(payload) + "\n")
             proc.stdin.flush()
 
-            # Wait for process to complete (wrapper will exit due to exit_on_complete)
-            # Don't use communicate() as it closes stdin - just wait for process
+            # Read stdout events as they stream (prevents blocking)
             stdout_lines = []
-            stderr_lines = []
-
-            import select
             import time
             start_time = time.time()
 
-            while proc.poll() is None:  # While process is running
+            for line in proc.stdout:
+                stdout_lines.append(line)
+
+                # Check for completion/shutdown events
+                try:
+                    event = json.loads(line)
+                    if event.get('event') in ['shutdown', 'auto_shutdown', 'run_cancelled']:
+                        break
+                except:
+                    pass
+
+                # Timeout check
                 if time.time() - start_time > self.timeout:
                     proc.kill()
                     raise subprocess.TimeoutExpired(cmd, self.timeout)
 
-                # Read available output without blocking
-                time.sleep(0.1)
+            # Close stdin and wait for process to finish
+            proc.stdin.close()
+            proc.wait(timeout=5)
 
-            # Process finished, collect all output
-            stdout = proc.stdout.read()
+            # Collect outputs
+            stdout = ''.join(stdout_lines)
             stderr = proc.stderr.read()
 
             return subprocess.CompletedProcess(
