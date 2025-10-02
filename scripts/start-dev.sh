@@ -3,6 +3,11 @@
 
 set -e
 
+# Get script directory and project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+cd "$PROJECT_ROOT"
+
 # Colors for output
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -13,14 +18,14 @@ NC='\033[0m' # No Color
 echo -e "${BLUE}🚀 Starting Air-Executor in development mode...${NC}"
 
 # Check if virtual environment exists
-if [ ! -d "venv" ]; then
+if [ ! -d ".venv" ]; then
     echo -e "${RED}❌ Virtual environment not found!${NC}"
     echo -e "${YELLOW}   Run ./setup-dev.sh first${NC}"
     exit 1
 fi
 
 # Activate virtual environment
-source venv/bin/activate
+source .venv/bin/activate
 
 # Check if already running
 if [ -f ".air-executor/manager.pid" ]; then
@@ -50,7 +55,7 @@ echo -e "${BLUE}🎮 Controls:${NC}"
 echo -e "   Press Ctrl+C to stop"
 echo ""
 echo -e "${BLUE}💡 Tips:${NC}"
-echo -e "   • Open another terminal and run: source venv/bin/activate"
+echo -e "   • Open another terminal and run: source .venv/bin/activate"
 echo -e "   • Then check status: python -m air_executor.cli.main status"
 echo -e "   • View logs: tail -f .air-executor/manager.log"
 echo ""

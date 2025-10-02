@@ -3,6 +3,11 @@
 
 set -e  # Exit on error
 
+# Get script directory and project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+cd "$PROJECT_ROOT"
+
 echo "🚀 Setting up Air-Executor development environment..."
 
 # Check Python version
@@ -20,10 +25,10 @@ fi
 echo "✅ Python $PYTHON_VERSION detected"
 
 # Create virtual environment if it doesn't exist
-if [ ! -d "venv" ]; then
+if [ ! -d ".venv" ]; then
     echo ""
     echo "📦 Creating virtual environment..."
-    python3 -m venv venv
+    python3 -m venv .venv
     echo "✅ Virtual environment created"
 else
     echo ""
@@ -33,7 +38,7 @@ fi
 # Activate virtual environment
 echo ""
 echo "🔌 Activating virtual environment..."
-source venv/bin/activate
+source .venv/bin/activate
 
 # Upgrade pip
 echo ""
@@ -160,7 +165,7 @@ echo "  1. Start development server:"
 echo "     ./start-dev.sh"
 echo ""
 echo "  2. Check status in another terminal:"
-echo "     source venv/bin/activate"
+echo "     source .venv/bin/activate"
 echo "     air-executor status"
 echo ""
 echo "  3. View logs:"
