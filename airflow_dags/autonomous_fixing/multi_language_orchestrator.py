@@ -77,9 +77,12 @@ class MultiLanguageOrchestrator:
 
         return adapters
 
-    def execute(self, monorepo_path: str) -> Dict[str, any]:
+    def execute(self, monorepo_path: str = None) -> Dict[str, any]:
         """
         Execute priority-based autonomous fixing.
+
+        Args:
+            monorepo_path: Optional monorepo path for auto-detection (legacy)
 
         Returns:
             Execution summary with results from each phase
@@ -87,12 +90,18 @@ class MultiLanguageOrchestrator:
         print(f"\n{'='*80}")
         print("🚀 Multi-Language Autonomous Fixing")
         print(f"{'='*80}")
-        print(f"Monorepo: {monorepo_path}")
         print(f"Languages enabled: {', '.join(self.adapters.keys())}")
         print(f"{'='*80}\n")
 
-        # 1. Detect all projects by language
-        projects_by_language = self.detect_all_projects(monorepo_path)
+        # 1. Get projects (explicit list or auto-detect)
+        if 'projects' in self.config:
+            # Use explicit project list
+            projects_by_language = self._get_explicit_projects()
+            print("Using explicit project list from config\n")
+        else:
+            # Legacy: auto-detect from monorepo
+            print(f"Auto-detecting projects in: {monorepo_path}\n")
+            projects_by_language = self.detect_all_projects(monorepo_path)
         if not any(projects_by_language.values()):
             print("❌ No projects detected in monorepo")
             return {'success': False, 'error': 'No projects found'}
@@ -200,6 +209,22 @@ class MultiLanguageOrchestrator:
                 projects[lang_name] = lang_projects
 
         return projects
+
+    def _get_explicit_projects(self) -> Dict[str, List[str]]:
+        """Get explicit project list from config, organized by language."""
+        projects_by_language = {}
+
+        for project in self.config.get('projects', []):
+            project_path = project['path']
+            language = project['language']
+
+            # Only include if language adapter is enabled
+            if language in self.adapters:
+                if language not in projects_by_language:
+                    projects_by_language[language] = []
+                projects_by_language[language].append(project_path)
+
+        return projects_by_language
 
     def execute_priority_1(self, projects_by_language: Dict[str, List[str]]) -> PriorityPhaseResult:
         """
@@ -462,15 +487,19 @@ def main():
         print(f"❌ Error parsing config file: {e}")
         sys.exit(1)
 
-    # Get target project
-    target_project = config.get('target_project')
-    if not target_project:
-        print("❌ No target_project specified in config")
-        sys.exit(1)
-
-    # Run orchestrator
+    # Run orchestrator (supports both explicit project lists and legacy target_project)
     orchestrator = MultiLanguageOrchestrator(config)
-    result = orchestrator.execute(target_project)
+
+    if 'projects' in config:
+        # New format: explicit project list
+        result = orchestrator.execute()
+    else:
+        # Legacy format: auto-detect from target_project
+        target_project = config.get('target_project')
+        if not target_project:
+            print("❌ No 'projects' list or 'target_project' specified in config")
+            sys.exit(1)
+        result = orchestrator.execute(target_project)
 
     # Exit with appropriate code
     if result.get('success'):

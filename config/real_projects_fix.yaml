@@ -1,9 +1,31 @@
 # Real Projects Multi-Language Autonomous Fixing Configuration
 # Projects: air-executor, cc-task-manager, mind-training, money-making-app, warps
 
-# Project paths (will be detected automatically)
-# Each project will be analyzed independently
-target_project: "/home/rmondo/repos"  # Parent directory containing all projects
+# Specific project paths (analyzed one by one)
+projects:
+  - path: "/home/rmondo/repos/air-executor"
+    language: "python"
+  - path: "/home/rmondo/repos/cc-task-manager"
+    language: "javascript"
+  - path: "/home/rmondo/repos/mind-training"
+    language: "javascript"
+  - path: "/home/rmondo/repos/money-making-app"
+    language: "flutter"
+  - path: "/home/rmondo/repos/warps"
+    language: "javascript"
+
+# Exclusion patterns (avoid scanning these)
+exclusions:
+  patterns:
+    - "node_modules"
+    - ".next"
+    - "build"
+    - "dist"
+    - ".venv"
+    - "venv"
+    - "__pycache__"
+    - ".pytest_cache"
+    - "coverage"
 
 # Language Configuration
 languages:
@@ -12,7 +34,7 @@ languages:
     - javascript  # cc-task-manager, mind-training, warps
     - flutter     # money-making-app
 
-  auto_detect: true
+  auto_detect: false  # Use explicit projects list above
 
   # Python Configuration (air-executor)
   python:
