@@ -98,7 +98,7 @@ priorities:
 # Execution Settings
 execution:
   parallel_languages: true   # Run all language checks in parallel
-  max_concurrent_projects: 3  # Process 3 projects concurrently
+  max_concurrent_projects: 5  # Process all 5 projects concurrently (no artificial limit)
   fail_fast: false           # Continue even if one language fails
   priority_gates: true       # Enforce priority gates
 
