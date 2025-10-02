@@ -7,7 +7,112 @@
 # - Easy to iterate on prompt engineering without code changes
 
 # =============================================================================
-# SETUP: Test Discovery Prompt (NEW)
+# ANALYSIS: Code Quality Analysis Prompts (NEW)
+# =============================================================================
+
+analysis:
+  static_analysis:
+    template: |
+      Analyze this {language} project for code quality issues.
+
+      **Your task: Comprehensive static analysis and reporting.**
+
+      Steps:
+      1. **Run appropriate tools:**
+         - JavaScript: eslint, tsc (type checking)
+         - Python: pylint, mypy
+         - Flutter: flutter analyze
+         - Go: go vet, staticcheck
+
+      2. **Analyze code quality:**
+         - Errors (compilation, linting)
+         - Warnings (code style, potential bugs)
+         - Complexity violations (functions >15 cyclomatic complexity)
+         - File size violations (files >800 lines)
+
+      3. **Provide assessment:**
+         - Overall health score (0.0-1.0)
+         - Priority issues to fix
+         - Reasoning for assessment
+
+      4. **Save findings:**
+         - Create file: config/analysis-cache/{project_name}-static.yaml
+         - Use the YAML template below
+
+      **Output format (YAML):**
+
+      ```yaml
+      # Static analysis results
+      project: {project_name}
+      language: {language}
+      analyzed_at: {timestamp}
+
+      health:
+        overall_score: 0.85     # 0.0-1.0
+        grade: "good"           # excellent/good/fair/poor
+        summary: "No critical errors, 3 minor complexity issues"
+
+      errors:
+        count: 0
+        critical: []
+
+      warnings:
+        count: 12
+        top_5:
+          - file: src/utils/helper.js
+            line: 45
+            message: "Unused variable 'temp'"
+            severity: "low"
+
+      complexity:
+        violations: 3
+        top_violations:
+          - file: src/api/handler.js
+            function: processRequest
+            complexity: 18
+            threshold: 15
+            suggestion: "Extract validation logic into separate function"
+
+      file_sizes:
+        violations: 2
+        top_violations:
+          - file: src/components/Dashboard.js
+            lines: 850
+            threshold: 800
+            suggestion: "Split into Dashboard.js and DashboardCharts.js"
+
+      recommendations:
+        priority: "medium"      # low/medium/high/critical
+        should_fix_before_tests: false
+        top_3_actions:
+          - "Refactor processRequest to reduce complexity"
+          - "Split Dashboard component"
+          - "Remove unused variables"
+
+      reasoning: |
+        Project health is good (85/100). No compilation or type errors.
+        Main concerns are code complexity in 1 function and file size in 2 files.
+        These are maintainability issues, not functionality blockers.
+        Safe to proceed to testing phase.
+      ```
+
+      **Important:**
+      - Be objective and data-driven
+      - Focus on actionable issues
+      - Provide clear reasoning
+      - Suggest specific fixes
+
+      Use LLM-as-a-judge: Run tools, analyze output, assess health.
+
+    timeout: 300  # 5 minutes
+
+    notes: |
+      Claude runs linters/analyzers and interprets results.
+      Replaces complex Python parsing logic in language adapters.
+      Output cached for fast subsequent runs.
+
+# =============================================================================
+# SETUP: Test Discovery Prompt
 # =============================================================================
 
 setup:

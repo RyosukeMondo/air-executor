@@ -236,6 +236,78 @@ class IssueFixer:
         except Exception:
             return False
 
+    def analyze_static(self, project_path: str, language: str) -> Dict:
+        """
+        ANALYSIS PHASE: Static code quality analysis via claude_wrapper.
+
+        Delegates to claude_wrapper to:
+        1. Run linters/analyzers (eslint, pylint, flutter analyze, etc.)
+        2. Analyze errors, warnings, complexity, file sizes
+        3. Assess overall health with reasoning
+        4. Save structured report to config/analysis-cache/
+
+        Args:
+            project_path: Path to project
+            language: Project language
+
+        Returns: Dict with analysis results (from YAML)
+        """
+        project_name = Path(project_path).name
+        cache_path = Path('config/analysis-cache') / f'{project_name}-static.yaml'
+
+        # Check if recently analyzed (< 5 min old)
+        if cache_path.exists():
+            import time
+            age_seconds = time.time() - cache_path.stat().st_mtime
+            if age_seconds < 300:  # 5 minutes
+                print(f"   ✓ Using cached analysis ({int(age_seconds)}s old)")
+                import yaml
+                with open(cache_path) as f:
+                    return yaml.safe_load(f)
+
+        print(f"\n🔍 Analyzing {project_name} static code quality...")
+
+        # Build prompt from config template
+        template = self.prompts['analysis']['static_analysis']['template']
+        prompt = template.format(
+            language=language,
+            project_name=project_name,
+            timestamp="$(date -Iseconds)"
+        )
+
+        # Get timeout from config
+        timeout = self.prompts.get('timeouts', {}).get('analyze_static', 300)
+
+        try:
+            result = subprocess.run(
+                [self.python_exec, self.wrapper_path, '--prompt', prompt, '--project', project_path],
+                capture_output=True,
+                text=True,
+                timeout=timeout
+            )
+
+            if result.returncode == 0 and cache_path.exists():
+                print(f"   ✓ Analysis complete, saved to {cache_path}")
+                import yaml
+                with open(cache_path) as f:
+                    return yaml.safe_load(f)
+            else:
+                print(f"   ✗ Analysis failed (config not created)")
+                # Return empty analysis
+                return {
+                    'health': {'overall_score': 0.0},
+                    'errors': {'count': 0},
+                    'warnings': {'count': 0}
+                }
+
+        except Exception as e:
+            print(f"   ✗ Analysis error: {e}")
+            return {
+                'health': {'overall_score': 0.0},
+                'errors': {'count': 0},
+                'warnings': {'count': 0}
+            }
+
     def discover_test_config(self, project_path: str, language: str) -> FixResult:
         """
         SETUP PHASE: Discover how to run tests for this project.
