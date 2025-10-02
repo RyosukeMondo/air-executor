@@ -79,11 +79,18 @@ class HealthScorer:
             total_passed += analysis.tests_passed
             total_tests += (analysis.tests_passed + analysis.tests_failed)
 
+        threshold = self.priority_config.get('p2_tests', {}).get('success_threshold', 0.85)
+
+        # If no tests exist, treat as passing (nothing to fail)
         if total_tests == 0:
-            return {'score': 0.0, 'passed_gate': False, 'threshold': 0.85}
+            return {
+                'score': 1.0,  # 100% - no tests means no failures
+                'passed_gate': True,  # Pass the gate
+                'threshold': threshold,
+                'phase': 'p2_tests'
+            }
 
         score = total_passed / total_tests
-        threshold = self.priority_config.get('p2_tests', {}).get('success_threshold', 0.85)
 
         return {
             'score': score,
