@@ -23,14 +23,14 @@ session_mode: "separate"  # 'separate' | 'keep' | 'hybrid'
 
 # Batch sizes (how many issues to fix per phase per run)
 batch_sizes:
-  build_fixes: 3
-  test_fixes: 2
-  lint_fixes: 5
+  build_fixes: 1  # Start small - 1 fix per run
+  test_fixes: 1
+  lint_fixes: 1
 
 # Air-executor settings
 air_executor:
   wrapper_path: "/home/rmondo/repos/air-executor/scripts/claude_wrapper.py"
-  timeout: 300
+  timeout: 600  # Increased to 10 minutes per task
   auto_commit: true
   max_retries: 2
 
