@@ -8,9 +8,9 @@ This DAG demonstrates how Airflow and Air-Executor share control:
 """
 
 from airflow import DAG
-from airflow.operators.python import PythonOperator
-from airflow.sensors.python import PythonSensor
-from airflow.operators.bash import BashOperator
+from airflow.providers.standard.operators.python import PythonOperator
+from airflow.providers.standard.sensors.python import PythonSensor
+from airflow.providers.standard.operators.bash import BashOperator
 from datetime import datetime, timedelta
 import sys
 import json

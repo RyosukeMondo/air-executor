@@ -8,8 +8,8 @@ This DAG demonstrates how Air-Executor jobs appear in Airflow UI:
 """
 
 from airflow import DAG
-from airflow.operators.python import PythonOperator
-from airflow.sensors.python import PythonSensor
+from airflow.providers.standard.operators.python import PythonOperator
+from airflow.providers.standard.sensors.python import PythonSensor
 from datetime import datetime, timedelta
 import sys
 import json

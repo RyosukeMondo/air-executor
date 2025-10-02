@@ -1,13 +1,13 @@
 """
-Airflow DAG that uses claude_code_sdk via claude_wrapper.py (non-blocking).
+Reusable Claude SDK function for Airflow DAGs.
 
-This DAG runs Claude queries without TTY requirements using the proven
-claude_wrapper.py approach with JSON-based stdin/stdout communication.
+This module provides run_claude_query_sdk() which runs Claude queries
+without TTY requirements using claude_wrapper.py with JSON-based stdin/stdout.
+
+This is a utility module imported by specialized DAGs (python_cleanup, commit_and_push, etc.)
 """
 
-from airflow import DAG
-from airflow.providers.standard.operators.python import PythonOperator
-from datetime import datetime, timedelta
+from datetime import timedelta
 import subprocess
 import json
 import os
@@ -87,7 +87,9 @@ def run_claude_query_sdk(**context):
                 events.append(event)
 
                 event_type = event.get("event")
-                print(f"📨 Event: {event_type}")
+                # Don't print generic event for stream (we'll print content instead)
+                if event_type != "stream":
+                    print(f"📨 Event: {event_type}")
 
                 if event_type == "ready":
                     print("✅ Wrapper ready, sending prompt...")
@@ -106,16 +108,20 @@ def run_claude_query_sdk(**context):
                     process.stdin.flush()
 
                 elif event_type == "stream":
-                    # Extract message content from stream
+                    # Extract message content from stream - print in real-time for Airflow logs
                     payload = event.get("payload", {})
                     message_type = payload.get("message_type")
+
+                    # Track if we found any text content to print
+                    found_content = False
 
                     # Extract text from different message types
                     if message_type == "ResultMessage" and payload.get("result"):
                         # Final result message
                         text = payload["result"]
                         conversation_text.append(text)
-                        print(f"💬 Claude (final): {text[:100]}...")
+                        print(text, end='', flush=True)  # Real-time streaming output
+                        found_content = True
                     elif payload.get("content"):
                         # Content array (for streaming chunks)
                         content = payload.get("content", [])
@@ -125,12 +131,18 @@ def run_claude_query_sdk(**context):
                                     text = item.get("text", "")
                                     if text:
                                         conversation_text.append(text)
-                                        print(f"💬 Claude: {text[:100]}...")
+                                        print(text, end='', flush=True)  # Real-time streaming
+                                        found_content = True
                     elif payload.get("text"):
                         # Direct text field
                         text = payload["text"]
                         conversation_text.append(text)
-                        print(f"💬 Claude: {text[:100]}...")
+                        print(text, end='', flush=True)  # Real-time streaming
+                        found_content = True
+
+                    # Debug: If no content matched, log the payload structure
+                    if not found_content:
+                        print(f"⚠️  Stream event with unrecognized payload: {list(payload.keys())}", flush=True)
 
                 elif event_type == "run_completed":
                     print("✅ Run completed successfully!")
@@ -171,10 +183,15 @@ def run_claude_query_sdk(**context):
         # Combine all conversation text
         full_response = "\n".join(conversation_text)
 
-        print("\n" + "="*60)
-        print("📋 CLAUDE'S RESPONSE")
+        # Add final newline after streaming output
+        print("\n")
+
+        # Print summary (full response already streamed above)
         print("="*60)
-        print(full_response)
+        print("📋 CLAUDE'S RESPONSE SUMMARY")
+        print("="*60)
+        print(f"Total response length: {len(full_response)} characters")
+        print(f"Total events received: {len(events)}")
         print("="*60)
 
         # Push to XCom for downstream tasks
@@ -201,71 +218,3 @@ def run_claude_query_sdk(**context):
     except Exception as e:
         process.kill()
         raise RuntimeError(f"Error running Claude query: {e}")
-
-
-# DAG definition
-default_args = {
-    'owner': 'airflow',
-    'depends_on_past': False,
-    'start_date': datetime(2025, 10, 2),
-    'email_on_failure': False,
-    'email_on_retry': False,
-    'retries': 1,
-    'retry_delay': timedelta(minutes=1),
-}
-
-with DAG(
-    'claude_query_sdk',
-    default_args=default_args,
-    description='Run Claude query using claude_code_sdk (non-blocking)',
-    schedule=None,  # Manual trigger only
-    catchup=False,
-    tags=['claude', 'sdk', 'non-blocking'],
-) as dag:
-
-    run_query = PythonOperator(
-        task_id='run_claude_query_sdk',
-        python_callable=run_claude_query_sdk,
-        doc_md="""
-        ### Run Claude Query via SDK
-
-        This task uses `claude_wrapper.py` which:
-        - ✅ Non-blocking execution (no TTY required)
-        - ✅ JSON-based stdin/stdout communication
-        - ✅ Streams responses in real-time
-        - ✅ Auto-exits when complete (`exit_on_complete: true`)
-        - ✅ Parameterizable (prompt + working directory)
-
-        **Default Prompt:** "hello, how old are you?"
-
-        **Parameters (via DAG run config):**
-        ```json
-        {
-          "prompt": "What is Python?",
-          "working_directory": "/path/to/project"
-        }
-        ```
-
-        **Trigger with parameters (CLI):**
-        ```bash
-        airflow dags trigger claude_query_sdk --conf '{"prompt": "Explain async in Python"}'
-        ```
-
-        **Trigger with parameters (UI):**
-        1. Click "Trigger DAG"
-        2. Add JSON in "Configuration" field
-        3. Click "Trigger"
-
-        **How it works:**
-        1. Starts `claude_wrapper.py` subprocess in specified directory
-        2. Waits for "ready" event
-        3. Sends prompt via JSON stdin
-        4. Collects stream events
-        5. Waits for "run_completed"
-        6. Returns full response
-
-        **Output:** Check logs to see Claude's response!
-        """,
-    )
-
-    run_query

@@ -34,10 +34,9 @@ PYTHON_CLEANUP_PROMPT = """Find and clean up Python-generated artifacts that sho
 1. Find all __pycache__ directories, .pyc, .pyo files
 2. Find other Python artifacts (.egg-info, .pytest_cache, .coverage, .tox, etc.)
 3. Remove all found artifacts from the working directory
-4. Verify nothing is tracked in git
-5. Report what was cleaned up
+4. Report what was cleaned up
 
-Do not commit or push - just clean the working directory."""
+Important: DO NOT commit or push changes. This DAG only cleans the working directory."""
 
 
 def cleanup_python_artifacts(**context):
