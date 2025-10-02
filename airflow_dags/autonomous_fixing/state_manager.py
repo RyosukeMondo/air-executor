@@ -30,7 +30,10 @@ class Task:
 
     @classmethod
     def from_dict(cls, data: dict) -> 'Task':
-        return cls(**data)
+        # Filter out fields that don't belong to this class (for BatchTask compatibility)
+        valid_fields = {f.name for f in cls.__dataclass_fields__.values()}
+        filtered_data = {k: v for k, v in data.items() if k in valid_fields}
+        return cls(**filtered_data)
 
 
 class StateManager:

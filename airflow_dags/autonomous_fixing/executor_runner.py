@@ -89,8 +89,11 @@ class AirExecutorRunner:
         """Execute claude_wrapper.py with prompt via stdin"""
         import json
         import os
+        import sys
 
-        cmd = ["python", str(self.wrapper_path)]
+        # Use same python as current process (venv python)
+        python_exe = sys.executable
+        cmd = [python_exe, str(self.wrapper_path)]
 
         # Build JSON payload for wrapper
         payload = {
