@@ -28,6 +28,10 @@ def run_claude_query_sdk(**context):
     2. Sends prompt via JSON stdin
     3. Collects response via JSON stdout
     4. Returns the full conversation
+
+    DAG parameters (pass via dag_run.conf):
+    - prompt: The prompt to send to Claude (default: "hello, how old are you?")
+    - working_directory: Directory to launch wrapper from (default: project root)
     """
     # Load configuration (paths are now environment-independent!)
     try:
@@ -40,10 +44,14 @@ def run_claude_query_sdk(**context):
         raise RuntimeError(f"Failed to load config: {e}\n"
                          f"Create config/air-executor.toml from config/air-executor.example.toml")
 
-    # The prompt to send to Claude
-    prompt = "hello, how old are you?"
+    # Get parameters from DAG run config
+    dag_run_conf = context.get('dag_run').conf or {}
+    prompt = dag_run_conf.get('prompt', 'hello, how old are you?')
+    working_directory = dag_run_conf.get('working_directory', config.project_root)
 
-    print(f"🚀 Starting claude_wrapper.py with prompt: {prompt}")
+    print(f"🚀 Starting claude_wrapper.py")
+    print(f"   Working directory: {working_directory}")
+    print(f"   Prompt: {prompt}")
 
     # Start the wrapper process
     process = subprocess.Popen(
@@ -53,6 +61,7 @@ def run_claude_query_sdk(**context):
         stderr=subprocess.PIPE,
         text=True,
         bufsize=1,  # Line buffered
+        cwd=working_directory,  # Set working directory for wrapper
     )
 
     try:
@@ -225,11 +234,30 @@ with DAG(
         - ✅ JSON-based stdin/stdout communication
         - ✅ Streams responses in real-time
         - ✅ Auto-exits when complete (`exit_on_complete: true`)
+        - ✅ Parameterizable (prompt + working directory)
 
-        **Prompt:** "hello, how old are you?"
+        **Default Prompt:** "hello, how old are you?"
+
+        **Parameters (via DAG run config):**
+        ```json
+        {
+          "prompt": "What is Python?",
+          "working_directory": "/path/to/project"
+        }
+        ```
+
+        **Trigger with parameters (CLI):**
+        ```bash
+        airflow dags trigger claude_query_sdk --conf '{"prompt": "Explain async in Python"}'
+        ```
+
+        **Trigger with parameters (UI):**
+        1. Click "Trigger DAG"
+        2. Add JSON in "Configuration" field
+        3. Click "Trigger"
 
         **How it works:**
-        1. Starts `claude_wrapper.py` subprocess
+        1. Starts `claude_wrapper.py` subprocess in specified directory
         2. Waits for "ready" event
         3. Sends prompt via JSON stdin
         4. Collects stream events
