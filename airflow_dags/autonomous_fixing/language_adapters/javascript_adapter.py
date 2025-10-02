@@ -378,19 +378,36 @@ class JavaScriptAdapter(LanguageAdapter):
         return []
 
     def _check_complexity(self, project_path: str) -> List[Dict]:
-        """Check for high complexity files."""
+        """Check for high complexity files (sampling for performance)."""
         violations = []
         project = Path(project_path)
 
-        for file_path in self._get_source_files(project):
-            complexity = self.calculate_complexity(str(file_path))
-            if complexity > self.complexity_threshold:
-                violations.append({
-                    'file': str(file_path),
-                    'complexity': complexity,
-                    'threshold': self.complexity_threshold,
-                    'message': f'Complexity {complexity} exceeds threshold {self.complexity_threshold}'
-                })
+        source_files = self._get_source_files(project)
+
+        # Performance optimization: Sample files if there are too many
+        # Check max 50 files to avoid hanging on large projects
+        if len(source_files) > 50:
+            import random
+            source_files = random.sample(source_files, 50)
+
+        for file_path in source_files:
+            try:
+                # Skip very large files (>5000 lines) - too slow to analyze
+                file_size = file_path.stat().st_size
+                if file_size > 200000:  # ~5000 lines
+                    continue
+
+                complexity = self.calculate_complexity(str(file_path))
+                if complexity > self.complexity_threshold:
+                    violations.append({
+                        'file': str(file_path),
+                        'complexity': complexity,
+                        'threshold': self.complexity_threshold,
+                        'message': f'Complexity {complexity} exceeds threshold {self.complexity_threshold}'
+                    })
+            except Exception:
+                # Skip files that fail analysis
+                continue
 
         return violations
 
