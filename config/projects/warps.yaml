@@ -1,0 +1,53 @@
+# warps (JavaScript) - ISOLATED fixing - ENTERPRISE SIZE
+
+projects:
+  - path: "/home/rmondo/repos/warps"
+    language: "javascript"
+
+languages:
+  enabled: ["javascript"]
+  auto_detect: false
+  javascript:
+    linters: ["eslint"]
+    type_checker: "tsc"
+    test_framework: "jest"
+    complexity_threshold: 15
+    max_file_lines: 800
+
+priorities:
+  p1_static:
+    enabled: true
+    max_duration_seconds: 300  # 5 min - larger project
+    success_threshold: 0.70  # Lower threshold - lots of errors
+  p2_tests:
+    enabled: true
+    adaptive_strategy: true
+    success_threshold: 0.70
+  p3_coverage:
+    enabled: false
+  p4_e2e:
+    enabled: false
+
+execution:
+  max_concurrent_projects: 1
+  max_iterations: 100  # More iterations for enterprise
+  max_duration_hours: 4  # More time for enterprise
+
+wrapper:
+  path: "/home/rmondo/repos/air-executor/scripts/claude_wrapper.py"
+  python_executable: "/home/rmondo/.venv/air-executor/bin/python"
+  timeout: 1200
+
+state_manager:
+  redis_host: "localhost"
+  redis_port: 6379
+  namespace: "warps_fix"
+
+logging:
+  level: "INFO"
+  file: "logs/fix-warps.log"
+
+git:
+  auto_commit: true
+  commit_prefix: "fix"
+  push_after_commit: false

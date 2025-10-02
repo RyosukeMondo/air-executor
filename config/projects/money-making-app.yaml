@@ -1,0 +1,51 @@
+# money-making-app (Flutter) - ISOLATED fixing
+projects:
+  - path: "/home/rmondo/repos/money-making-app"
+    language: "flutter"
+
+languages:
+  enabled: ["flutter"]
+  auto_detect: false
+  flutter:
+    analyzer_args: "--fatal-infos --fatal-warnings"
+    test_timeout: 600
+    complexity_threshold: 15
+    max_file_lines: 800
+
+priorities:
+  p1_static:
+    enabled: true
+    max_duration_seconds: 180
+    success_threshold: 0.90
+  p2_tests:
+    enabled: true
+    adaptive_strategy: true
+    success_threshold: 0.85
+  p3_coverage:
+    enabled: false
+  p4_e2e:
+    enabled: false
+
+execution:
+  max_concurrent_projects: 1
+  max_iterations: 50
+  max_duration_hours: 2
+
+wrapper:
+  path: "/home/rmondo/repos/air-executor/scripts/claude_wrapper.py"
+  python_executable: "/home/rmondo/.venv/air-executor/bin/python"
+  timeout: 1200
+
+state_manager:
+  redis_host: "localhost"
+  redis_port: 6379
+  namespace: "money_making_app_fix"
+
+logging:
+  level: "INFO"
+  file: "logs/fix-money-making-app.log"
+
+git:
+  auto_commit: true
+  commit_prefix: "fix"
+  push_after_commit: false

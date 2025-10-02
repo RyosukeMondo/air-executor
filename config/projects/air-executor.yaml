@@ -1,0 +1,52 @@
+# air-executor (Python) - ISOLATED fixing
+
+projects:
+  - path: "/home/rmondo/repos/air-executor"
+    language: "python"
+
+languages:
+  enabled: ["python"]
+  auto_detect: false
+  python:
+    linters: ["pylint", "mypy"]
+    test_framework: "pytest"
+    complexity_threshold: 15
+    max_file_lines: 800
+
+priorities:
+  p1_static:
+    enabled: true
+    max_duration_seconds: 180
+    success_threshold: 0.90
+  p2_tests:
+    enabled: true
+    adaptive_strategy: true
+    success_threshold: 0.85
+  p3_coverage:
+    enabled: false
+  p4_e2e:
+    enabled: false
+
+execution:
+  max_concurrent_projects: 1  # Only 1 project
+  max_iterations: 50
+  max_duration_hours: 2
+
+wrapper:
+  path: "/home/rmondo/repos/air-executor/scripts/claude_wrapper.py"
+  python_executable: "/home/rmondo/.venv/air-executor/bin/python"
+  timeout: 1200
+
+state_manager:
+  redis_host: "localhost"
+  redis_port: 6379
+  namespace: "air_executor_fix"
+
+logging:
+  level: "INFO"
+  file: "logs/fix-air-executor.log"
+
+git:
+  auto_commit: true
+  commit_prefix: "fix"
+  push_after_commit: false
