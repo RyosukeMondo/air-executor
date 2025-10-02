@@ -1,0 +1,173 @@
+# Real Projects Multi-Language Autonomous Fixing Configuration
+# Projects: air-executor, cc-task-manager, mind-training, money-making-app, warps
+
+# Project paths (will be detected automatically)
+# Each project will be analyzed independently
+target_project: "/home/rmondo/repos"  # Parent directory containing all projects
+
+# Language Configuration
+languages:
+  enabled:
+    - python      # air-executor
+    - javascript  # cc-task-manager, mind-training, warps
+    - flutter     # money-making-app
+
+  auto_detect: true
+
+  # Python Configuration (air-executor)
+  python:
+    linters:
+      - "pylint"
+      - "mypy"
+    test_framework: "pytest"
+    complexity_threshold: 15  # Slightly higher for real projects
+    max_file_lines: 800       # More lenient for real code
+
+  # JavaScript/TypeScript Configuration (cc-task-manager, mind-training, warps)
+  javascript:
+    linters:
+      - "eslint"
+    type_checker: "tsc"
+    test_framework: "jest"  # or "vitest"
+    complexity_threshold: 15
+    max_file_lines: 800
+
+  # Flutter Configuration (money-making-app)
+  flutter:
+    analyzer_args: "--fatal-infos --fatal-warnings"
+    test_timeout: 600
+    complexity_threshold: 15
+    max_file_lines: 800
+
+# Priority-Based Execution Strategy
+priorities:
+  # Priority 1: Fast Static Analysis (ALWAYS RUN)
+  p1_static:
+    enabled: true
+    max_duration_seconds: 180  # 3 min for real projects
+    success_threshold: 0.80    # 80% for initial runs (more lenient)
+
+  # Priority 2: Strategic Unit Tests (TIME-AWARE)
+  p2_tests:
+    enabled: true
+    adaptive_strategy: true
+    time_budgets:
+      minimal: 600       # 10 min when health < 30%
+      selective: 1800    # 30 min when health 30-60%
+      comprehensive: 3600  # 60 min when health > 60%
+    success_threshold: 0.70  # 70% for real projects (more lenient)
+
+  # Priority 3: Coverage Analysis (CONDITIONAL)
+  p3_coverage:
+    enabled: false  # Disable initially - enable after P1/P2 are clean
+    gate_requirements:
+      p1_score: 0.90
+      p2_score: 0.85
+    max_duration_seconds: 3600
+    target_coverage: 0.80
+
+  # Priority 4: E2E & Runtime Testing (FINAL PHASE)
+  p4_e2e:
+    enabled: false  # Disable initially
+    gate_requirements:
+      overall_health: 0.90
+    max_duration_seconds: 7200
+
+# Execution Settings
+execution:
+  parallel_languages: true   # Run all language checks in parallel
+  max_concurrent_projects: 3  # Process 3 projects concurrently
+  fail_fast: false           # Continue even if one language fails
+  priority_gates: true       # Enforce priority gates
+
+  # Iteration settings
+  max_iterations: 5          # Run 5 iterations before stopping
+  max_duration_hours: 2      # Stop after 2 hours
+
+# Issue Grouping (for fixes)
+issue_grouping:
+  enabled: true
+  mega_batch_mode: false     # Use smart batching (human-friendly commits)
+  max_cleanup_batch_size: 30 # Smaller batches for real projects
+  max_location_batch_size: 15
+
+# Batch Sizes (tasks per phase per run)
+batch_sizes:
+  p1_fixes: 2  # Fix 2 batches of static issues per run
+  p2_fixes: 1  # Fix 1 batch of test issues per run
+  p3_fixes: 1  # Fix 1 batch of coverage improvements
+  p4_fixes: 1  # Fix 1 batch of E2E issues
+
+# Health Check Configuration
+health_check:
+  method: "priority_based"
+  static_only_threshold: 0.60
+  comprehensive_threshold: 0.80
+
+# Claude Code Wrapper
+wrapper:
+  path: "/home/rmondo/repos/air-executor/scripts/claude_wrapper.py"
+  python_executable: "/home/rmondo/.venv/air-executor/bin/python"
+  timeout: 1200  # 20 minutes per Claude session for real projects
+
+# State Management (Redis)
+state_manager:
+  redis_host: "localhost"
+  redis_port: 6379
+  namespace: "real_projects_fix"
+
+# Logging
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(levelname)s - %(message)s"
+  file: "logs/real_projects_fixing.log"
+
+# Git Configuration
+git:
+  auto_commit: true
+  commit_prefix: "fix"
+  push_after_commit: false  # Manual push recommended for real projects
+
+# Coverage Generation (when P3 enabled)
+coverage_prompts:
+  generate_tests: true
+  focus_areas:
+    - "Critical business logic with no coverage"
+    - "Public APIs with low coverage"
+    - "Error handling paths"
+
+# Safety Settings
+safety:
+  # Backup before starting
+  create_backup: false  # Projects already in git, commits are backup
+
+  # Dry run mode (set to true for testing)
+  dry_run: false
+
+  # Stop on critical errors
+  stop_on_git_errors: true
+  stop_on_test_failures: false  # Continue even if tests fail initially
+
+# Project-Specific Overrides (optional)
+project_overrides:
+  # money-making-app specific settings
+  "/home/rmondo/repos/money-making-app":
+    priorities:
+      p1_static:
+        success_threshold: 0.75  # Lower threshold - lots of issues
+      p2_tests:
+        success_threshold: 0.60  # Lower threshold initially
+
+  # air-executor specific settings
+  "/home/rmondo/repos/air-executor":
+    priorities:
+      p1_static:
+        success_threshold: 0.85  # Higher threshold - cleaner project
+      p2_tests:
+        success_threshold: 0.80
+
+# Notification Settings (optional)
+notifications:
+  enabled: false
+  on_completion: false
+  on_error: false
