@@ -75,28 +75,51 @@ class AirExecutorRunner:
         return execution_result
 
     def _execute(self, prompt: str) -> subprocess.CompletedProcess:
-        """Execute claude_wrapper.py with prompt"""
-        cmd = [
-            "python",
-            str(self.wrapper_path),
-            "--prompt", prompt,
-            "--working-dir", str(self.working_dir)
-        ]
+        """Execute claude_wrapper.py with prompt via stdin"""
+        import json
+        import sys
 
-        if self.auto_commit:
-            cmd.append("--auto-commit")
+        cmd = ["python", str(self.wrapper_path)]
+
+        # Build JSON payload for wrapper
+        payload = {
+            "action": "prompt",
+            "prompt": prompt,
+            "options": {
+                "cwd": str(self.working_dir),
+                "permission_mode": "bypassPermissions",  # Auto-approve actions
+                "exit_on_complete": True  # Exit wrapper after completing the task
+            }
+        }
 
         try:
-            result = subprocess.run(
+            # Send prompt and keep stdin open by not closing it immediately
+            # Wrapper will exit when task completes due to exit_on_complete=True
+            proc = subprocess.Popen(
                 cmd,
-                capture_output=True,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-                timeout=self.timeout,
                 cwd=self.wrapper_path.parent
             )
-            return result
+
+            # Send prompt
+            proc.stdin.write(json.dumps(payload) + "\n")
+            proc.stdin.flush()
+
+            # Wait for completion (wrapper will exit due to exit_on_complete)
+            stdout, stderr = proc.communicate(timeout=self.timeout)
+
+            return subprocess.CompletedProcess(
+                args=cmd,
+                returncode=proc.returncode,
+                stdout=stdout,
+                stderr=stderr
+            )
 
         except subprocess.TimeoutExpired:
+            proc.kill()
             return subprocess.CompletedProcess(
                 args=cmd,
                 returncode=124,  # timeout exit code
@@ -106,6 +129,9 @@ class AirExecutorRunner:
 
     def _build_fix_prompt(self, task: Task, summary: Optional[Dict]) -> str:
         """Generate prompt for build error fix"""
+        # Truncate message for commit to avoid errors
+        commit_msg = task.message[:60].replace('"', "'").replace('\n', ' ')
+
         prompt = f"""Fix this Flutter build error:
 
 **File**: {task.file or 'Unknown'}
@@ -119,11 +145,15 @@ class AirExecutorRunner:
 
 **Instructions**:
 1. Analyze the error carefully
-2. Fix ONLY this specific error
-3. Run `flutter analyze` to verify
-4. Commit with message: "fix: {task.message[:50]}"
+2. Fix ONLY this specific error (surgical fix, minimal changes)
+3. Run `flutter analyze --no-pub` to verify the fix
+4. **IMPORTANT**: Stage and commit your changes with:
+   ```bash
+   git add -A
+   git commit -m "fix: {commit_msg}"
+   ```
 
-Be surgical - change only what's absolutely needed to fix this error.
+DO NOT skip the commit step. Changes must be committed before finishing.
 """
 
         if summary:
@@ -133,6 +163,8 @@ Be surgical - change only what's absolutely needed to fix this error.
 
     def _test_fix_prompt(self, task: Task, summary: Optional[Dict]) -> str:
         """Generate prompt for test failure fix"""
+        commit_msg = task.message[:60].replace('"', "'").replace('\n', ' ')
+
         prompt = f"""Fix this failing Flutter test:
 
 **Test**: {task.message}
@@ -147,9 +179,13 @@ Be surgical - change only what's absolutely needed to fix this error.
 1. Understand why the test is failing
 2. Fix the implementation (NOT the test unless it's clearly wrong)
 3. Run `flutter test` to verify
-4. Commit with message: "fix(test): {task.message[:50]}"
+4. **IMPORTANT**: Stage and commit your changes with:
+   ```bash
+   git add -A
+   git commit -m "fix(test): {commit_msg}"
+   ```
 
-Fix the root cause, not the symptoms.
+Fix the root cause, not the symptoms. DO NOT skip the commit step.
 """
 
         if summary:
@@ -159,6 +195,8 @@ Fix the root cause, not the symptoms.
 
     def _lint_fix_prompt(self, task: Task, summary: Optional[Dict]) -> str:
         """Generate prompt for lint issue fix"""
+        commit_msg = task.message[:60].replace('"', "'").replace('\n', ' ')
+
         prompt = f"""Fix this Flutter lint issue:
 
 **File**: {task.file or 'Unknown'}
@@ -172,10 +210,14 @@ Fix the root cause, not the symptoms.
 **Instructions**:
 1. Understand the lint rule violation
 2. Fix according to Dart/Flutter best practices
-3. Run `flutter analyze` to verify
-4. Commit with message: "style: {task.message[:50]}"
+3. Run `flutter analyze --no-pub` to verify
+4. **IMPORTANT**: Stage and commit your changes with:
+   ```bash
+   git add -A
+   git commit -m "style: {commit_msg}"
+   ```
 
-Follow Flutter style guide exactly.
+Follow Flutter style guide exactly. DO NOT skip the commit step.
 """
 
         if summary:
@@ -185,6 +227,8 @@ Follow Flutter style guide exactly.
 
     def _generic_fix_prompt(self, task: Task, summary: Optional[Dict]) -> str:
         """Generic fix prompt"""
+        commit_msg = task.message[:60].replace('"', "'").replace('\n', ' ')
+
         prompt = f"""Fix this issue in the Flutter project:
 
 **Type**: {task.type}
@@ -200,9 +244,13 @@ Follow Flutter style guide exactly.
 1. Analyze and understand the issue
 2. Implement a targeted fix
 3. Verify the fix works
-4. Commit with a descriptive message
+4. **IMPORTANT**: Stage and commit your changes with:
+   ```bash
+   git add -A
+   git commit -m "fix: {commit_msg}"
+   ```
 
-Focus on quality over speed.
+Focus on quality over speed. DO NOT skip the commit step.
 """
 
         if summary:
