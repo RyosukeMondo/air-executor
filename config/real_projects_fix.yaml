@@ -103,7 +103,7 @@ execution:
   priority_gates: true       # Enforce priority gates
 
   # Iteration settings
-  max_iterations: 5          # Run 5 iterations before stopping
+  max_iterations: 50         # Run up to 50 iterations before stopping
   max_duration_hours: 2      # Stop after 2 hours
 
 # Issue Grouping (for fixes)
