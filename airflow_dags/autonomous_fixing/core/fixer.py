@@ -6,6 +6,8 @@ No analysis, no scoring, no iteration logic - just fixing.
 """
 
 import subprocess
+import yaml
+from pathlib import Path
 from typing import List, Dict
 from dataclasses import dataclass
 
@@ -42,6 +44,9 @@ class IssueFixer:
         self.config = config
         self.wrapper_path = config.get('wrapper', {}).get('path', 'scripts/claude_wrapper.py')
         self.python_exec = config.get('wrapper', {}).get('python_executable', 'python')
+
+        # Load prompts from centralized config
+        self.prompts = self._load_prompts()
 
     def fix_static_issues(self, analysis_result, iteration: int, max_issues: int = 10) -> FixResult:
         """
@@ -175,20 +180,33 @@ class IssueFixer:
 
     def _fix_single_issue(self, issue: Dict) -> bool:
         """Fix a single static issue using claude_wrapper."""
-        # Build prompt based on issue type
+        # Build prompt from config template
         if issue['type'] == 'error':
-            prompt = f"Fix this {issue['language']} error in {issue['file']}:\n{issue['message']}"
+            template = self.prompts['static_issues']['error']['template']
+            prompt = template.format(
+                language=issue['language'],
+                file=issue['file'],
+                message=issue['message']
+            )
         elif issue['type'] == 'complexity':
-            prompt = f"Refactor {issue['file']} to reduce complexity from {issue['complexity']} to below {issue['threshold']}"
+            template = self.prompts['static_issues']['complexity']['template']
+            prompt = template.format(
+                file=issue['file'],
+                complexity=issue['complexity'],
+                threshold=issue['threshold']
+            )
         else:
             return False
+
+        # Get timeout from config
+        timeout = self.prompts.get('timeouts', {}).get('fix_static_issue', 300)
 
         try:
             result = subprocess.run(
                 [self.python_exec, self.wrapper_path, '--prompt', prompt, '--project', issue['project']],
                 capture_output=True,
                 text=True,
-                timeout=300  # 5 min per fix
+                timeout=timeout
             )
             return result.returncode == 0
         except Exception:
@@ -196,18 +214,23 @@ class IssueFixer:
 
     def _fix_failing_tests(self, test_info: Dict) -> bool:
         """Fix failing tests for a project using claude_wrapper."""
-        prompt = (
-            f"Fix failing {test_info['language']} tests. "
-            f"{test_info['failed']} tests are failing. "
-            f"Run tests and fix the code until all tests pass."
+        # Build prompt from config template
+        template = self.prompts['tests']['fix_failures']['template']
+        prompt = template.format(
+            language=test_info['language'],
+            failed=test_info['failed'],
+            total=test_info['total']
         )
+
+        # Get timeout from config
+        timeout = self.prompts.get('timeouts', {}).get('fix_test_failure', 600)
 
         try:
             result = subprocess.run(
                 [self.python_exec, self.wrapper_path, '--prompt', prompt, '--project', test_info['project']],
                 capture_output=True,
                 text=True,
-                timeout=600  # 10 min per project
+                timeout=timeout
             )
             return result.returncode == 0
         except Exception:
@@ -269,27 +292,57 @@ class IssueFixer:
 
     def _create_tests_for_project(self, project_info: Dict) -> bool:
         """Create tests for a single project using claude_wrapper."""
-        prompt = (
-            f"This {project_info['language']} project has NO TESTS. "
-            f"Your task:\n"
-            f"1. Find or install appropriate test framework (pytest, jest, flutter test, go test)\n"
-            f"2. Analyze the codebase to understand main functionality\n"
-            f"3. Create meaningful unit tests for core functions/classes\n"
-            f"4. Set up test infrastructure (test directories, config files)\n"
-            f"5. Run tests to verify they work\n"
-            f"6. Commit with message: 'test: Add initial test suite'\n"
-            f"\n"
-            f"Create at least 3-5 tests covering main functionality. "
-            f"Use LLM-as-a-judge: analyze code, determine what's testable, create appropriate tests."
-        )
+        # Build prompt from config template
+        template = self.prompts['tests']['create_tests']['template']
+        prompt = template.format(language=project_info['language'])
+
+        # Check for language-specific framework hints
+        lang_overrides = self.prompts.get('language_overrides', {}).get(project_info['language'], {})
+        if 'create_tests' in lang_overrides and 'framework_hint' in lang_overrides['create_tests']:
+            prompt += f"\n\nFramework tip: {lang_overrides['create_tests']['framework_hint']}"
+
+        # Get timeout from config
+        timeout = self.prompts.get('timeouts', {}).get('create_tests', 900)
 
         try:
             result = subprocess.run(
                 [self.python_exec, self.wrapper_path, '--prompt', prompt, '--project', project_info['project']],
                 capture_output=True,
                 text=True,
-                timeout=900  # 15 min for test creation
+                timeout=timeout
             )
             return result.returncode == 0
         except Exception:
             return False
+
+    def _load_prompts(self) -> Dict:
+        """Load prompts from centralized config file."""
+        # Try to find prompts.yaml in config directory
+        possible_paths = [
+            Path(__file__).parent.parent.parent / 'config' / 'prompts.yaml',  # From core/
+            Path('config/prompts.yaml'),  # From project root
+            Path(__file__).parent.parent / 'config' / 'prompts.yaml',  # Alternative
+        ]
+
+        for path in possible_paths:
+            if path.exists():
+                with open(path, 'r') as f:
+                    return yaml.safe_load(f)
+
+        # Fallback: return minimal default prompts if config not found
+        print("⚠️  Warning: prompts.yaml not found, using fallback prompts")
+        return {
+            'static_issues': {
+                'error': {'template': 'Fix this {language} error in {file}:\n{message}'},
+                'complexity': {'template': 'Refactor {file} to reduce complexity from {complexity} to below {threshold}'}
+            },
+            'tests': {
+                'fix_failures': {'template': 'Fix failing {language} tests. {failed}/{total} tests failing.'},
+                'create_tests': {'template': 'This {language} project has NO TESTS. Create initial test suite.'}
+            },
+            'timeouts': {
+                'fix_static_issue': 300,
+                'fix_test_failure': 600,
+                'create_tests': 900
+            }
+        }

@@ -1,0 +1,163 @@
+# Prompts Configuration - Centralized Prompt Management
+#
+# Design Principles:
+# - Single Source of Truth for all LLM prompts
+# - Language-specific customization supported
+# - Clear separation: code = logic, config = domain knowledge
+# - Easy to iterate on prompt engineering without code changes
+
+# =============================================================================
+# P1: Static Issue Fixing Prompts
+# =============================================================================
+
+static_issues:
+  # Error fixing prompt - used for linter/compiler errors
+  error:
+    template: |
+      Fix this {language} error in {file}:
+      {message}
+
+      Requirements:
+      - Preserve existing functionality
+      - Follow {language} best practices
+      - Keep changes minimal and focused
+      - Run relevant checks after fixing
+
+    notes: |
+      Keep prompt simple - Claude knows how to fix errors.
+      Provide context (language, file, message) but don't over-specify.
+
+  # Complexity reduction prompt - used for cyclomatic complexity violations
+  complexity:
+    template: |
+      Refactor {file} to reduce complexity from {complexity} to below {threshold}
+
+      Approach:
+      - Extract functions for complex logic
+      - Use early returns to reduce nesting
+      - Apply Single Responsibility Principle
+      - Maintain all existing functionality
+      - Add tests if not already present
+
+    notes: |
+      Complexity refactoring is riskier - emphasize maintaining functionality.
+      Suggest specific techniques (extract, early return, SRP).
+
+# =============================================================================
+# P2: Test Fixing Prompts
+# =============================================================================
+
+tests:
+  # Fix failing tests prompt - used when tests exist but are failing
+  fix_failures:
+    template: |
+      Fix failing {language} tests.
+      {failed} tests are failing out of {total} total tests.
+
+      Process:
+      1. Run tests to see failures
+      2. Analyze failure messages
+      3. Fix the code (not the tests, unless tests are wrong)
+      4. Re-run tests to verify
+      5. Repeat until all tests pass
+
+      Focus on fixing the root cause, not just making tests pass.
+
+    notes: |
+      Emphasize fixing CODE, not tests (common mistake).
+      Provide iterative process to follow.
+
+  # Create tests prompt - used when NO tests exist (0/0)
+  create_tests:
+    template: |
+      This {language} project has NO TESTS.
+
+      Your task:
+      1. Find or install appropriate test framework:
+         - Python: pytest
+         - JavaScript/TypeScript: jest
+         - Flutter: flutter test
+         - Go: go test (built-in)
+
+      2. Analyze the codebase:
+         - Identify main modules/components
+         - Understand core functionality
+         - Find testable functions/classes
+
+      3. Create meaningful unit tests:
+         - Create at least 3-5 tests covering main functionality
+         - Test happy paths and edge cases
+         - Use descriptive test names
+         - Follow {language} testing conventions
+
+      4. Set up test infrastructure:
+         - Create test directories (tests/, __tests__/, test/)
+         - Add test configuration files if needed
+         - Update dependencies if needed
+
+      5. Verify tests work:
+         - Run tests to ensure they pass
+         - Fix any issues with test setup
+
+      6. Commit with message: 'test: Add initial test suite'
+
+      Use LLM-as-a-judge:
+      - Analyze code to determine what's testable
+      - Create appropriate tests based on code structure
+      - Ensure tests actually verify behavior
+
+    notes: |
+      Longest prompt - test creation is complex and critical.
+      Provide step-by-step process with clear expectations.
+      Emphasize LLM-as-a-judge: Claude should analyze and decide.
+
+    # Timeout for test creation (in seconds)
+    timeout: 900  # 15 minutes
+
+# =============================================================================
+# Language-Specific Overrides
+# =============================================================================
+# Use these to customize prompts for specific languages if needed
+
+language_overrides:
+  python:
+    create_tests:
+      framework_hint: "Use pytest with fixtures and parametrize for multiple test cases"
+
+  javascript:
+    create_tests:
+      framework_hint: "Use jest with describe/it blocks and expect assertions"
+
+  flutter:
+    create_tests:
+      framework_hint: "Use flutter_test with testWidgets for widget tests and test for unit tests"
+
+  go:
+    create_tests:
+      framework_hint: "Use built-in testing package with Table Driven Tests pattern"
+
+# =============================================================================
+# Timeouts Configuration
+# =============================================================================
+
+timeouts:
+  fix_static_issue: 300    # 5 minutes per static issue fix
+  fix_test_failure: 600    # 10 minutes per project test fixing
+  create_tests: 900        # 15 minutes for test creation
+
+# =============================================================================
+# Prompt Engineering Notes
+# =============================================================================
+#
+# Best Practices:
+# 1. Be specific about requirements but trust Claude's expertise
+# 2. Provide process/steps for complex tasks
+# 3. Use "LLM-as-a-judge" pattern for analysis tasks
+# 4. Keep language neutral where possible, parameterize specifics
+# 5. Emphasize verification (run tests, check results)
+#
+# Iteration Tips:
+# - If prompts produce poor results, add more structure
+# - If prompts are too rigid, remove constraints
+# - Test prompt changes on sample projects before production
+# - Version control prompts like code - they're critical logic
