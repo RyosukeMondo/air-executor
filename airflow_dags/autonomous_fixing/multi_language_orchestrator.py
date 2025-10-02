@@ -8,20 +8,35 @@ Priority Strategy:
 - P4 (Final): E2E/runtime testing - CONDITIONAL (overall health ≥ 90%)
 """
 
+import sys
 import time
+import yaml
 from pathlib import Path
 from typing import List, Dict, Optional
 from dataclasses import dataclass, field
 from collections import defaultdict
 
-from .language_adapters import (
-    LanguageAdapter,
-    AnalysisResult,
-    FlutterAdapter,
-    PythonAdapter,
-    JavaScriptAdapter,
-    GoAdapter
-)
+# Handle both module import and script execution
+try:
+    from .language_adapters import (
+        LanguageAdapter,
+        AnalysisResult,
+        FlutterAdapter,
+        PythonAdapter,
+        JavaScriptAdapter,
+        GoAdapter
+    )
+except ImportError:
+    # Running as script - add parent directory to path
+    sys.path.insert(0, str(Path(__file__).parent))
+    from language_adapters import (
+        LanguageAdapter,
+        AnalysisResult,
+        FlutterAdapter,
+        PythonAdapter,
+        JavaScriptAdapter,
+        GoAdapter
+    )
 
 
 @dataclass
@@ -424,3 +439,45 @@ class MultiLanguageOrchestrator:
             print(f"   ✅ Gate PASSED")
         elif result.gate_reason:
             print(f"   ⏭️  {result.gate_reason}")
+
+
+def main():
+    """Main entry point for command-line execution."""
+    if len(sys.argv) < 2:
+        print("Usage: python multi_language_orchestrator.py <config.yaml>")
+        print("\nExample:")
+        print("  python multi_language_orchestrator.py config/multi_language_fix.yaml")
+        sys.exit(1)
+
+    config_path = sys.argv[1]
+
+    # Load configuration
+    try:
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+    except FileNotFoundError:
+        print(f"❌ Config file not found: {config_path}")
+        sys.exit(1)
+    except yaml.YAMLError as e:
+        print(f"❌ Error parsing config file: {e}")
+        sys.exit(1)
+
+    # Get target project
+    target_project = config.get('target_project')
+    if not target_project:
+        print("❌ No target_project specified in config")
+        sys.exit(1)
+
+    # Run orchestrator
+    orchestrator = MultiLanguageOrchestrator(config)
+    result = orchestrator.execute(target_project)
+
+    # Exit with appropriate code
+    if result.get('success'):
+        sys.exit(0)
+    else:
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
