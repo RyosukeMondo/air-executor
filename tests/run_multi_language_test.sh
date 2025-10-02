@@ -274,6 +274,10 @@ fi
 echo -e "${YELLOW}Running orchestrator (this may take a few minutes)...${NC}"
 echo ""
 
+# Add venv to PATH so language adapters can find tools (pytest, etc.)
+VENV_BIN="$(dirname "${VENV_PYTHON}")"
+export PATH="${VENV_BIN}:${PATH}"
+
 "${VENV_PYTHON}" "${ORCHESTRATOR_SCRIPT}" "${TEST_CONFIG}" || {
     echo ""
     echo -e "${RED}❌ Orchestrator failed${NC}"
