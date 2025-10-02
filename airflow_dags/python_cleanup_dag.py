@@ -11,6 +11,12 @@ from airflow import DAG
 from airflow.providers.standard.operators.python import PythonOperator
 from datetime import datetime, timedelta
 
+# Try new import path first, fallback to old for compatibility
+try:
+    from airflow.sdk import Param
+except ImportError:
+    from airflow.models.param import Param
+
 # Import the reusable function (SSOT - Single Source of Truth)
 # Note: claude_query_sdk.py must be in the same dags folder
 import sys
@@ -42,17 +48,23 @@ def cleanup_python_artifacts(**context):
     - This function: Provides domain-specific configuration
     - run_claude_query_sdk: Handles Claude SDK execution
 
-    Allows working_directory override via dag_run.conf.
+    Allows working_directory override via DAG params or dag_run.conf.
     """
-    # Merge default prompt with any user-provided config
+    # Get params from context (set in UI or CLI)
+    params = context.get('params', {})
     dag_run_conf = context.get('dag_run').conf or {}
 
-    # Allow working_directory override, but always use cleanup prompt
-    if 'prompt' not in dag_run_conf:
-        dag_run_conf['prompt'] = PYTHON_CLEANUP_PROMPT
+    # Merge: dag_run.conf takes precedence over params
+    working_directory = dag_run_conf.get('working_directory') or params.get('working_directory')
+
+    # Build config with cleanup prompt
+    config = {
+        'prompt': PYTHON_CLEANUP_PROMPT,
+        'working_directory': working_directory,
+    }
 
     # Update context with merged config
-    context['dag_run'].conf = dag_run_conf
+    context['dag_run'].conf = config
 
     # Delegate to the reusable function (SSOT)
     return run_claude_query_sdk(**context)
@@ -76,6 +88,16 @@ with DAG(
     schedule=None,  # Manual trigger only
     catchup=False,
     tags=['python', 'cleanup', 'maintenance'],
+    params={
+        'working_directory': Param(
+            default='/home/rmondo/repos/air-executor',
+            type='string',
+            title='Working Directory',
+            description='Repository path to clean. Defaults to air-executor project root.',
+            minLength=1,
+            section='Repository Configuration',
+        ),
+    },
 ) as dag:
 
     cleanup_task = PythonOperator(
@@ -92,17 +114,17 @@ with DAG(
         - `*.egg-info/` directories
         - `.pytest_cache/`, `.tox/`, `.coverage` files
 
-        **Default Working Directory:** Project root (from config)
+        **Default Working Directory:** `/home/rmondo/repos/air-executor`
+
+        **Override working directory (Web UI):**
+        1. Click "Trigger DAG w/ config"
+        2. Edit "Working Directory" field in the form
+        3. Click "Trigger"
 
         **Override working directory (CLI):**
         ```bash
         airflow dags trigger python_cleanup --conf '{"working_directory": "/path/to/repo"}'
         ```
-
-        **Override working directory (UI):**
-        1. Click "Trigger DAG"
-        2. Add JSON: `{"working_directory": "/path/to/repo"}`
-        3. Click "Trigger"
 
         **Architecture:**
         - ✅ **SSOT**: Reuses `run_claude_query_sdk` for Claude SDK execution
