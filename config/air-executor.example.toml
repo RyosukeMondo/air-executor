@@ -1,0 +1,65 @@
+# Air Executor Configuration Template
+# Copy this file to air-executor.toml and customize for your environment
+
+# === Project Paths ===
+[project]
+# Main project directory (absolute path)
+root = "/home/rmondo/repos/air-executor"
+
+# Scripts directory (relative to project.root)
+scripts_dir = "scripts"
+
+# Python executable in venv (relative to project.root)
+venv_python = ".venv/bin/python"
+
+# === Airflow Configuration ===
+[airflow]
+# Airflow home directory (absolute path)
+home = "/home/rmondo/airflow"
+
+# DAGs folder (relative to airflow.home)
+dags_folder = "dags"
+
+# Logs folder (relative to airflow.home)
+logs_folder = "logs"
+
+# Scripts folder (relative to airflow.home)
+scripts_folder = "scripts"
+
+# === Claude Wrapper Settings ===
+[claude]
+# Wrapper script name (relative to project.scripts_dir)
+wrapper_script = "claude_wrapper.py"
+
+# Query timeout in seconds
+timeout_seconds = 60
+
+# Permission mode: "bypassPermissions" (auto-approve) or "ask" (interactive)
+permission_mode = "bypassPermissions"
+
+# Default options for Claude queries
+[claude.default_options]
+# Auto-shutdown wrapper after query completes
+exit_on_complete = true
+
+# Resume previous session (false = start fresh each time)
+resume_last_session = false
+
+# === Development Settings ===
+[development]
+# Enable debug logging
+debug = false
+
+# Validate config on load
+validate_config = true
+
+# === Example Prompts (optional) ===
+# Uncomment and customize as needed
+
+# [[claude.prompts]]
+# name = "greeting"
+# text = "hello, how old are you?"
+
+# [[claude.prompts]]
+# name = "math"
+# text = "what is 2+2?"

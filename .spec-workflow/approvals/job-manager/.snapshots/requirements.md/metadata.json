@@ -1,0 +1,22 @@
+{
+  "filePath": ".spec-workflow/specs/job-manager/requirements.md",
+  "currentVersion": 2,
+  "snapshots": [
+    {
+      "version": 1,
+      "filename": "snapshot-001.json",
+      "timestamp": "2025-10-01T16:36:41.293Z",
+      "trigger": "initial",
+      "approvalId": "approval_1759336601290_8uh0cwi9q",
+      "approvalTitle": "Job Manager Requirements"
+    },
+    {
+      "version": 2,
+      "filename": "snapshot-002.json",
+      "timestamp": "2025-10-01T16:39:16.932Z",
+      "trigger": "approved",
+      "approvalId": "approval_1759336601290_8uh0cwi9q",
+      "approvalTitle": "Job Manager Requirements"
+    }
+  ]
+}

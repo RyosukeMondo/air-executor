@@ -1,0 +1,22 @@
+{
+  "filePath": ".spec-workflow/specs/job-manager/design.md",
+  "currentVersion": 2,
+  "snapshots": [
+    {
+      "version": 1,
+      "filename": "snapshot-001.json",
+      "timestamp": "2025-10-01T16:36:41.455Z",
+      "trigger": "initial",
+      "approvalId": "approval_1759336601452_28yhq725q",
+      "approvalTitle": "Job Manager Design"
+    },
+    {
+      "version": 2,
+      "filename": "snapshot-002.json",
+      "timestamp": "2025-10-01T16:39:16.027Z",
+      "trigger": "approved",
+      "approvalId": "approval_1759336601452_28yhq725q",
+      "approvalTitle": "Job Manager Design"
+    }
+  ]
+}

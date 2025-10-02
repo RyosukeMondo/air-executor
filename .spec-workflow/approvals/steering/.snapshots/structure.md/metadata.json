@@ -1,0 +1,22 @@
+{
+  "filePath": ".spec-workflow/steering/structure.md",
+  "currentVersion": 2,
+  "snapshots": [
+    {
+      "version": 1,
+      "filename": "snapshot-001.json",
+      "timestamp": "2025-10-01T16:36:41.116Z",
+      "trigger": "initial",
+      "approvalId": "approval_1759336601113_lfysbn113",
+      "approvalTitle": "Project Structure Standards"
+    },
+    {
+      "version": 2,
+      "filename": "snapshot-002.json",
+      "timestamp": "2025-10-01T16:39:17.426Z",
+      "trigger": "approved",
+      "approvalId": "approval_1759336601113_lfysbn113",
+      "approvalTitle": "Project Structure Standards"
+    }
+  ]
+}

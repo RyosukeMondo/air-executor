@@ -1,0 +1,22 @@
+{
+  "filePath": ".spec-workflow/steering/product.md",
+  "currentVersion": 2,
+  "snapshots": [
+    {
+      "version": 1,
+      "filename": "snapshot-001.json",
+      "timestamp": "2025-10-01T16:36:40.829Z",
+      "trigger": "initial",
+      "approvalId": "approval_1759336600823_6fmplj6g1",
+      "approvalTitle": "Steering Documents: Product, Tech, Structure"
+    },
+    {
+      "version": 2,
+      "filename": "snapshot-002.json",
+      "timestamp": "2025-10-01T16:39:18.711Z",
+      "trigger": "approved",
+      "approvalId": "approval_1759336600823_6fmplj6g1",
+      "approvalTitle": "Steering Documents: Product, Tech, Structure"
+    }
+  ]
+}
