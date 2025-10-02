@@ -109,43 +109,62 @@ class MultiLanguageOrchestrator:
 
         self._print_project_summary(projects_by_language)
 
-        # 2. PRIORITY 1: Static Analysis (ALWAYS RUN)
-        print(f"\n{'='*80}")
-        print("📍 PRIORITY 1: Fast Static Analysis")
-        print(f"{'='*80}")
-        p1_result = self.execute_priority_1(projects_by_language)
-        self._print_phase_result(p1_result)
+        # Iteration loop for continuous improvement
+        max_iterations = self.config.get('execution', {}).get('max_iterations', 5)
+        print(f"\n🔄 Starting improvement iterations (max: {max_iterations})")
 
-        # Check P1 gate
-        p1_threshold = self.priority_config.get('p1_static', {}).get('success_threshold', 0.90)
-        if p1_result.score < p1_threshold:
-            print(f"\n⚠️  P1 score ({p1_result.score:.1%}) < threshold ({p1_threshold:.0%})")
-            print("🔧 Fix P1 issues before proceeding to P2")
+        for iteration in range(1, max_iterations + 1):
+            print(f"\n{'='*80}")
+            print(f"🔁 ITERATION {iteration}/{max_iterations}")
+            print(f"{'='*80}")
+
+            # 2. PRIORITY 1: Static Analysis (ALWAYS RUN)
+            print(f"\n{'='*80}")
+            print("📍 PRIORITY 1: Fast Static Analysis")
+            print(f"{'='*80}")
+            p1_result = self.execute_priority_1(projects_by_language)
+            self._print_phase_result(p1_result)
+
+            # Check P1 gate
+            p1_threshold = self.priority_config.get('p1_static', {}).get('success_threshold', 0.90)
+            if p1_result.score < p1_threshold:
+                print(f"\n⚠️  P1 score ({p1_result.score:.1%}) < threshold ({p1_threshold:.0%})")
+                print(f"🔧 Fixing P1 issues in iteration {iteration}...")
+                # TODO: Call fix_p1_issues() here
+                print("⚠️  Fixing not yet implemented - will be added in next iteration")
+                continue  # Re-run analysis in next iteration
+
+            # P1 gate passed!
+            print(f"\n✅ P1 gate PASSED ({p1_result.score:.1%} >= {p1_threshold:.0%})")
+
+            # 3. PRIORITY 2: Strategic Tests (ADAPTIVE)
+            print(f"\n{'='*80}")
+            print("📍 PRIORITY 2: Strategic Unit Tests (Time-Aware)")
+            print(f"{'='*80}")
+            p2_result = self.execute_priority_2(projects_by_language, p1_result)
+            self._print_phase_result(p2_result)
+
+            # Check P2 gate
+            p2_threshold = self.priority_config.get('p2_tests', {}).get('success_threshold', 0.85)
+            if p2_result.score < p2_threshold:
+                print(f"\n⚠️  P2 score ({p2_result.score:.1%}) < threshold ({p2_threshold:.0%})")
+                print(f"🔧 Fixing P2 issues in iteration {iteration}...")
+                # TODO: Call fix_p2_issues() here
+                print("⚠️  Fixing not yet implemented - will be added in next iteration")
+                continue  # Re-run analysis in next iteration
+
+            # P2 gate passed!
+            print(f"\n✅ P2 gate PASSED ({p2_result.score:.1%} >= {p2_threshold:.0%})")
+            print(f"\n🎉 All priority gates passed in iteration {iteration}!")
+            break
+
+        # After loop completes
+        if iteration >= max_iterations:
+            print(f"\n⚠️  Reached maximum iterations ({max_iterations}) without passing all gates")
             return {
                 'success': False,
-                'phase_completed': 'p1_static',
-                'p1_result': p1_result,
-                'next_action': 'fix_p1_issues'
-            }
-
-        # 3. PRIORITY 2: Strategic Tests (ADAPTIVE)
-        print(f"\n{'='*80}")
-        print("📍 PRIORITY 2: Strategic Unit Tests (Time-Aware)")
-        print(f"{'='*80}")
-        p2_result = self.execute_priority_2(projects_by_language, p1_result)
-        self._print_phase_result(p2_result)
-
-        # Check P2 gate
-        p2_threshold = self.priority_config.get('p2_tests', {}).get('success_threshold', 0.85)
-        if p2_result.score < p2_threshold:
-            print(f"\n⚠️  P2 score ({p2_result.score:.1%}) < threshold ({p2_threshold:.0%})")
-            print("🔧 Fix P2 test failures before proceeding to P3")
-            return {
-                'success': False,
-                'phase_completed': 'p2_tests',
-                'p1_result': p1_result,
-                'p2_result': p2_result,
-                'next_action': 'fix_p2_issues'
+                'reason': 'max_iterations_reached',
+                'iterations_completed': max_iterations
             }
 
         # 4. PRIORITY 3: Coverage (CONDITIONAL)
