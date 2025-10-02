@@ -22,6 +22,14 @@ Each project is designed to:
 ./run_multi_language_test.sh
 ```
 
+**Current Status**: ✅ **Python tests fully working** - JavaScript and Go projects need npm/go setup (optional)
+
+### Expected Output
+- **P1 (Static)**: 100% - PASS ✅
+- **P2 (Tests)**: 75% (Python: 6/8 passed) - FAIL ❌ (below 85% threshold)
+- **P3 (Coverage)**: Skipped (P2 gate not passed)
+- **Result**: Orchestrator stops at P2, shows helpful message
+
 This will:
 1. Create a tmp directory with timestamp
 2. Copy all sample projects

@@ -3,7 +3,7 @@ module.exports = {
   apps: [{
     name: 'autonomous-fixing',
     script: './scripts/run_autonomous_fixing.sh',
-    args: '--max-iterations=10',
+    args: '--max-iterations=50',
     interpreter: '/bin/bash',
     cwd: '/home/rmondo/repos/air-executor',
 
