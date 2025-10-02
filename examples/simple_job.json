@@ -1,0 +1,28 @@
+{
+  "_comment": "Simple job example with sequential tasks",
+  "job": {
+    "name": "simple-workflow",
+    "description": "A simple workflow demonstrating task dependencies"
+  },
+  "tasks": [
+    {
+      "id": "task-001",
+      "command": "echo",
+      "args": ["Starting workflow..."],
+      "dependencies": []
+    },
+    {
+      "id": "task-002",
+      "command": "sleep",
+      "args": ["2"],
+      "dependencies": ["task-001"],
+      "_comment": "Wait 2 seconds after task-001"
+    },
+    {
+      "id": "task-003",
+      "command": "echo",
+      "args": ["Workflow completed!"],
+      "dependencies": ["task-002"]
+    }
+  ]
+}

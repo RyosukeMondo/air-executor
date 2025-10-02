@@ -1,0 +1,24 @@
+{
+  "_comment": "Example demonstrating dynamic task generation",
+  "job": {
+    "name": "dynamic-workflow",
+    "description": "Workflow that generates subtasks at runtime"
+  },
+  "tasks": [
+    {
+      "id": "discover-files",
+      "command": "python",
+      "args": ["discover_and_queue.py"],
+      "dependencies": [],
+      "_comment": "This task scans for files and queues a processing task for each"
+    }
+  ],
+  "_note": "The discover_and_queue.py script would:",
+  "_note_steps": [
+    "1. Scan directory for files to process",
+    "2. For each file, create a new Task with id=process-{filename}",
+    "3. Add each task to the TaskQueue",
+    "4. Job manager automatically spawns runners for new tasks"
+  ],
+  "_example_script": "examples/discover_and_queue.py"
+}
