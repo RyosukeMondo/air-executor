@@ -7,17 +7,17 @@ target_project: "/home/rmondo/repos/warps"
 # Explicit project list
 projects:
   - path: "/home/rmondo/repos/warps"
-    language: "typescript"
+    language: "javascript"  # JavaScript adapter supports TypeScript
     enabled: true
 
 # Language configurations
 languages:
   enabled:
-    - typescript
+    - javascript  # Handles both JS and TS
 
   auto_detect: false  # Use explicit project list above
 
-  typescript:
+  javascript:
     # Analysis tools
     linters: ["eslint", "tsc"]
     test_framework: "jest"
