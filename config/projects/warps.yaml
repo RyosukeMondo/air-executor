@@ -50,4 +50,4 @@ logging:
 git:
   auto_commit: true
   commit_prefix: "fix"
-  push_after_commit: false
+  push_after_commit: true
