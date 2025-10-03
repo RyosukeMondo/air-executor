@@ -56,7 +56,8 @@ class JavaScriptAdapter(LanguageAdapter):
             result.file_size_violations = self.check_file_sizes(project_path)
             result.complexity_violations = self._check_complexity(project_path)
 
-            result.success = len(result.errors) == 0
+            # Quality check delegated to AnalysisResult model (SOLID: Single Responsibility)
+            result.success = result.compute_quality_check()
             result.execution_time = time.time() - start_time
 
         except Exception as e:

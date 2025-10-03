@@ -49,6 +49,36 @@ class AnalysisResult:
     success: bool = True
     error_message: Optional[str] = None
 
+    def compute_quality_check(self) -> bool:
+        """
+        Compute quality check based on phase.
+
+        Quality check logic centralized in the model (Single Responsibility).
+        All adapters delegate to this method instead of duplicating logic.
+
+        Returns:
+            True if quality check passes, False otherwise
+        """
+        if self.phase == 'static':
+            # Static analysis: no errors, size violations, or complexity violations
+            return (
+                len(self.errors) == 0 and
+                len(self.file_size_violations) == 0 and
+                len(self.complexity_violations) == 0
+            )
+        elif self.phase == 'tests':
+            # Tests: no test failures
+            return len(self.test_failures) == 0 and self.tests_failed == 0
+        elif self.phase == 'coverage':
+            # Coverage: no significant gaps (can be customized)
+            return len(self.coverage_gaps) == 0
+        elif self.phase == 'e2e':
+            # E2E: no runtime errors
+            return len(self.runtime_errors) == 0
+        else:
+            # Unknown phase - default to error check
+            return len(self.errors) == 0
+
     def to_dict(self) -> Dict:
         """Convert to dictionary for serialization."""
         return {

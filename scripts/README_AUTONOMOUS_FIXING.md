@@ -44,7 +44,7 @@ Quick guide to run the autonomous fixing orchestrator.
 
 ```bash
 # Start orchestrator in background
-pm2 start ecosystem.config.js
+pm2 start config/pm2.config.js
 
 # Watch logs in realtime
 pm2 logs autonomous-fixing --lines 50

@@ -81,7 +81,8 @@ class FlutterAdapter(LanguageAdapter):
             # Check complexity
             result.complexity_violations = self._check_complexity(project_path)
 
-            result.success = len(result.errors) == 0
+            # Quality check delegated to AnalysisResult model (SOLID: Single Responsibility)
+            result.success = result.compute_quality_check()
             result.execution_time = time.time() - start_time
 
             print(f"[DEBUG] Analysis result: errors={len(result.errors)}, success={result.success}, time={result.execution_time:.1f}s")

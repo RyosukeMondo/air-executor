@@ -34,16 +34,16 @@ This will:
 cd /home/rmondo/repos/air-executor
 
 # Start PM2 process
-pm2 start ecosystem.real-projects.config.js
+pm2 start config/pm2.config.js
 
 # Watch logs in realtime
-pm2 logs real-projects-fixing
+pm2 logs
 
 # Check status
 pm2 status
 
 # Stop
-pm2 stop real-projects-fixing
+pm2 stop all
 ```
 
 ## Prerequisites
@@ -280,7 +280,7 @@ git reset --hard HEAD~5
 
 4. **Run full automation**:
    ```bash
-   pm2 start ecosystem.real-projects.config.js
+   pm2 start config/pm2.config.js
    ```
 
 ## Troubleshooting
@@ -346,7 +346,7 @@ echo '{"action":"prompt","prompt":"Hello","options":{"cwd":"."}}' | \
 
 ## PM2 Configuration
 
-File: `ecosystem.real-projects.config.js`
+File: `config/pm2.config.js`
 
 ```javascript
 {
@@ -498,7 +498,7 @@ cd /home/rmondo/repos/warps && git push
 
 ```
 config/real_projects_fix.yaml           # Configuration
-ecosystem.real-projects.config.js       # PM2 config
+config/pm2.config.js                    # PM2 process management
 scripts/run_real_projects.sh            # Test runner
 docs/REAL_PROJECTS_GUIDE.md            # This file
 ```
