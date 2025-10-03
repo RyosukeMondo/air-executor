@@ -37,7 +37,7 @@ class PythonAdapter(LanguageAdapter):
         return projects
 
     def static_analysis(self, project_path: str) -> AnalysisResult:
-        """Run pylint + mypy in parallel."""
+        """Run configured linters (ruff/pylint + mypy)."""
         start_time = time.time()
         result = AnalysisResult(
             language=self.language_name,
@@ -48,8 +48,11 @@ class PythonAdapter(LanguageAdapter):
         try:
             errors = []
 
-            # Run linters in parallel
-            linters = self.config.get('linters', ['pylint', 'mypy'])
+            # Run linters based on config
+            linters = self.config.get('linters', ['ruff', 'mypy'])
+
+            if 'ruff' in linters:
+                errors.extend(self._run_ruff(project_path))
 
             if 'pylint' in linters:
                 errors.extend(self._run_pylint(project_path))
@@ -285,6 +288,50 @@ class PythonAdapter(LanguageAdapter):
         excluded = {'venv', '.venv', 'env', '__pycache__', '.tox', 'build', 'dist'}
         return [f for f in source_files if not any(e in f.parts for e in excluded)]
 
+    def _run_ruff(self, project_path: str) -> List[Dict]:
+        """Run ruff and parse errors."""
+        try:
+            # Find ruff executable (may be in venv)
+            ruff_cmd = shutil.which('ruff')
+            if not ruff_cmd:
+                # Try venv location
+                import sys
+                if hasattr(sys, 'prefix'):
+                    venv_ruff = Path(sys.prefix) / 'bin' / 'ruff'
+                    if venv_ruff.exists():
+                        ruff_cmd = str(venv_ruff)
+
+            if not ruff_cmd:
+                return []  # Ruff not available
+
+            result = subprocess.run(
+                [ruff_cmd, 'check', '.', '--output-format=json'],
+                cwd=project_path,
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+
+            # Parse JSON output (ruff returns non-zero if errors found)
+            if result.stdout:
+                lint_results = json.loads(result.stdout)
+                return [
+                    {
+                        'severity': 'error',
+                        'file': item.get('filename', ''),
+                        'line': item.get('location', {}).get('row', 0),
+                        'column': item.get('location', {}).get('column', 0),
+                        'message': item.get('message', ''),
+                        'code': item.get('code', '')
+                    }
+                    for item in lint_results
+                ]
+
+        except Exception:
+            pass
+
+        return []
+
     def _run_pylint(self, project_path: str) -> List[Dict]:
         """Run pylint and parse errors."""
         try:
@@ -416,7 +463,7 @@ class PythonAdapter(LanguageAdapter):
         results.append(self._validate_python())
 
         # 2. Linters (from config)
-        linters = self.config.get('linters', ['pylint', 'mypy'])
+        linters = self.config.get('linters', ['ruff', 'mypy'])
         for linter in linters:
             results.append(self._validate_tool(
                 linter,

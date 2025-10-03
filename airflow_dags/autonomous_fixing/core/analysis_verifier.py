@@ -47,7 +47,9 @@ class AnalysisVerifier:
             config: Configuration dict with verification settings
         """
         self.config = config
-        self.min_execution_time = 0.1  # Minimum realistic execution time (seconds)
+        # Minimum realistic execution time (seconds)
+        # Note: Modern tools like ruff (Rust) can be legitimately fast (<0.05s)
+        self.min_execution_time = 0.01  # Lowered for fast tools like ruff
 
     def verify_analysis_result(self, result, project_path: str) -> VerificationResult:
         """
@@ -80,14 +82,19 @@ class AnalysisVerifier:
             )
 
         # Check 2: Zero errors with zero time (classic silent failure)
+        # BUT: Count complexity and file size violations too - they prove analysis ran
         error_count = len(getattr(result, 'errors', []))
-        if error_count == 0 and exec_time < self.min_execution_time:
+        complexity_count = len(getattr(result, 'complexity_violations', []))
+        file_size_count = len(getattr(result, 'file_size_violations', []))
+        total_findings = error_count + complexity_count + file_size_count
+
+        if total_findings == 0 and exec_time < self.min_execution_time:
             verification.is_valid = False
             verification.issues_found.append(
-                "⚠️  SUSPICIOUS: 0 errors found in 0.0s"
+                "⚠️  SUSPICIOUS: 0 issues found in near-zero time"
             )
             verification.issues_found.append(
-                "   Real analysis takes time - this looks like a cached/skipped result"
+                "   Real analysis should find something or take time - looks cached/skipped"
             )
 
         # Check 3: Result has required fields
