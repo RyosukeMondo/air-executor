@@ -480,7 +480,17 @@ class PythonAdapter(LanguageAdapter):
 
     def _validate_tool(self, tool_name: str, version_flag: str, fix_suggestion: str, optional: bool = False) -> ToolValidationResult:
         """Generic tool validation."""
+        # First check PATH
         tool_cmd = shutil.which(tool_name)
+
+        # If not in PATH, check if running in venv and look there
+        if not tool_cmd:
+            import sys
+            if hasattr(sys, 'prefix') and sys.prefix != sys.base_prefix:
+                # We're in a venv, check venv bin directory
+                venv_bin = Path(sys.prefix) / 'bin' / tool_name
+                if venv_bin.exists():
+                    tool_cmd = str(venv_bin)
 
         if not tool_cmd:
             return ToolValidationResult(
