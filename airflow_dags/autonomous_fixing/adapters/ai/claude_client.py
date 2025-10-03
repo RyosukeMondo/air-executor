@@ -10,6 +10,7 @@ import sys
 import time
 from pathlib import Path
 from typing import Dict, Optional
+from .wrapper_history import WrapperHistoryLogger
 
 
 class ClaudeClient:
@@ -27,6 +28,9 @@ class ClaudeClient:
         self.wrapper_path = wrapper_path
         self.python_exec = python_exec
         self.debug_logger = debug_logger
+
+        # Initialize history logger
+        self.history_logger = WrapperHistoryLogger()
 
     def query(
         self,
@@ -68,6 +72,16 @@ class ClaudeClient:
         # Track timing
         start_time = time.time()
 
+        # Enable detailed logging for debugging
+        debug_mode = self.debug_logger is not None
+        if debug_mode:
+            print(f"\n[WRAPPER DEBUG] Starting claude_wrapper")
+            print(f"  Wrapper: {self.wrapper_path}")
+            print(f"  Python: {self.python_exec}")
+            print(f"  CWD: {project_path}")
+            print(f"  Prompt type: {prompt_type}")
+            print(f"  Prompt (first 100 chars): {prompt[:100]}...")
+
         try:
             # Run wrapper with JSON on stdin
             process = subprocess.Popen(
@@ -79,21 +93,38 @@ class ClaudeClient:
                 cwd=project_path
             )
 
+            if debug_mode:
+                print(f"[WRAPPER DEBUG] Process started (PID: {process.pid})")
+                print(f"[WRAPPER DEBUG] Sending JSON command...")
+
             # Send command and shutdown
             stdout, stderr = process.communicate(
                 input=command_json + json.dumps({"action": "shutdown"}) + "\n",
                 timeout=timeout
             )
 
+            if debug_mode:
+                print(f"[WRAPPER DEBUG] Process completed (exit code: {process.returncode})")
+                print(f"[WRAPPER DEBUG] Stdout length: {len(stdout)} chars")
+                print(f"[WRAPPER DEBUG] Stderr length: {len(stderr)} chars")
+
             # Parse response lines (streaming JSON)
             events = []
+            event_types_seen = []
             for line in stdout.strip().split('\n'):
                 if line.strip():
                     try:
                         event = json.loads(line)
                         events.append(event)
+                        event_type = event.get('event')
+                        event_types_seen.append(event_type)
                     except json.JSONDecodeError:
+                        if debug_mode:
+                            print(f"[WRAPPER DEBUG] Failed to parse JSON: {line[:100]}")
                         continue
+
+            if debug_mode:
+                print(f"[WRAPPER DEBUG] Events received: {', '.join(event_types_seen)}")
 
             # Check for errors in events
             for event in events:
@@ -107,10 +138,28 @@ class ClaudeClient:
             # Calculate duration
             duration = time.time() - start_time
 
-            # Check for completion
+            # Check for completion (wrapper sends 'run_completed', not 'done')
             result = None
             for event in events:
-                if event.get('event') == 'done':
+                event_type = event.get('event')
+                # Check for successful completion
+                if event_type == 'run_completed':
+                    result = {
+                        'success': True,
+                        'outcome': event.get('outcome'),
+                        'events': events
+                    }
+                    break
+                # Check for failures
+                elif event_type == 'run_failed':
+                    result = {
+                        'success': False,
+                        'error': event.get('error', 'Run failed'),
+                        'events': events
+                    }
+                    break
+                # Legacy 'done' event (kept for backward compatibility)
+                elif event_type == 'done':
                     result = {
                         'success': True,
                         'outcome': event.get('outcome'),
@@ -118,9 +167,10 @@ class ClaudeClient:
                     }
                     break
 
-            # If no done event, check process exit
+            # If no completion event, check process exit
             if result is None:
                 if process.returncode == 0:
+                    # Wrapper exited cleanly - assume success
                     result = {
                         'success': True,
                         'events': events
@@ -133,7 +183,16 @@ class ClaudeClient:
                         'events': events
                     }
 
-            # Log wrapper call
+            # Log to history (ALWAYS - critical for investigation)
+            self.history_logger.log_call(
+                prompt=prompt,
+                project_path=project_path,
+                prompt_type=prompt_type,
+                result=result,
+                duration=duration
+            )
+
+            # Log wrapper call (optional debug logger)
             if self.debug_logger:
                 self.debug_logger.log_wrapper_call(
                     prompt_type=prompt_type,
@@ -152,8 +211,18 @@ class ClaudeClient:
 
             result = {
                 'success': False,
-                'error': f'Timeout after {timeout}s'
+                'error': f'Timeout after {timeout}s',
+                'events': []
             }
+
+            # Log to history
+            self.history_logger.log_call(
+                prompt=prompt,
+                project_path=project_path,
+                prompt_type=prompt_type,
+                result=result,
+                duration=duration
+            )
 
             # Log timeout
             if self.debug_logger:
@@ -172,8 +241,18 @@ class ClaudeClient:
 
             result = {
                 'success': False,
-                'error': str(e)
+                'error': str(e),
+                'events': []
             }
+
+            # Log to history
+            self.history_logger.log_call(
+                prompt=prompt,
+                project_path=project_path,
+                prompt_type=prompt_type,
+                result=result,
+                duration=duration
+            )
 
             # Log exception
             if self.debug_logger:

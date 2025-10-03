@@ -112,8 +112,9 @@ class IterationEngine:
             if not p1_score_data['passed_gate']:
                 print(f"\n⚠️  P1 score ({p1_score_data['score']:.1%}) < threshold ({p1_score_data['threshold']:.0%})")
 
-                # Fix P1 issues
-                fix_result = self.fixer.fix_static_issues(p1_result, iteration)
+                # Fix P1 issues (limit from config)
+                max_issues = self.config.get('execution', {}).get('max_issues_per_iteration', 10)
+                fix_result = self.fixer.fix_static_issues(p1_result, iteration, max_issues=max_issues)
 
                 # Log fix results
                 self.debug_logger.log_fix_result(

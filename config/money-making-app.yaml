@@ -78,7 +78,8 @@ execution:
   max_concurrent_projects: 1
   fail_fast: false           # Continue even if issues found
   priority_gates: true       # P2 requires P1 success
-  max_iterations: 3          # Maximum improvement iterations
+  max_iterations: 1          # Maximum improvement iterations (reduced for testing)
+  max_issues_per_iteration: 2  # Fix only 2 issues per iteration (faster testing)
 
 # Health scoring
 health_scoring:
