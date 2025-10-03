@@ -1,0 +1,193 @@
+# Prompt Experiment: Flutter Test Creation
+#
+# Testing different prompts for creating tests in Flutter projects
+# to solve the "0/0 tests detected" bug
+
+name: "Flutter Test Creation Variants"
+description: "Compare different approaches to test creation in Flutter"
+
+# Base configuration
+base_config: "config/projects/money-making-app.yaml"
+
+# Project to test on
+project:
+  path: "/home/rmondo/repos/money-making-app"
+  language: "flutter"
+
+# Git baseline (reset to this before each experiment)
+baseline:
+  git_ref: "HEAD"  # or specific commit SHA
+
+# Comparison criteria
+comparison:
+  criteria: "success_and_speed"  # Options: success_and_speed, most_comprehensive, least_changes
+
+# Prompt variants to test
+prompts:
+  # Baseline: Current prompt from prompts.yaml
+  - name: "baseline_current"
+    description: "Current prompt from config/prompts.yaml"
+    file: "config/prompts/test-creation-baseline.txt"
+    timeout: 900
+    variables:
+      language: "flutter"
+
+  # Variant 1: More explicit about test location
+  - name: "explicit_location"
+    description: "Explicitly specify test/ directory structure"
+    timeout: 900
+    text: |
+      This Flutter project has NO TESTS. Create an initial test suite.
+
+      **Critical Requirements:**
+
+      1. **Test Location:**
+         - Create tests in `test/` directory (NOT test_driver/ or integration_test/)
+         - Follow Flutter convention: test/features/[feature_name]_test.dart
+
+      2. **Test Framework:**
+         - Use flutter_test package (already in pubspec.yaml)
+         - Run tests with: flutter test
+
+      3. **What to Test:**
+         - Create widget tests for main UI components
+         - Create unit tests for core business logic
+         - Minimum 5 meaningful test files
+
+      4. **Verification:**
+         - After creating tests, run: flutter test
+         - Ensure tests are discovered and pass
+         - Commit with message: "test: add initial test suite"
+
+      **Important:**
+      - Tests MUST be in test/ directory to be discovered by `flutter test`
+      - Each test file must end with _test.dart
+      - Import flutter_test package in each test file
+
+  # Variant 2: Discovery-first approach
+  - name: "discovery_first"
+    description: "First check why tests aren't found, then create"
+    timeout: 900
+    text: |
+      This Flutter project reports 0/0 tests. Investigate and fix.
+
+      **Phase 1: Discovery**
+      1. Check if test/ directory exists
+      2. Check if test files exist (*_test.dart)
+      3. Run: flutter test --dry-run
+      4. Check pubspec.yaml for flutter_test dependency
+
+      **Phase 2: Action**
+      - If tests exist but not discovered: Fix discovery issue
+      - If no tests exist: Create initial test suite in test/ directory
+
+      **Phase 3: Verification**
+      - Run: flutter test
+      - Confirm test count > 0
+      - Commit changes
+
+      **Output:**
+      Report what you found and what you did to fix it.
+
+  # Variant 3: Step-by-step with verification
+  - name: "step_by_step_verified"
+    description: "Explicit steps with verification at each stage"
+    timeout: 900
+    text: |
+      Create Flutter tests with verification at each step.
+
+      **Step 1: Setup**
+      - Create test/ directory if it doesn't exist
+      - Verify: ls test/
+
+      **Step 2: Create Sample Test**
+      - Create test/widget_test.dart with basic widget test
+      - Content must import 'package:flutter_test/flutter_test.dart'
+      - Verify: cat test/widget_test.dart
+
+      **Step 3: Run Test**
+      - Execute: flutter test test/widget_test.dart
+      - Verify: Test runs and passes
+      - Show output
+
+      **Step 4: Create More Tests**
+      - Add 4 more test files covering different features
+      - Follow naming: test/features/[feature]_test.dart
+
+      **Step 5: Final Verification**
+      - Run: flutter test
+      - Show total test count
+      - Commit with message: "test: add initial test suite ({count} tests)"
+
+      **Critical:** Show the output of each flutter test command.
+
+  # Variant 4: Example-driven
+  - name: "example_driven"
+    description: "Provide concrete example first"
+    timeout: 900
+    text: |
+      Create Flutter tests for this project. Here's exactly what we need:
+
+      **Example Test File (test/example_test.dart):**
+
+      ```dart
+      import 'package:flutter_test/flutter_test.dart';
+
+      void main() {
+        group('Example Tests', () {
+          test('basic assertion', () {
+            expect(1 + 1, equals(2));
+          });
+
+          test('string manipulation', () {
+            expect('hello'.toUpperCase(), equals('HELLO'));
+          });
+        });
+      }
+      ```
+
+      **Your Task:**
+      1. Create test/ directory
+      2. Create the example test file above
+      3. Run: flutter test test/example_test.dart
+      4. Verify it passes (should show 2 tests passed)
+      5. Create 4 more test files following this pattern:
+         - test/features/auth_test.dart
+         - test/features/data_test.dart
+         - test/widgets/ui_test.dart
+         - test/utils/helpers_test.dart
+      6. Each file should have at least 2 tests
+      7. Run: flutter test (should show 10+ tests total)
+      8. Commit all changes
+
+      **Success Criteria:**
+      - `flutter test` shows 10+ tests
+      - All tests pass
+      - Git commit created
+
+  # Variant 5: Minimal viable approach
+  - name: "minimal_viable"
+    description: "Create absolute minimum, verify it works"
+    timeout: 600
+    text: |
+      Create ONE test file that proves test discovery works.
+
+      **Task:**
+      1. Create test/smoke_test.dart
+      2. Add ONE simple test that always passes
+      3. Run: flutter test
+      4. Verify: Output shows "1 test passed"
+      5. Commit
+
+      **Test Content:**
+      ```dart
+      import 'package:flutter_test/flutter_test.dart';
+
+      void main() {
+        test('smoke test - test discovery works', () {
+          expect(true, isTrue);
+        });
+      }
+      ```
+
+      **Success:** If flutter test shows "1 test passed", we've proven test discovery works.

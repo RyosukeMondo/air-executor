@@ -1,0 +1,166 @@
+# Experiment: Fix Test Detection in money-making-app
+#
+# Problem: System reports 0/0 tests even though 133 test files exist
+# Root cause: flutter command not in PATH when called from subprocess
+#
+# Solution approaches to test:
+# 1. Delegate test running to claude_wrapper (has proper environment)
+# 2. Add explicit test verification to prompts
+# 3. Use alternative test discovery methods
+
+name: "Fix Test Detection - money-making-app"
+description: "Test different approaches to fix 0/0 test detection bug"
+
+base_config: "config/projects/money-making-app.yaml"
+
+project:
+  path: "/home/rmondo/repos/money-making-app"
+  language: "flutter"
+
+baseline:
+  git_ref: "HEAD"
+
+comparison:
+  criteria: "success_and_speed"
+
+prompts:
+  # Variant 1: Explicit test verification
+  - name: "verify_tests_exist"
+    description: "First verify tests exist before reporting success"
+    timeout: 300
+    text: |
+      DIAGNOSTIC: Check if Flutter tests are discoverable.
+
+      **Steps:**
+      1. Check test directory: ls -la test/
+      2. Count test files: find test -name "*_test.dart" | wc -l
+      3. Try running tests: flutter test --dry-run
+      4. Show actual output from flutter test command
+      5. Report findings
+
+      **Expected:**
+      - test/ directory exists: YES/NO
+      - Number of test files: [COUNT]
+      - Flutter can find tests: YES/NO
+      - Actual test count from flutter: [COUNT]
+
+      **DO NOT** create tests. ONLY diagnose why they're not being detected.
+
+  # Variant 2: Count test files directly
+  - name: "count_test_files_directly"
+    description: "Count test files using filesystem, not flutter test"
+    timeout: 60
+    text: |
+      Count Flutter test files in this project.
+
+      Run these commands and show output:
+      1. find test -name "*_test.dart" -type f | wc -l
+      2. ls -R test/ | grep "_test.dart" | wc -l
+
+      Report: "Found [N] test files in test/ directory"
+
+  # Variant 3: Check Flutter environment
+  - name: "check_flutter_environment"
+    description: "Diagnose Flutter environment issues"
+    timeout: 300
+    text: |
+      Diagnose why flutter test might not be working.
+
+      **Environment Check:**
+      1. which flutter
+      2. echo $PATH
+      3. flutter --version
+      4. flutter doctor --android-licenses 2>&1 | head -5
+
+      **Test Check:**
+      5. cd test && ls -la | head -20
+      6. flutter test --dry-run 2>&1
+      7. flutter test --help 2>&1 | head -10
+
+      Report all outputs exactly as shown.
+
+  # Variant 4: Use alternative test runner
+  - name: "use_dart_test_runner"
+    description: "Try using dart test instead of flutter test"
+    timeout: 300
+    text: |
+      Try running tests using dart test instead of flutter test.
+
+      **Commands:**
+      1. which dart
+      2. dart test --help 2>&1 | head -10
+      3. dart test --dry-run test/ 2>&1 | head -20
+      4. Count any test files discovered
+
+      Report if dart test works better than flutter test.
+
+  # Variant 5: Create test runner script
+  - name: "create_test_runner_script"
+    description: "Create shell script that properly runs tests"
+    timeout: 300
+    text: |
+      Create a shell script to run Flutter tests with proper environment.
+
+      **Create test/run_tests.sh:**
+      ```bash
+      #!/bin/bash
+      # Flutter Test Runner with environment setup
+
+      # Find Flutter
+      FLUTTER=$(which flutter 2>/dev/null)
+      if [ -z "$FLUTTER" ]; then
+        # Try common locations
+        if [ -x "$HOME/flutter/bin/flutter" ]; then
+          FLUTTER="$HOME/flutter/bin/flutter"
+        elif [ -x "/opt/flutter/bin/flutter" ]; then
+          FLUTTER="/opt/flutter/bin/flutter"
+        else
+          echo "ERROR: Flutter not found"
+          exit 1
+        fi
+      fi
+
+      echo "Using Flutter: $FLUTTER"
+      $FLUTTER --version
+      $FLUTTER test "$@"
+      ```
+
+      Make it executable: chmod +x test/run_tests.sh
+
+      Test it: ./test/run_tests.sh --dry-run
+
+      Show output and commit the script.
+
+  # Variant 6: Minimal test to prove execution
+  - name: "minimal_test_proof"
+    description: "Create ONE test that proves flutter test actually runs"
+    timeout: 180
+    text: |
+      Create a minimal test that PROVES flutter test is working.
+
+      **Create test/proof_of_execution.dart:**
+      ```dart
+      import 'package:flutter_test/flutter_test.dart';
+      import 'dart:io';
+
+      void main() {
+        test('PROOF: flutter test is executing', () {
+          // Write proof file
+          File('test/EXECUTION_PROOF.txt').writeAsStringSync(
+            'Flutter test executed at ${DateTime.now()}'
+          );
+
+          expect(true, isTrue);
+          print('✅ PROOF: This test actually ran!');
+        });
+      }
+      ```
+
+      Run: flutter test test/proof_of_execution.dart
+
+      Check: cat test/EXECUTION_PROOF.txt
+
+      If file exists with timestamp, tests ARE running.
+      If file doesn't exist, tests are NOT running.
+
+      Commit and report findings.

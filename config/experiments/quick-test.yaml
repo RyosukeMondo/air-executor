@@ -1,0 +1,45 @@
+# Quick Prompt Experiment - Test 2 variants quickly
+
+name: "Quick Test - Fix Error Prompts"
+description: "Compare two approaches to fixing linter errors"
+
+base_config: "config/projects/money-making-app.yaml"
+
+project:
+  path: "/home/rmondo/repos/money-making-app"
+  language: "flutter"
+
+baseline:
+  git_ref: "HEAD"
+
+comparison:
+  criteria: "success_and_speed"
+
+prompts:
+  # Variant 1: Direct approach
+  - name: "direct"
+    description: "Direct fix instruction"
+    timeout: 300
+    text: |
+      Fix this linter error in the Flutter project.
+
+      Run: flutter analyze
+      Find the first error
+      Fix it
+      Verify with: flutter analyze
+      Commit the fix
+
+  # Variant 2: Systematic approach
+  - name: "systematic"
+    description: "Systematic analysis then fix"
+    timeout: 300
+    text: |
+      Fix linter errors systematically.
+
+      Step 1: Run flutter analyze and list all errors
+      Step 2: Categorize errors by severity
+      Step 3: Fix the highest priority error
+      Step 4: Verify the fix
+      Step 5: Commit with descriptive message
+
+      Show your analysis before making changes.
