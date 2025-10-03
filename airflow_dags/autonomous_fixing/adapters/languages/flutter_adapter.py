@@ -53,6 +53,8 @@ class FlutterAdapter(LanguageAdapter):
             if args := self.config.get('analyzer_args'):
                 analyze_cmd.extend(args.split())
 
+            print(f"[DEBUG] Running: {' '.join(analyze_cmd)} in {project_path}")
+
             analyze_result = subprocess.run(
                 analyze_cmd,
                 cwd=project_path,
@@ -61,11 +63,17 @@ class FlutterAdapter(LanguageAdapter):
                 timeout=120
             )
 
+            print(f"[DEBUG] Return code: {analyze_result.returncode}")
+            print(f"[DEBUG] Stdout length: {len(analyze_result.stdout)}")
+            print(f"[DEBUG] Stderr length: {len(analyze_result.stderr)}")
+
             # Parse errors
-            result.errors = self.parse_errors(
-                analyze_result.stdout + analyze_result.stderr,
-                'static'
-            )
+            raw_output = analyze_result.stdout + analyze_result.stderr
+            result.errors = self.parse_errors(raw_output, 'static')
+
+            print(f"[DEBUG] Parsed {len(result.errors)} errors from output")
+            if len(result.errors) > 0:
+                print(f"[DEBUG] First error: {result.errors[0]}")
 
             # Check file sizes
             result.file_size_violations = self.check_file_sizes(project_path)
@@ -76,12 +84,16 @@ class FlutterAdapter(LanguageAdapter):
             result.success = len(result.errors) == 0
             result.execution_time = time.time() - start_time
 
+            print(f"[DEBUG] Analysis result: errors={len(result.errors)}, success={result.success}, time={result.execution_time:.1f}s")
+
         except subprocess.TimeoutExpired:
             result.success = False
             result.error_message = "Static analysis timed out after 120 seconds"
+            print(f"[DEBUG] TIMEOUT after 120s")
         except Exception as e:
             result.success = False
             result.error_message = str(e)
+            print(f"[DEBUG] EXCEPTION: {e}")
 
         return result
 

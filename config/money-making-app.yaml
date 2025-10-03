@@ -1,0 +1,150 @@
+# Configuration for money-making-app Flutter project
+# Multi-Language Autonomous Fixing
+
+# Project configuration
+target_project: "/home/rmondo/repos/money-making-app"
+
+# Explicit project list
+projects:
+  - path: "/home/rmondo/repos/money-making-app"
+    language: "flutter"
+    enabled: true
+
+# Language configurations
+languages:
+  enabled:
+    - flutter
+
+  auto_detect: false  # Use explicit project list above
+
+  flutter:
+    # Analysis tools
+    linters: ["flutter analyze"]
+    test_framework: "flutter test"
+
+    # Quality thresholds
+    complexity_threshold: 15
+    max_file_lines: 500
+
+    # Analysis commands
+    analyze_command: "flutter analyze --no-pub"
+    test_command: "flutter test"
+    build_command: "flutter build apk --debug"
+
+    # Build targets (optional)
+    build_targets:
+      - "apk"      # Android APK
+      - "ios"      # iOS (if on macOS)
+
+# Priority levels and execution strategy
+priorities:
+  # P1: Static Analysis (Critical - must pass)
+  p1_static:
+    enabled: true
+    max_duration_seconds: 300  # 5 minutes
+    success_threshold: 0.95    # 95% must pass
+    phases:
+      - "lint"
+      - "analyze"
+
+  # P2: Unit Tests (Important)
+  p2_tests:
+    enabled: true
+    adaptive_strategy: true
+    time_budgets:
+      minimal: 300        # 5 min - run changed files only
+      selective: 900      # 15 min - run affected modules
+      comprehensive: 1800 # 30 min - run all tests
+    success_threshold: 0.90
+
+  # P3: Coverage (Nice to have)
+  p3_coverage:
+    enabled: true
+    gate_requirements:
+      p1_score: 0.95
+      p2_score: 0.90
+    max_duration_seconds: 1800  # 30 minutes
+    target_coverage: 0.80
+
+  # P4: E2E/Integration (Optional)
+  p4_e2e:
+    enabled: false  # Disable for initial run
+    gate_requirements:
+      overall_health: 0.95
+
+# Execution settings
+execution:
+  parallel_languages: false  # Single language
+  max_concurrent_projects: 1
+  fail_fast: false           # Continue even if issues found
+  priority_gates: true       # P2 requires P1 success
+  max_iterations: 3          # Maximum improvement iterations
+
+# Health scoring
+health_scoring:
+  weights:
+    static_analysis: 0.4
+    tests: 0.3
+    coverage: 0.2
+    e2e: 0.1
+
+  minimum_scores:
+    static: 0.90
+    tests: 0.85
+    overall: 0.85
+
+# State management (Redis)
+state_manager:
+  redis_host: "localhost"
+  redis_port: 6379
+  namespace: "money_making_app"
+  ttl_seconds: 86400  # 24 hours
+
+# Git configuration
+git:
+  auto_commit: true
+  commit_prefix: "fix"
+  commit_message_template: "{prefix}: {description}"
+  push_after_commit: false
+
+  # Branch strategy
+  create_feature_branch: false
+  branch_prefix: "autonomous-fix"
+
+# Claude AI settings (if using air-executor)
+wrapper:
+  path: "/home/rmondo/repos/air-executor/scripts/claude_wrapper.py"
+  python_executable: "/home/rmondo/repos/air-executor/.venv/bin/python3"
+  timeout: 900  # 15 minutes per fix
+
+  # Execution mode
+  permission_mode: "bypassPermissions"  # Auto-approve for autonomous mode
+  exit_on_complete: true
+
+# Circuit breaker (safety limits)
+circuit_breaker:
+  max_consecutive_failures: 5
+  max_total_failures: 15
+  max_duration_hours: 4
+
+  # Stop conditions
+  stop_on:
+    - "build_failure"
+    - "critical_error"
+    - "timeout"
+
+# Logging
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  file: "logs/money-making-app.log"
+  debug_file: "logs/debug/money-making-app_debug.jsonl"
+
+  # Log formats
+  console_format: "simple"  # simple, detailed, json
+  file_format: "detailed"
+
+# Notification (optional)
+notifications:
+  enabled: false
+  on_completion: false
+  on_error: false

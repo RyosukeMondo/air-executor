@@ -8,6 +8,7 @@ No analysis, no fixing, no scoring - just iteration coordination.
 from typing import Dict
 from .debug_logger import DebugLogger
 from .time_gatekeeper import TimeGatekeeper
+from .analysis_verifier import AnalysisVerifier
 
 
 class IterationEngine:
@@ -41,9 +42,10 @@ class IterationEngine:
         self.config = config
         self.max_iterations = config.get('execution', {}).get('max_iterations', 5)
 
-        # Initialize debug logger and time gatekeeper
+        # Initialize components (SRP: each has one job)
         self.debug_logger = DebugLogger(config, project_name)
         self.time_gate = TimeGatekeeper(config)
+        self.verifier = AnalysisVerifier(config)
 
         # Pass debug logger to fixer for wrapper call logging
         self.fixer.debug_logger = self.debug_logger
@@ -90,6 +92,18 @@ class IterationEngine:
             print(f"{'='*80}")
 
             p1_result = self.analyzer.analyze_static(projects_by_language)
+
+            # Verify analysis results (detect silent failures)
+            verification = self.verifier.verify_batch_results(p1_result.results_by_project)
+            if not verification['all_valid']:
+                self.verifier.print_verification_report(verification)
+                print("\n❌ ABORTING: Analysis verification failed - cannot trust results")
+                return {
+                    'success': False,
+                    'reason': 'analysis_verification_failed',
+                    'verification_report': verification
+                }
+
             p1_score_data = self.scorer.score_static_analysis(p1_result)
 
             self._print_score(p1_score_data, p1_result.execution_time)
@@ -157,6 +171,14 @@ class IterationEngine:
             print(f"📊 Test strategy: {strategy.upper()} (based on P1 health: {p1_score_data['score']:.1%})")
 
             p2_result = self.analyzer.analyze_tests(projects_by_language, strategy)
+
+            # Verify test analysis results
+            verification = self.verifier.verify_batch_results(p2_result.results_by_project)
+            if not verification['all_valid']:
+                self.verifier.print_verification_report(verification)
+                print("\n⚠️  WARNING: Test analysis verification failed - results may be unreliable")
+                # Continue anyway since tests are less critical than static analysis
+
             p2_score_data = self.scorer.score_tests(p2_result)
 
             self._print_score(p2_score_data, p2_result.execution_time)

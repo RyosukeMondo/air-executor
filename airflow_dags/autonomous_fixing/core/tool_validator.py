@@ -9,12 +9,12 @@ from typing import Dict, List
 from dataclasses import dataclass
 
 try:
-    from ..language_adapters.base import ToolValidationResult
+    from ..domain.models import ToolValidationResult
 except ImportError:
     import sys
     from pathlib import Path
     sys.path.insert(0, str(Path(__file__).parent.parent))
-    from language_adapters.base import ToolValidationResult
+    from domain.models import ToolValidationResult
 
 
 @dataclass
