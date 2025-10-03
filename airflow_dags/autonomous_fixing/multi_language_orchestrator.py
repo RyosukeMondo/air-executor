@@ -14,9 +14,9 @@ import yaml
 from pathlib import Path
 from typing import Dict, List
 
-# Import language adapters
+# Import language adapters (from new location)
 try:
-    from .language_adapters import (
+    from .adapters.languages import (
         FlutterAdapter,
         PythonAdapter,
         JavaScriptAdapter,
@@ -24,7 +24,7 @@ try:
     )
 except ImportError:
     sys.path.insert(0, str(Path(__file__).parent))
-    from language_adapters import (
+    from adapters.languages import (
         FlutterAdapter,
         PythonAdapter,
         JavaScriptAdapter,

@@ -7,7 +7,8 @@ import time
 import shutil
 from pathlib import Path
 from typing import List, Dict
-from .base import LanguageAdapter, AnalysisResult, ToolValidationResult
+from .base import LanguageAdapter
+from ...domain.models import AnalysisResult, ToolValidationResult
 
 
 class PythonAdapter(LanguageAdapter):

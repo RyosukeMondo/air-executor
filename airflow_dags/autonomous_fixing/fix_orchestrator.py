@@ -12,7 +12,8 @@ from typing import Dict, List
 from datetime import datetime
 
 from smart_health_monitor import SmartHealthMonitor
-from state_manager import StateManager, Task
+from adapters.state.state_manager import StateManager
+from domain.models import Task
 from issue_discovery import IssueDiscovery
 from executor_runner import AirExecutorRunner
 from issue_grouping import IssueGrouper

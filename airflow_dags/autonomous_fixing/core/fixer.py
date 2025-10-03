@@ -8,17 +8,9 @@ No analysis, no scoring, no iteration logic - just fixing.
 import yaml
 from pathlib import Path
 from typing import List, Dict
-from dataclasses import dataclass
-from .claude_client import ClaudeClient
-from .git_verifier import GitVerifier
-
-
-@dataclass
-class FixResult:
-    """Result from fixing issues."""
-    fixes_applied: int = 0
-    fixes_attempted: int = 0
-    success: bool = False
+from ..adapters.ai.claude_client import ClaudeClient
+from ..adapters.git.git_verifier import GitVerifier
+from ..domain.models import FixResult
 
 
 class IssueFixer:

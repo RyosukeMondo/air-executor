@@ -11,10 +11,17 @@ class Task:
     id: str
     type: str  # 'fix_build_error', 'fix_test_failure', 'fix_lint', etc.
     priority: int  # 1-10, 1 = highest
-    project_path: str
-    language: str
 
-    # Task-specific details
+    # Optional fields for backward compatibility
+    project_path: Optional[str] = None
+    language: Optional[str] = None
+    phase: Optional[str] = None  # 'build', 'test', 'lint' (old model)
+    file: Optional[str] = None
+    line: Optional[int] = None
+    message: str = ""
+    context: str = ""
+
+    # Task-specific details (flexible storage)
     details: Dict = field(default_factory=dict)
 
     # Metadata
@@ -23,23 +30,17 @@ class Task:
     error_message: Optional[str] = None
 
     def to_dict(self) -> Dict:
-        """Convert to dictionary for serialization."""
-        return {
-            'id': self.id,
-            'type': self.type,
-            'priority': self.priority,
-            'project_path': self.project_path,
-            'language': self.language,
-            'details': self.details,
-            'created_at': self.created_at,
-            'status': self.status,
-            'error_message': self.error_message,
-        }
+        """Convert to dictionary for serialization (include all fields)."""
+        from dataclasses import asdict
+        return asdict(self)
 
     @staticmethod
     def from_dict(data: Dict) -> 'Task':
-        """Create from dictionary."""
-        return Task(**data)
+        """Create from dictionary (filter valid fields only)."""
+        from dataclasses import fields
+        valid_fields = {f.name for f in fields(Task)}
+        filtered_data = {k: v for k, v in data.items() if k in valid_fields}
+        return Task(**filtered_data)
 
 
 @dataclass
