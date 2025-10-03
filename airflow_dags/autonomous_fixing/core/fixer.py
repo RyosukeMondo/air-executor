@@ -5,11 +5,12 @@ Clean, focused module that ONLY handles calling claude_wrapper to fix issues.
 No analysis, no scoring, no iteration logic - just fixing.
 """
 
-import subprocess
 import yaml
 from pathlib import Path
 from typing import List, Dict
 from dataclasses import dataclass
+from .claude_client import ClaudeClient
+from .git_verifier import GitVerifier
 
 
 @dataclass
@@ -36,17 +37,25 @@ class IssueFixer:
     - Manage iterations (that's IterationEngine's job)
     """
 
-    def __init__(self, config: Dict):
+    def __init__(self, config: Dict, debug_logger=None):
         """
         Args:
             config: Configuration dict with wrapper settings
+            debug_logger: Optional DebugLogger instance
         """
         self.config = config
         self.wrapper_path = config.get('wrapper', {}).get('path', 'scripts/claude_wrapper.py')
         self.python_exec = config.get('wrapper', {}).get('python_executable', 'python')
+        self.debug_logger = debug_logger
 
         # Load prompts from centralized config
         self.prompts = self._load_prompts()
+
+        # Initialize Claude client with debug logger
+        self.claude = ClaudeClient(self.wrapper_path, self.python_exec, debug_logger)
+
+        # Initialize Git verifier for commit validation
+        self.git_verifier = GitVerifier()
 
     def fix_static_issues(self, analysis_result, iteration: int, max_issues: int = 10) -> FixResult:
         """
@@ -180,6 +189,9 @@ class IssueFixer:
 
     def _fix_single_issue(self, issue: Dict) -> bool:
         """Fix a single static issue using claude_wrapper."""
+        # Get HEAD commit before fix
+        before_commit = self.git_verifier.get_head_commit(issue['project'])
+
         # Build prompt from config template
         if issue['type'] == 'error':
             template = self.prompts['static_issues']['error']['template']
@@ -201,19 +213,36 @@ class IssueFixer:
         # Get timeout from config
         timeout = self.prompts.get('timeouts', {}).get('fix_static_issue', 300)
 
-        try:
-            result = subprocess.run(
-                [self.python_exec, self.wrapper_path, '--prompt', prompt, '--project', issue['project']],
-                capture_output=True,
-                text=True,
-                timeout=timeout
+        # Determine prompt type for logging
+        prompt_type = 'fix_error' if issue['type'] == 'error' else 'fix_complexity'
+
+        # Call Claude via JSON protocol
+        result = self.claude.query(prompt, issue['project'], timeout, prompt_type=prompt_type)
+
+        # Verify commit was made
+        if result.get('success', False):
+            verification = self.git_verifier.verify_commit_made(
+                issue['project'],
+                before_commit,
+                f"fixing {issue['type']}"
             )
-            return result.returncode == 0
-        except Exception:
-            return False
+
+            if not verification['verified']:
+                print(f"      ❌ ABORT: Claude said success but no commit detected!")
+                print(f"      {verification['message']}")
+                print(f"      This indicates a problem with claude_wrapper or the fix.")
+                return False
+
+            print(f"      ✅ Verified: {verification['message']}")
+            return True
+
+        return False
 
     def _fix_failing_tests(self, test_info: Dict) -> bool:
         """Fix failing tests for a project using claude_wrapper."""
+        # Get HEAD commit before fix
+        before_commit = self.git_verifier.get_head_commit(test_info['project'])
+
         # Build prompt from config template
         template = self.prompts['tests']['fix_failures']['template']
         prompt = template.format(
@@ -225,16 +254,26 @@ class IssueFixer:
         # Get timeout from config
         timeout = self.prompts.get('timeouts', {}).get('fix_test_failure', 600)
 
-        try:
-            result = subprocess.run(
-                [self.python_exec, self.wrapper_path, '--prompt', prompt, '--project', test_info['project']],
-                capture_output=True,
-                text=True,
-                timeout=timeout
+        # Call Claude via JSON protocol
+        result = self.claude.query(prompt, test_info['project'], timeout, prompt_type='fix_test')
+
+        # Verify commit was made
+        if result.get('success', False):
+            verification = self.git_verifier.verify_commit_made(
+                test_info['project'],
+                before_commit,
+                "fixing tests"
             )
-            return result.returncode == 0
-        except Exception:
-            return False
+
+            if not verification['verified']:
+                print(f"      ❌ ABORT: Claude said success but no commit detected!")
+                print(f"      {verification['message']}")
+                return False
+
+            print(f"      ✅ Verified: {verification['message']}")
+            return True
+
+        return False
 
     def analyze_static(self, project_path: str, language: str) -> Dict:
         """
@@ -278,30 +317,18 @@ class IssueFixer:
         # Get timeout from config
         timeout = self.prompts.get('timeouts', {}).get('analyze_static', 300)
 
-        try:
-            result = subprocess.run(
-                [self.python_exec, self.wrapper_path, '--prompt', prompt, '--project', project_path],
-                capture_output=True,
-                text=True,
-                timeout=timeout
-            )
+        # Call Claude via JSON protocol
+        result = self.claude.query(prompt, project_path, timeout, prompt_type='analysis')
 
-            if result.returncode == 0 and cache_path.exists():
-                print(f"   ✓ Analysis complete, saved to {cache_path}")
-                import yaml
-                with open(cache_path) as f:
-                    return yaml.safe_load(f)
-            else:
-                print(f"   ✗ Analysis failed (config not created)")
-                # Return empty analysis
-                return {
-                    'health': {'overall_score': 0.0},
-                    'errors': {'count': 0},
-                    'warnings': {'count': 0}
-                }
-
-        except Exception as e:
-            print(f"   ✗ Analysis error: {e}")
+        if result['success'] and cache_path.exists():
+            print(f"   ✓ Analysis complete, saved to {cache_path}")
+            import yaml
+            with open(cache_path) as f:
+                return yaml.safe_load(f)
+        else:
+            error_msg = result.get('error', 'Unknown error')
+            print(f"   ✗ Analysis failed: {error_msg}")
+            # Return empty analysis
             return {
                 'health': {'overall_score': 0.0},
                 'errors': {'count': 0},
@@ -346,23 +373,15 @@ class IssueFixer:
         # Get timeout from config
         timeout = self.prompts.get('timeouts', {}).get('discover_tests', 600)
 
-        try:
-            result = subprocess.run(
-                [self.python_exec, self.wrapper_path, '--prompt', prompt, '--project', project_path],
-                capture_output=True,
-                text=True,
-                timeout=timeout
-            )
+        # Call Claude via JSON protocol
+        result = self.claude.query(prompt, project_path, timeout, prompt_type='discover_tests')
 
-            if result.returncode == 0 and cache_path.exists():
-                print(f"   ✓ Test config discovered and saved to {cache_path}")
-                return FixResult(fixes_applied=1, fixes_attempted=1, success=True)
-            else:
-                print(f"   ✗ Test discovery failed (config not created)")
-                return FixResult(fixes_applied=0, fixes_attempted=1, success=False)
-
-        except Exception as e:
-            print(f"   ✗ Test discovery error: {e}")
+        if result['success'] and cache_path.exists():
+            print(f"   ✓ Test config discovered and saved to {cache_path}")
+            return FixResult(fixes_applied=1, fixes_attempted=1, success=True)
+        else:
+            error_msg = result.get('error', 'Unknown error')
+            print(f"   ✗ Test discovery failed: {error_msg}")
             return FixResult(fixes_applied=0, fixes_attempted=1, success=False)
 
     def create_tests(self, analysis_result, iteration: int) -> FixResult:
@@ -421,6 +440,9 @@ class IssueFixer:
 
     def _create_tests_for_project(self, project_info: Dict) -> bool:
         """Create tests for a single project using claude_wrapper."""
+        # Get HEAD commit before test creation
+        before_commit = self.git_verifier.get_head_commit(project_info['project'])
+
         # Build prompt from config template
         template = self.prompts['tests']['create_tests']['template']
         prompt = template.format(language=project_info['language'])
@@ -433,16 +455,27 @@ class IssueFixer:
         # Get timeout from config
         timeout = self.prompts.get('timeouts', {}).get('create_tests', 900)
 
-        try:
-            result = subprocess.run(
-                [self.python_exec, self.wrapper_path, '--prompt', prompt, '--project', project_info['project']],
-                capture_output=True,
-                text=True,
-                timeout=timeout
+        # Call Claude via JSON protocol
+        result = self.claude.query(prompt, project_info['project'], timeout, prompt_type='create_test')
+
+        # Verify commit was made
+        if result.get('success', False):
+            verification = self.git_verifier.verify_commit_made(
+                project_info['project'],
+                before_commit,
+                "creating tests"
             )
-            return result.returncode == 0
-        except Exception:
-            return False
+
+            if not verification['verified']:
+                print(f"      ❌ ABORT: Claude said success but no commit detected!")
+                print(f"      {verification['message']}")
+                print(f"      This indicates tests were not actually created.")
+                return False
+
+            print(f"      ✅ Verified: {verification['message']}")
+            return True
+
+        return False
 
     def _load_prompts(self) -> Dict:
         """Load prompts from centralized config file."""
