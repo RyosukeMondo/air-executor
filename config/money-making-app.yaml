@@ -41,7 +41,7 @@ priorities:
   # P1: Static Analysis (Critical - must pass)
   p1_static:
     enabled: true
-    max_duration_seconds: 300  # 5 minutes
+    max_duration_seconds: 600  # 10 minutes (increased for batch fixes)
     success_threshold: 0.95    # 95% must pass
     phases:
       - "lint"
@@ -76,10 +76,10 @@ priorities:
 execution:
   parallel_languages: false  # Single language
   max_concurrent_projects: 1
-  fail_fast: false           # Continue even if issues found
+  fail_fast: true            # Stop iteration if fix fails (speed optimization)
   priority_gates: true       # P2 requires P1 success
-  max_iterations: 1          # Maximum improvement iterations (reduced for testing)
-  max_issues_per_iteration: 2  # Fix only 2 issues per iteration (faster testing)
+  max_iterations: 20         # More iterations to fix more issues
+  max_issues_per_iteration: 5  # Fix 5 issues per iteration (balanced)
 
 # Health scoring
 health_scoring:
@@ -116,7 +116,7 @@ git:
 wrapper:
   path: "/home/rmondo/repos/air-executor/scripts/claude_wrapper.py"
   python_executable: "/home/rmondo/repos/air-executor/.venv/bin/python3"
-  timeout: 900  # 15 minutes per fix
+  timeout: 300  # 5 minutes per fix (reduced for speed)
 
   # Execution mode
   permission_mode: "bypassPermissions"  # Auto-approve for autonomous mode
