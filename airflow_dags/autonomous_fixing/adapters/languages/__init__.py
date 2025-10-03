@@ -2,7 +2,7 @@
 
 from .base import LanguageAdapter
 from .flutter_adapter import FlutterAdapter
-from .python_adapter import PythonAdapter
+from .python import PythonAdapter  # NEW: Import from python package
 from .javascript_adapter import JavaScriptAdapter
 from .go_adapter import GoAdapter
 
