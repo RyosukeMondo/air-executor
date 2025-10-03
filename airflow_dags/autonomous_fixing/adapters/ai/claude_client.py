@@ -32,6 +32,49 @@ class ClaudeClient:
         # Initialize history logger
         self.history_logger = WrapperHistoryLogger()
 
+    @staticmethod
+    def _format_event(event: Dict) -> str:
+        """Format event for logging - simple and informative."""
+        event_type = event.get('event')
+        timestamp = event.get('timestamp', '')[-12:-4] if event.get('timestamp') else ''  # HH:MM:SS
+
+        # Add content type info for stream events
+        if event_type == 'stream':
+            payload = event.get('payload', {})
+            content = payload.get('content', [])
+
+            # System events (init, etc)
+            if payload.get('subtype') == 'init':
+                return f"[{timestamp}] {event_type} (init)"
+
+            # Tool use - extract tool names
+            if content and isinstance(content, list):
+                first_item = content[0]
+
+                # Tool use
+                if 'name' in first_item and 'input' in first_item:
+                    tool_name = first_item.get('name', 'unknown')
+                    return f"[{timestamp}] {event_type} (tool: {tool_name})"
+
+                # Tool result
+                elif 'tool_use_id' in first_item and 'content' in first_item:
+                    result_preview = str(first_item.get('content', ''))[:30]
+                    return f"[{timestamp}] {event_type} (result: {result_preview}...)"
+
+                # Text content
+                elif 'text' in first_item:
+                    text_preview = first_item.get('text', '')[:40]
+                    return f"[{timestamp}] {event_type} (text: {text_preview}...)"
+
+            return f"[{timestamp}] {event_type} (unknown)"
+
+        # For completion events, include outcome if available
+        elif event_type == 'run_completed':
+            outcome = event.get('outcome', '')[:50]
+            return f"[{timestamp}] {event_type} ({outcome})" if outcome else f"[{timestamp}] {event_type}"
+
+        return f"[{timestamp}] {event_type}" if timestamp else event_type
+
     def query(
         self,
         prompt: str,
@@ -154,7 +197,7 @@ class ClaudeClient:
                     event_types_seen.append(event_type)
 
                     if debug_mode:
-                        print(f"[WRAPPER DEBUG] Event: {event_type}")
+                        print(f"[WRAPPER DEBUG] {self._format_event(event)}")
 
                     # Stop reading when wrapper shuts down
                     if event_type in ['shutdown', 'auto_shutdown']:
