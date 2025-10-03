@@ -61,6 +61,10 @@ class WrapperHistoryLogger:
             git_after: Git HEAD commit after call (optional)
         """
         # Build log entry
+        events = result.get('events', [])
+        event_summary = self._extract_event_summary(events)
+        claude_responses = self._extract_claude_responses(events)
+
         entry = {
             "timestamp": datetime.now().isoformat(),
             "prompt_type": prompt_type,
@@ -76,9 +80,17 @@ class WrapperHistoryLogger:
             "error": result.get('error'),
             "outcome": result.get('outcome'),
 
-            # Events
-            "events": self._extract_event_summary(result.get('events', [])),
-            "event_count": len(result.get('events', [])),
+            # Events (summary for readability)
+            "events": event_summary,
+            "event_count": len(events),
+
+            # Claude's actual responses (CRITICAL for debugging)
+            "claude_response": " ".join(claude_responses),
+            "claude_response_length": sum(len(r) for r in claude_responses),
+
+            # Full event objects (for deep debugging if needed)
+            # Store first 3 stream events to save space
+            "stream_events_sample": [e for e in events if e.get('event') == 'stream'][:3],
 
             # Git tracking
             "git": {
@@ -95,6 +107,30 @@ class WrapperHistoryLogger:
     def _extract_event_summary(self, events: List[Dict]) -> List[str]:
         """Extract event types from events list."""
         return [e.get('event') for e in events if 'event' in e]
+
+    def _extract_claude_responses(self, events: List[Dict]) -> List[str]:
+        """Extract Claude's text responses from stream events."""
+        responses = []
+        for event in events:
+            if event.get('event') == 'stream':
+                payload = event.get('payload', {})
+                # Extract text from content array
+                content = payload.get('content', [])
+                if isinstance(content, list):
+                    for item in content:
+                        if isinstance(item, dict):
+                            # Check for text field (AssistantMessage format)
+                            if 'text' in item:
+                                text = item.get('text', '')
+                                if text:
+                                    responses.append(text)
+                            # Check for type='text' field (alternative format)
+                            elif item.get('type') == 'text' and item.get('text'):
+                                responses.append(item['text'])
+                # Also check for direct text field
+                if payload.get('text'):
+                    responses.append(payload['text'])
+        return responses
 
     def _write_entry(self, log_file: Path, entry: Dict) -> None:
         """Write JSON entry to log file."""
@@ -200,6 +236,20 @@ class WrapperHistoryLogger:
             if call.get('prompt', '').count('\n') > 20:
                 print(f"  ... ({call.get('prompt', '').count('\n') - 20} more lines)")
             print("  " + "-" * 76)
+
+            # Show Claude's response
+            response = call.get('claude_response', '')
+            response_len = call.get('claude_response_length', 0)
+            if response:
+                print(f"\n  Claude Response ({response_len} chars):")
+                print("  " + "-" * 76)
+                for line in response.split('\n')[:30]:  # First 30 lines
+                    print(f"  {line}")
+                if response.count('\n') > 30:
+                    print(f"  ... ({response.count('\n') - 30} more lines)")
+                print("  " + "-" * 76)
+            else:
+                print(f"\n  ⚠️  No Claude response captured (response length: {response_len})")
 
     def cleanup_old_logs(self, keep_days: int = 7) -> None:
         """

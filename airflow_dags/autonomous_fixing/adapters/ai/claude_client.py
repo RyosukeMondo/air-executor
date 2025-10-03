@@ -59,7 +59,8 @@ class ClaudeClient:
             "prompt": prompt,
             "options": {
                 "cwd": project_path,
-                "permission_mode": "bypassPermissions"  # Auto-approve for automation
+                "permission_mode": "bypassPermissions",  # Auto-approve for automation
+                "exit_on_complete": True  # Shutdown wrapper after task completes
             }
         }
 
@@ -83,6 +84,30 @@ class ClaudeClient:
             print(f"  Prompt (first 100 chars): {prompt[:100]}...")
 
         try:
+            # Set up environment with Claude CLI in PATH
+            import os
+            env = os.environ.copy()
+
+            # CRITICAL: Ensure unbuffered Python output
+            env["PYTHONUNBUFFERED"] = "1"
+
+            # Add common locations for Claude CLI to PATH
+            claude_paths = [
+                os.path.expanduser("~/.npm-global/bin"),  # npm global
+                "/usr/local/bin",  # macOS/Linux system
+                os.path.expanduser("~/.local/bin"),  # pip user install
+            ]
+
+            current_path = env.get("PATH", "")
+            for path in claude_paths:
+                if path not in current_path:
+                    env["PATH"] = f"{path}:{current_path}"
+                    current_path = env["PATH"]
+
+            if debug_mode:
+                print(f"[WRAPPER DEBUG] PATH: {env['PATH'][:200]}...")
+                print(f"[WRAPPER DEBUG] PYTHONUNBUFFERED: {env.get('PYTHONUNBUFFERED')}")
+
             # Run wrapper with JSON on stdin
             process = subprocess.Popen(
                 [self.python_exec, self.wrapper_path],
@@ -90,41 +115,68 @@ class ClaudeClient:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                cwd=project_path
+                bufsize=0,  # Unbuffered for real-time output
+                cwd=project_path,
+                env=env  # Pass environment with Claude CLI in PATH
             )
 
             if debug_mode:
                 print(f"[WRAPPER DEBUG] Process started (PID: {process.pid})")
                 print(f"[WRAPPER DEBUG] Sending JSON command...")
 
-            # Send command and shutdown
-            stdout, stderr = process.communicate(
-                input=command_json + json.dumps({"action": "shutdown"}) + "\n",
-                timeout=timeout
-            )
+            # Send command and keep stdin open to avoid EOF detection
+            # Wrapper needs stdin to stay open while Claude executes
+            process.stdin.write(command_json)
+            process.stdin.flush()
+
+            if debug_mode:
+                print(f"[WRAPPER DEBUG] Command sent, reading events...")
+
+            # Read events from stdout as they stream
+            events = []
+            event_types_seen = []
+            shutdown_received = False
+
+            # Read line by line until shutdown
+            while True:
+                line = process.stdout.readline()
+                if not line:
+                    break  # EOF
+
+                line = line.strip()
+                if not line:
+                    continue
+
+                try:
+                    event = json.loads(line)
+                    events.append(event)
+                    event_type = event.get('event')
+                    event_types_seen.append(event_type)
+
+                    if debug_mode:
+                        print(f"[WRAPPER DEBUG] Event: {event_type}")
+
+                    # Stop reading when wrapper shuts down
+                    if event_type in ['shutdown', 'auto_shutdown']:
+                        shutdown_received = True
+                        break
+
+                except json.JSONDecodeError:
+                    if debug_mode:
+                        print(f"[WRAPPER DEBUG] Failed to parse JSON: {line[:100]}")
+                    continue
+
+            # Close stdin and wait for process to finish
+            process.stdin.close()
+            process.wait(timeout=5)
+
+            # Read any remaining stderr
+            stderr = process.stderr.read()
 
             if debug_mode:
                 print(f"[WRAPPER DEBUG] Process completed (exit code: {process.returncode})")
-                print(f"[WRAPPER DEBUG] Stdout length: {len(stdout)} chars")
-                print(f"[WRAPPER DEBUG] Stderr length: {len(stderr)} chars")
-
-            # Parse response lines (streaming JSON)
-            events = []
-            event_types_seen = []
-            for line in stdout.strip().split('\n'):
-                if line.strip():
-                    try:
-                        event = json.loads(line)
-                        events.append(event)
-                        event_type = event.get('event')
-                        event_types_seen.append(event_type)
-                    except json.JSONDecodeError:
-                        if debug_mode:
-                            print(f"[WRAPPER DEBUG] Failed to parse JSON: {line[:100]}")
-                        continue
-
-            if debug_mode:
                 print(f"[WRAPPER DEBUG] Events received: {', '.join(event_types_seen)}")
+                print(f"[WRAPPER DEBUG] Stderr length: {len(stderr)} chars")
 
             # Check for errors in events
             for event in events:
