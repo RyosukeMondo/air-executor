@@ -1,0 +1,142 @@
+# Configuration for warps TypeScript/Next.js project
+# Multi-Language Autonomous Fixing
+
+# Project configuration
+target_project: "/home/rmondo/repos/warps"
+
+# Explicit project list
+projects:
+  - path: "/home/rmondo/repos/warps"
+    language: "typescript"
+    enabled: true
+
+# Language configurations
+languages:
+  enabled:
+    - typescript
+
+  auto_detect: false  # Use explicit project list above
+
+  typescript:
+    # Analysis tools
+    linters: ["eslint", "tsc"]
+    test_framework: "jest"
+
+    # Quality thresholds
+    complexity_threshold: 15
+    max_file_lines: 500
+
+    # Analysis commands
+    analyze_command: "npm run type-check && npm run lint"
+    test_command: "npm run test"
+    build_command: "npm run build"
+
+# Priority levels and execution strategy
+priorities:
+  # P1: Static Analysis (Critical - must pass)
+  p1_static:
+    enabled: true
+    max_duration_seconds: 600  # 10 minutes for type-check + lint
+    success_threshold: 0.95    # 95% must pass
+    phases:
+      - "type-check"
+      - "lint"
+
+  # P2: Unit Tests (Important)
+  p2_tests:
+    enabled: true
+    adaptive_strategy: true
+    time_budgets:
+      minimal: 300        # 5 min - run changed files only
+      selective: 900      # 15 min - run affected modules
+      comprehensive: 1800 # 30 min - run all tests
+    success_threshold: 0.90
+
+  # P3: Coverage (Nice to have)
+  p3_coverage:
+    enabled: false  # Disable initially
+    gate_requirements:
+      p1_score: 0.95
+      p2_score: 0.90
+
+  # P4: E2E/Integration (Optional)
+  p4_e2e:
+    enabled: false  # Disable for initial run
+
+# Execution settings
+execution:
+  parallel_languages: false  # Single language
+  max_concurrent_projects: 1
+  fail_fast: true            # Stop iteration if fix fails (speed)
+  priority_gates: true       # P2 requires P1 success
+  max_iterations: 20         # More iterations to fix more issues
+  max_issues_per_iteration: 5  # Fix 5 issues per iteration (balanced)
+
+# Health scoring
+health_scoring:
+  weights:
+    static_analysis: 0.5
+    tests: 0.3
+    coverage: 0.1
+    e2e: 0.1
+
+  minimum_scores:
+    static: 0.90
+    tests: 0.85
+    overall: 0.85
+
+# State management (Redis)
+state_manager:
+  redis_host: "localhost"
+  redis_port: 6379
+  namespace: "warps"
+  ttl_seconds: 86400  # 24 hours
+
+# Git configuration
+git:
+  auto_commit: true
+  commit_prefix: "fix"
+  commit_message_template: "{prefix}: {description}"
+  push_after_commit: false
+
+  # Branch strategy
+  create_feature_branch: false
+  branch_prefix: "autonomous-fix"
+
+# Claude AI settings
+wrapper:
+  path: "/home/rmondo/repos/air-executor/scripts/claude_wrapper.py"
+  python_executable: "/home/rmondo/repos/air-executor/.venv/bin/python3"
+  timeout: 300  # 5 minutes per fix
+
+  # Execution mode
+  permission_mode: "bypassPermissions"
+  exit_on_complete: true
+
+# Circuit breaker (safety limits)
+circuit_breaker:
+  max_consecutive_failures: 5
+  max_total_failures: 15
+  max_duration_hours: 4
+
+  # Stop conditions
+  stop_on:
+    - "build_failure"
+    - "critical_error"
+    - "timeout"
+
+# Logging
+logging:
+  level: "INFO"
+  file: "logs/warps.log"
+  debug_file: "logs/debug/warps_debug.jsonl"
+
+  # Log formats
+  console_format: "simple"
+  file_format: "detailed"
+
+# Notification (optional)
+notifications:
+  enabled: false
+  on_completion: false
+  on_error: false
