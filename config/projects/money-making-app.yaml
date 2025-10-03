@@ -28,7 +28,7 @@ priorities:
 
 execution:
   max_concurrent_projects: 1
-  max_iterations: 50
+  max_iterations: 5
   max_duration_hours: 2
 
 wrapper:

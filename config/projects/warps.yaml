@@ -30,7 +30,7 @@ priorities:
 
 execution:
   max_concurrent_projects: 1
-  max_iterations: 100  # More iterations for enterprise
+  max_iterations: 5
   max_duration_hours: 4  # More time for enterprise
 
 wrapper:
