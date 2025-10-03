@@ -33,10 +33,11 @@ except ImportError:
 
 # Import clean core modules
 try:
-    from .core import ProjectAnalyzer, IssueFixer, HealthScorer, IterationEngine
+    from .core import ProjectAnalyzer, IssueFixer, HealthScorer, IterationEngine, ToolValidator
 except ImportError:
     sys.path.insert(0, str(Path(__file__).parent))
     from core import ProjectAnalyzer, IssueFixer, HealthScorer, IterationEngine
+    from core.tool_validator import ToolValidator
 
 
 class MultiLanguageOrchestrator:
@@ -57,12 +58,14 @@ class MultiLanguageOrchestrator:
     - Manage iterations (delegates to IterationEngine)
     """
 
-    def __init__(self, config: Dict):
+    def __init__(self, config: Dict, project_name: str = "multi-project"):
         """
         Args:
             config: Full configuration dict
+            project_name: Project name for logging
         """
         self.config = config
+        self.project_name = project_name
 
         # Initialize language adapters (SRP: each adapter handles one language)
         self.adapters = self._create_language_adapters()
@@ -75,7 +78,8 @@ class MultiLanguageOrchestrator:
             self.analyzer,
             self.fixer,
             self.scorer,
-            config
+            config,
+            project_name
         )
 
     def execute(self) -> Dict:
@@ -89,6 +93,19 @@ class MultiLanguageOrchestrator:
         print(f"{'='*80}")
         print(f"Languages enabled: {', '.join(self.adapters.keys())}")
         print(f"{'='*80}\n")
+
+        # === PRE-FLIGHT: Tool Validation ===
+        tool_validator = ToolValidator(self.adapters, self.config)
+        validation_summary = tool_validator.validate_all_tools()
+
+        if not validation_summary.can_proceed:
+            print("\n❌ Cannot proceed - missing critical tools")
+            print("   Please install required tools and try again\n")
+            return {
+                'success': False,
+                'error': 'Missing critical tools',
+                'validation': validation_summary
+            }
 
         # Get projects (explicit list from config)
         if 'projects' in self.config:

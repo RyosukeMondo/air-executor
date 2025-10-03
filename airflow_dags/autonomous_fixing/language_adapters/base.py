@@ -7,6 +7,17 @@ from pathlib import Path
 
 
 @dataclass
+class ToolValidationResult:
+    """Result of tool validation check."""
+    tool_name: str
+    available: bool
+    version: Optional[str] = None
+    path: Optional[str] = None
+    error_message: Optional[str] = None
+    fix_suggestion: Optional[str] = None
+
+
+@dataclass
 class AnalysisResult:
     """Result of language-specific analysis."""
     language: str
@@ -192,6 +203,38 @@ class LanguageAdapter(ABC):
     @abstractmethod
     def _get_source_files(self, project_path: Path) -> List[Path]:
         """Get list of source files for this language."""
+        pass
+
+    @abstractmethod
+    def validate_tools(self) -> List[ToolValidationResult]:
+        """
+        Validate all required tools are available.
+
+        Called before running any analysis to detect issues early.
+
+        Returns:
+            List of ToolValidationResult for each required tool:
+            - Static analysis tools (linters, type checkers)
+            - Test runners
+            - Coverage tools
+            - Build tools
+
+        Example for Flutter:
+            [
+                ToolValidationResult(
+                    tool_name='flutter',
+                    available=True,
+                    version='3.16.0',
+                    path='/home/user/flutter/bin/flutter'
+                ),
+                ToolValidationResult(
+                    tool_name='dart',
+                    available=True,
+                    version='3.2.0',
+                    path='/home/user/flutter/bin/dart'
+                )
+            ]
+        """
         pass
 
     def get_test_strategy_description(self, strategy: str) -> str:

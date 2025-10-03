@@ -4,9 +4,10 @@ import subprocess
 import json
 import re
 import time
+import shutil
 from pathlib import Path
 from typing import List, Dict
-from .base import LanguageAdapter, AnalysisResult
+from .base import LanguageAdapter, AnalysisResult, ToolValidationResult
 
 
 class JavaScriptAdapter(LanguageAdapter):
@@ -462,3 +463,136 @@ class JavaScriptAdapter(LanguageAdapter):
 
         except Exception:
             return {'percentage': 0, 'gaps': []}
+
+    def validate_tools(self) -> List[ToolValidationResult]:
+        """Validate JavaScript/TypeScript toolchain availability."""
+        results = []
+
+        # 1. Node.js
+        results.append(self._validate_node())
+
+        # 2. Package manager (npm/yarn/pnpm)
+        results.append(self._validate_package_manager())
+
+        # 3. Linter (ESLint/TSC)
+        linters = self.config.get('linters', ['eslint'])
+        for linter in linters:
+            if linter == 'eslint':
+                results.append(self._validate_tool('eslint', '--version', 'Install ESLint: npm install -g eslint'))
+            elif linter == 'tsc':
+                results.append(self._validate_tool('tsc', '--version', 'Install TypeScript: npm install -g typescript'))
+
+        # 4. Test runner
+        test_runner = self.config.get('test_runner', 'jest')
+        results.append(self._validate_tool(
+            test_runner,
+            '--version',
+            f'Install {test_runner}: npm install -g {test_runner}'
+        ))
+
+        return results
+
+    def _validate_node(self) -> ToolValidationResult:
+        """Validate Node.js installation."""
+        node_cmd = shutil.which('node')
+
+        if not node_cmd:
+            return ToolValidationResult(
+                tool_name='node',
+                available=False,
+                error_message='Node.js not found in PATH',
+                fix_suggestion='Install Node.js: https://nodejs.org/en/download'
+            )
+
+        try:
+            result = subprocess.run(
+                [node_cmd, '--version'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+
+            version = result.stdout.strip().lstrip('v')
+
+            return ToolValidationResult(
+                tool_name='node',
+                available=True,
+                version=version,
+                path=node_cmd
+            )
+        except Exception as e:
+            return ToolValidationResult(
+                tool_name='node',
+                available=False,
+                path=node_cmd,
+                error_message=f'Node.js found but failed to run: {e}'
+            )
+
+    def _validate_package_manager(self) -> ToolValidationResult:
+        """Validate package manager (npm/yarn/pnpm)."""
+        # Try npm first (comes with Node.js)
+        for pm in ['npm', 'yarn', 'pnpm']:
+            pm_cmd = shutil.which(pm)
+            if pm_cmd:
+                try:
+                    result = subprocess.run(
+                        [pm_cmd, '--version'],
+                        capture_output=True,
+                        text=True,
+                        timeout=5
+                    )
+
+                    return ToolValidationResult(
+                        tool_name=pm,
+                        available=True,
+                        version=result.stdout.strip(),
+                        path=pm_cmd
+                    )
+                except:
+                    continue
+
+        return ToolValidationResult(
+            tool_name='npm/yarn/pnpm',
+            available=False,
+            error_message='No package manager found',
+            fix_suggestion='Install Node.js (includes npm): https://nodejs.org'
+        )
+
+    def _validate_tool(self, tool_name: str, version_flag: str, fix_suggestion: str) -> ToolValidationResult:
+        """Generic tool validation."""
+        tool_cmd = shutil.which(tool_name)
+
+        if not tool_cmd:
+            return ToolValidationResult(
+                tool_name=tool_name,
+                available=False,
+                error_message=f'{tool_name} not found in PATH',
+                fix_suggestion=fix_suggestion
+            )
+
+        try:
+            result = subprocess.run(
+                [tool_cmd, version_flag],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+
+            # Extract version from output
+            output = result.stdout + result.stderr
+            version_match = re.search(r'v?([\d.]+)', output)
+            version = version_match.group(1) if version_match else 'unknown'
+
+            return ToolValidationResult(
+                tool_name=tool_name,
+                available=True,
+                version=version,
+                path=tool_cmd
+            )
+        except Exception as e:
+            return ToolValidationResult(
+                tool_name=tool_name,
+                available=False,
+                path=tool_cmd,
+                error_message=f'{tool_name} found but failed to run: {e}'
+            )

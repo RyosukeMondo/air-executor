@@ -3,9 +3,10 @@
 import subprocess
 import re
 import time
+import shutil
 from pathlib import Path
 from typing import List, Dict
-from .base import LanguageAdapter, AnalysisResult
+from .base import LanguageAdapter, AnalysisResult, ToolValidationResult
 
 
 class GoAdapter(LanguageAdapter):
@@ -424,3 +425,101 @@ class GoAdapter(LanguageAdapter):
 
         except Exception:
             return {'percentage': 0, 'gaps': []}
+
+    def validate_tools(self) -> List[ToolValidationResult]:
+        """Validate Go toolchain availability."""
+        results = []
+
+        # 1. Go itself
+        results.append(self._validate_go())
+
+        # 2. Linters (from config)
+        linters = self.config.get('linters', ['go vet', 'staticcheck'])
+        if 'staticcheck' in linters:
+            results.append(self._validate_tool(
+                'staticcheck',
+                version_flag='--version',
+                fix_suggestion='Install staticcheck: go install honnef.co/go/tools/cmd/staticcheck@latest',
+                optional=True
+            ))
+
+        # 3. Test runner (go test - built into go, validated via go command)
+        # 4. Coverage tool (go test -cover - built into go)
+
+        return results
+
+    def _validate_go(self) -> ToolValidationResult:
+        """Validate Go installation."""
+        go_cmd = shutil.which('go')
+
+        if not go_cmd:
+            return ToolValidationResult(
+                tool_name='go',
+                available=False,
+                error_message='Go not found in PATH',
+                fix_suggestion='Install Go: https://golang.org/doc/install'
+            )
+
+        try:
+            result = subprocess.run(
+                [go_cmd, 'version'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+
+            version_match = re.search(r'go version go([\d.]+)', result.stdout)
+            version = version_match.group(1) if version_match else 'unknown'
+
+            return ToolValidationResult(
+                tool_name='go',
+                available=True,
+                version=version,
+                path=go_cmd
+            )
+        except Exception as e:
+            return ToolValidationResult(
+                tool_name='go',
+                available=False,
+                path=go_cmd,
+                error_message=f'Go found but failed to run: {e}'
+            )
+
+    def _validate_tool(self, tool_name: str, version_flag: str, fix_suggestion: str, optional: bool = False) -> ToolValidationResult:
+        """Generic tool validation."""
+        tool_cmd = shutil.which(tool_name)
+
+        if not tool_cmd:
+            return ToolValidationResult(
+                tool_name=tool_name,
+                available=False,
+                error_message=f'{tool_name} not found in PATH' if not optional else f'{tool_name} not found (optional)',
+                fix_suggestion=fix_suggestion if not optional else None
+            )
+
+        try:
+            result = subprocess.run(
+                [tool_cmd, version_flag],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+
+            # Try to extract version from output
+            output = result.stdout + result.stderr
+            version_match = re.search(r'([\d.]+)', output)
+            version = version_match.group(1) if version_match else 'unknown'
+
+            return ToolValidationResult(
+                tool_name=tool_name,
+                available=True,
+                version=version,
+                path=tool_cmd
+            )
+        except Exception as e:
+            return ToolValidationResult(
+                tool_name=tool_name,
+                available=False,
+                path=tool_cmd,
+                error_message=f'{tool_name} found but failed to run: {e}'
+            )
