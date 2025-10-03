@@ -253,10 +253,12 @@ static_issues:
       - Follow {language} best practices
       - Keep changes minimal and focused
       - Run relevant checks after fixing
+      - **Create a git commit when done**: `git add . && git commit -m "fix: Fix linting error in {file}"`
 
     notes: |
       Keep prompt simple - Claude knows how to fix errors.
       Provide context (language, file, message) but don't over-specify.
+      Git commit is mandatory for verification.
 
   # Complexity reduction prompt - used for cyclomatic complexity violations
   complexity:
@@ -269,10 +271,12 @@ static_issues:
       - Apply Single Responsibility Principle
       - Maintain all existing functionality
       - Add tests if not already present
+      - **Create a git commit when done**: `git add . && git commit -m "refactor: Reduce complexity in {file}"`
 
     notes: |
       Complexity refactoring is riskier - emphasize maintaining functionality.
       Suggest specific techniques (extract, early return, SRP).
+      Git commit is mandatory for verification.
 
 # =============================================================================
 # P2: Test Fixing Prompts
@@ -289,14 +293,21 @@ tests:
       1. Run tests to see failures
       2. Analyze failure messages
       3. Fix the code (not the tests, unless tests are wrong)
-      4. Re-run tests to verify
+      4. Re-run tests to verify fixes work
       5. Repeat until all tests pass
+      6. **IMPORTANT**: Create a git commit when done
+
+      **Git Commit Required**:
+      - Run `git add .` to stage changes
+      - Run `git commit -m "fix: Fix test failures"`
+      - Commit is REQUIRED for fix to be counted as successful
 
       Focus on fixing the root cause, not just making tests pass.
 
     notes: |
       Emphasize fixing CODE, not tests (common mistake).
       Provide iterative process to follow.
+      Git commit is mandatory - system checks for commit to verify success.
 
   # Create tests prompt - used when NO tests exist (0/0)
   create_tests:
@@ -376,6 +387,62 @@ timeouts:
   fix_static_issue: 300    # 5 minutes per static issue fix
   fix_test_failure: 600    # 10 minutes per project test fixing
   create_tests: 900        # 15 minutes for test creation
+  analyze_static: 300      # 5 minutes for static analysis
+
+# =============================================================================
+# Time Gate Configuration - Prevent Wasteful Rapid Iterations
+# =============================================================================
+
+time_gates:
+  # Minimum time between iterations (seconds)
+  # If iteration completes faster, wait before starting next one
+  min_iteration_duration: 30    # 30 seconds minimum per iteration
+
+  # Early abort detection
+  # If multiple iterations end too quickly, likely stuck in a loop
+  rapid_iteration_threshold: 3  # Count of fast iterations
+  rapid_iteration_window: 90    # Within 90 seconds = abort
+
+  # Wrapper call tracking
+  wrapper_call_min_duration: 20  # Claude wrapper takes ~20s minimum
+
+  # Iteration time tracking
+  track_iteration_times: true
+  log_slow_iterations: true      # Log iterations taking >5 min
+
+# =============================================================================
+# Debug Logging Configuration
+# =============================================================================
+
+debug:
+  enabled: true
+  log_dir: "logs/debug"
+
+  # What to log
+  log_levels:
+    wrapper_calls: true       # Log all claude_wrapper invocations
+    wrapper_responses: true   # Log wrapper JSON responses
+    iteration_timing: true    # Log iteration start/end times
+    fix_results: true         # Log fix success/failure details
+    analysis_results: true    # Log analysis outputs
+
+  # Structured logging format
+  format: json                # json or text
+
+  # Log retention
+  max_log_files: 50          # Keep last 50 debug sessions
+  max_log_size_mb: 100       # Max 100MB per log file
+
+  # Performance monitoring
+  track_metrics:
+    claude_usage: true       # Track API usage/costs
+    iteration_duration: true # Track time per iteration
+    fix_success_rate: true   # Track fix success/failure rates
+
+  # Logging server (future)
+  remote_logging:
+    enabled: false
+    endpoint: null           # Future: monitoring server URL
 
 # =============================================================================
 # Prompt Engineering Notes
