@@ -36,6 +36,7 @@ env/
 # Air Executor
 .air-executor/
 *.log
+logs/
 
 # Config (keep example, ignore actual)
 config/air-executor.toml
