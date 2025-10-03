@@ -269,35 +269,35 @@ flowchart TD
 ```mermaid
 gantt
     title Multi-Language Parallel Execution Timeline
-    dateFormat  mm:ss
-    axisFormat %M:%S
+    dateFormat YYYY-MM-DD
+    axisFormat %H:%M:%S
 
     section Project Detection
-    Detect all projects           :00:00, 10s
+    Detect all projects           :2025-01-01, 10s
 
     section P1: Static (Parallel)
-    Python: pylint + mypy         :00:10, 30s
-    JavaScript: eslint + tsc      :00:10, 30s
-    Flutter: analyze              :00:10, 30s
-    Go: vet + staticcheck         :00:10, 30s
+    Python: pylint + mypy         :2025-01-01, 30s
+    JavaScript: eslint + tsc      :2025-01-01, 30s
+    Flutter: analyze              :2025-01-01, 30s
+    Go: vet + staticcheck         :2025-01-01, 30s
 
     section P1: Analysis
-    Aggregate results             :00:40, 10s
+    Aggregate results             :2025-01-01, 10s
 
     section P2: Tests (Parallel)
-    Python: pytest                :00:50, 300s
-    JavaScript: jest              :00:50, 300s
-    Flutter: test                 :00:50, 300s
-    Go: test                      :00:50, 300s
+    Python: pytest                :2025-01-01, 300s
+    JavaScript: jest              :2025-01-01, 300s
+    Flutter: test                 :2025-01-01, 300s
+    Go: test                      :2025-01-01, 300s
 
     section P2: Analysis
-    Aggregate test results        :05:50, 10s
+    Aggregate test results        :2025-01-01, 10s
 
     section Fixing (Sequential per project)
-    Fix Python issues             :06:00, 180s
-    Fix JavaScript issues         :09:00, 180s
-    Fix Flutter issues            :12:00, 180s
-    Fix Go issues                 :15:00, 180s
+    Fix Python issues             :2025-01-01, 180s
+    Fix JavaScript issues         :2025-01-01, 180s
+    Fix Flutter issues            :2025-01-01, 180s
+    Fix Go issues                 :2025-01-01, 180s
 ```
 
 ## Health Monitoring System
