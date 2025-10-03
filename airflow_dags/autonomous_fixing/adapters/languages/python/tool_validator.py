@@ -122,7 +122,8 @@ class PythonToolValidator:
 
             # Try to extract version from output
             output = result.stdout + result.stderr
-            version_match = re.search(r'([\d.]+)', output)
+            # Match version patterns like "1.2.3" or "version 1.2.3"
+            version_match = re.search(r'(?:version\s+)?(\d+\.\d+(?:\.\d+)?)', output, re.IGNORECASE)
             version = version_match.group(1) if version_match else 'unknown'
 
             return ToolValidationResult(
