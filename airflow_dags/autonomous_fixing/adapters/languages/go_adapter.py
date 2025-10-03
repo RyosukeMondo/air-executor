@@ -1,42 +1,38 @@
-"""Python language adapter."""
+"""Go language adapter."""
 
 import subprocess
-import json
 import re
 import time
 import shutil
 from pathlib import Path
 from typing import List, Dict
-from .base import LanguageAdapter, AnalysisResult, ToolValidationResult
+from .base import LanguageAdapter
+from ...domain.models import AnalysisResult, ToolValidationResult
 
 
-class PythonAdapter(LanguageAdapter):
-    """Adapter for Python projects."""
+class GoAdapter(LanguageAdapter):
+    """Adapter for Go projects."""
 
     @property
     def language_name(self) -> str:
-        return "python"
+        return "go"
 
     @property
     def project_markers(self) -> List[str]:
-        return ["setup.py", "pyproject.toml", "requirements.txt", "setup.cfg"]
+        return ["go.mod"]
 
     def detect_projects(self, root_path: str) -> List[str]:
-        """Find all Python projects."""
+        """Find all Go projects by go.mod."""
         projects = []
         root = Path(root_path)
 
-        # Look for project markers
-        for marker in self.project_markers:
-            for file_path in root.rglob(marker):
-                project_dir = file_path.parent
-                if str(project_dir) not in projects:
-                    projects.append(str(project_dir))
+        for go_mod in root.rglob("go.mod"):
+            projects.append(str(go_mod.parent))
 
         return projects
 
     def static_analysis(self, project_path: str) -> AnalysisResult:
-        """Run pylint + mypy in parallel."""
+        """Run go vet + staticcheck."""
         start_time = time.time()
         result = AnalysisResult(
             language=self.language_name,
@@ -47,14 +43,13 @@ class PythonAdapter(LanguageAdapter):
         try:
             errors = []
 
-            # Run linters in parallel
-            linters = self.config.get('linters', ['pylint', 'mypy'])
+            # Run go vet
+            errors.extend(self._run_go_vet(project_path))
 
-            if 'pylint' in linters:
-                errors.extend(self._run_pylint(project_path))
-
-            if 'mypy' in linters:
-                errors.extend(self._run_mypy(project_path))
+            # Run staticcheck if available
+            linters = self.config.get('linters', ['go vet', 'staticcheck'])
+            if 'staticcheck' in linters:
+                errors.extend(self._run_staticcheck(project_path))
 
             result.errors = errors
             result.file_size_violations = self.check_file_sizes(project_path)
@@ -70,7 +65,7 @@ class PythonAdapter(LanguageAdapter):
         return result
 
     def run_tests(self, project_path: str, strategy: str) -> AnalysisResult:
-        """Run pytest with strategy."""
+        """Run go test with strategy."""
         start_time = time.time()
         result = AnalysisResult(
             language=self.language_name,
@@ -79,20 +74,20 @@ class PythonAdapter(LanguageAdapter):
         )
 
         try:
-            # Build pytest command based on strategy
-            cmd = ['pytest']
+            # Build test command based on strategy
+            cmd = ['go', 'test', './...']
 
             if strategy == 'minimal':
-                # Only fast tests, no slow or integration
-                cmd.extend(['-m', 'not slow and not integration', '--tb=short'])
+                # Only short tests
+                cmd.append('-short')
                 timeout = 300  # 5 min
             elif strategy == 'selective':
-                # No integration tests
-                cmd.extend(['-m', 'not integration'])
+                # Short tests + tagged non-integration
+                cmd.extend(['-short', '-tags=!integration'])
                 timeout = 900  # 15 min
             else:  # comprehensive
                 # Full test suite
-                cmd.extend(['-v'])
+                cmd.append('-v')
                 timeout = 1800  # 30 min
 
             test_result = subprocess.run(
@@ -127,7 +122,7 @@ class PythonAdapter(LanguageAdapter):
         return result
 
     def analyze_coverage(self, project_path: str) -> AnalysisResult:
-        """Analyze test coverage using pytest-cov."""
+        """Analyze test coverage using go test -cover."""
         start_time = time.time()
         result = AnalysisResult(
             language=self.language_name,
@@ -136,8 +131,8 @@ class PythonAdapter(LanguageAdapter):
         )
 
         try:
-            # Run pytest with coverage
-            cmd = ['pytest', '--cov', '--cov-report=json', '--cov-report=term']
+            # Run tests with coverage
+            cmd = ['go', 'test', './...', '-coverprofile=coverage.out', '-covermode=atomic']
             subprocess.run(
                 cmd,
                 cwd=project_path,
@@ -145,10 +140,10 @@ class PythonAdapter(LanguageAdapter):
                 timeout=1800  # 30 min
             )
 
-            # Parse coverage JSON
-            coverage_file = Path(project_path) / 'coverage.json'
+            # Parse coverage file
+            coverage_file = Path(project_path) / 'coverage.out'
             if coverage_file.exists():
-                coverage_data = self._parse_coverage_json(coverage_file)
+                coverage_data = self._parse_coverage_file(coverage_file)
                 result.coverage_percentage = coverage_data['percentage']
                 result.coverage_gaps = coverage_data['gaps']
 
@@ -165,7 +160,7 @@ class PythonAdapter(LanguageAdapter):
         return result
 
     def run_e2e_tests(self, project_path: str) -> AnalysisResult:
-        """Run E2E tests (marked with @pytest.mark.e2e)."""
+        """Run E2E tests (tagged with integration)."""
         start_time = time.time()
         result = AnalysisResult(
             language=self.language_name,
@@ -174,8 +169,8 @@ class PythonAdapter(LanguageAdapter):
         )
 
         try:
-            # Run only E2E marked tests
-            cmd = ['pytest', '-m', 'e2e', '-v']
+            # Run integration tests
+            cmd = ['go', 'test', './...', '-tags=integration', '-v']
             test_result = subprocess.run(
                 cmd,
                 cwd=project_path,
@@ -203,49 +198,46 @@ class PythonAdapter(LanguageAdapter):
         return result
 
     def parse_errors(self, output: str, phase: str) -> List[Dict]:
-        """Parse Python error messages."""
+        """Parse Go error messages."""
         errors = []
 
-        if phase == 'static':
-            # Already parsed by _run_pylint and _run_mypy
-            return []
-
-        elif phase in ('tests', 'e2e'):
-            # Pytest format: test_file.py::test_name FAILED
-            # Also: E       AssertionError: message
-            pattern = r'(.+\.py)::(.+?)\s+FAILED'
+        if phase == 'tests' or phase == 'e2e':
+            # Go test format: --- FAIL: TestName (0.00s)
+            # Also: FAIL	package/path	0.123s
+            pattern = r'--- FAIL:\s+(\w+)'
             for match in re.finditer(pattern, output):
                 errors.append({
                     'severity': 'error',
-                    'file': match.group(1),
+                    'file': '',
                     'line': 0,
                     'column': 0,
-                    'message': f'Test failed: {match.group(2)}',
+                    'message': f'Test failed: {match.group(1)}',
                     'code': 'test_failure'
                 })
 
-            # Extract assertion errors
-            pattern = r'E\s+(.+Error:.+)'
+            # Extract error messages
+            pattern = r'Error:\s+(.+)'
             for match in re.finditer(pattern, output):
-                if errors:  # Add to last error
+                if errors:
                     errors[-1]['message'] += f' - {match.group(1)}'
 
         return errors
 
     def calculate_complexity(self, file_path: str) -> int:
-        """Calculate cyclomatic complexity using radon."""
+        """Calculate cyclomatic complexity using gocyclo."""
         try:
-            # Use radon for accurate complexity
+            # Use gocyclo if available
             result = subprocess.run(
-                ['radon', 'cc', file_path, '-s', '-n', 'A'],
+                ['gocyclo', '-over', '1', file_path],
                 capture_output=True,
                 text=True,
                 timeout=5
             )
 
-            # Parse radon output: "A 1:0 ClassName.method_name - A (1)"
+            # gocyclo output: "10 main main.go:15:1 funcName"
             max_complexity = 0
-            for match in re.finditer(r'\((\d+)\)', result.stdout):
+            pattern = r'^(\d+)\s+'
+            for match in re.finditer(pattern, result.stdout, re.MULTILINE):
                 complexity = int(match.group(1))
                 max_complexity = max(max_complexity, complexity)
 
@@ -256,7 +248,7 @@ class PythonAdapter(LanguageAdapter):
             return self._simple_complexity(file_path)
 
     def _simple_complexity(self, file_path: str) -> int:
-        """Simple complexity heuristic (fallback)."""
+        """Simple complexity heuristic."""
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
@@ -264,10 +256,10 @@ class PythonAdapter(LanguageAdapter):
             complexity = 1
             complexity += content.count(' if ')
             complexity += content.count(' for ')
-            complexity += content.count(' while ')
-            complexity += content.count(' and ')
-            complexity += content.count(' or ')
-            complexity += content.count('except ')
+            complexity += content.count(' case ')
+            complexity += content.count(' && ')
+            complexity += content.count(' || ')
+            complexity += content.count('select {')
 
             return complexity
 
@@ -275,52 +267,19 @@ class PythonAdapter(LanguageAdapter):
             return 0
 
     def _get_source_files(self, project_path: Path) -> List[Path]:
-        """Get all Python source files."""
+        """Get all Go source files."""
         source_files = []
-        for pattern in ['**/*.py']:
-            source_files.extend(project_path.rglob(pattern))
+        for go_file in project_path.rglob('*.go'):
+            # Exclude test files and vendor
+            if not go_file.name.endswith('_test.go') and 'vendor' not in go_file.parts:
+                source_files.append(go_file)
+        return source_files
 
-        # Exclude common non-source directories
-        excluded = {'venv', '.venv', 'env', '__pycache__', '.tox', 'build', 'dist'}
-        return [f for f in source_files if not any(e in f.parts for e in excluded)]
-
-    def _run_pylint(self, project_path: str) -> List[Dict]:
-        """Run pylint and parse errors."""
+    def _run_go_vet(self, project_path: str) -> List[Dict]:
+        """Run go vet and parse errors."""
         try:
             result = subprocess.run(
-                ['pylint', '.', '--output-format=json'],
-                cwd=project_path,
-                capture_output=True,
-                text=True,
-                timeout=120
-            )
-
-            # Parse JSON output
-            if result.stdout:
-                lint_results = json.loads(result.stdout)
-                return [
-                    {
-                        'severity': item.get('type', 'error'),
-                        'file': item.get('path', ''),
-                        'line': item.get('line', 0),
-                        'column': item.get('column', 0),
-                        'message': item.get('message', ''),
-                        'code': item.get('symbol', '')
-                    }
-                    for item in lint_results
-                    if item.get('type') in ('error', 'fatal')
-                ]
-
-        except Exception:
-            pass
-
-        return []
-
-    def _run_mypy(self, project_path: str) -> List[Dict]:
-        """Run mypy and parse errors."""
-        try:
-            result = subprocess.run(
-                ['mypy', '.', '--show-error-codes'],
+                ['go', 'vet', './...'],
                 cwd=project_path,
                 capture_output=True,
                 text=True,
@@ -328,14 +287,45 @@ class PythonAdapter(LanguageAdapter):
             )
 
             errors = []
-            # Mypy format: file.py:line: error: message [error-code]
-            pattern = r'(.+\.py):(\d+):\s*(error|warning):\s*(.+?)\s*\[(.+?)\]'
-            for match in re.finditer(pattern, result.stdout):
+            # go vet format: file.go:line:col: message
+            pattern = r'(.+\.go):(\d+):(\d+):\s*(.+)'
+            for match in re.finditer(pattern, result.stderr):
                 errors.append({
-                    'severity': match.group(3),
+                    'severity': 'error',
                     'file': match.group(1),
                     'line': int(match.group(2)),
-                    'column': 0,
+                    'column': int(match.group(3)),
+                    'message': match.group(4),
+                    'code': 'vet'
+                })
+
+            return errors
+
+        except Exception:
+            pass
+
+        return []
+
+    def _run_staticcheck(self, project_path: str) -> List[Dict]:
+        """Run staticcheck and parse errors."""
+        try:
+            result = subprocess.run(
+                ['staticcheck', './...'],
+                cwd=project_path,
+                capture_output=True,
+                text=True,
+                timeout=120
+            )
+
+            errors = []
+            # staticcheck format: file.go:line:col: message (SA1234)
+            pattern = r'(.+\.go):(\d+):(\d+):\s*(.+?)\s*\((\w+)\)'
+            for match in re.finditer(pattern, result.stdout):
+                errors.append({
+                    'severity': 'error',
+                    'file': match.group(1),
+                    'line': int(match.group(2)),
+                    'column': int(match.group(3)),
                     'message': match.group(4),
                     'code': match.group(5)
                 })
@@ -365,38 +355,68 @@ class PythonAdapter(LanguageAdapter):
         return violations
 
     def _extract_test_counts(self, output: str) -> Dict[str, int]:
-        """Extract pytest pass/fail counts."""
+        """Extract test pass/fail counts."""
         passed = 0
         failed = 0
 
-        # Look for summary: "5 passed, 2 failed in 1.23s"
-        if match := re.search(r'(\d+) passed', output):
-            passed = int(match.group(1))
-        if match := re.search(r'(\d+) failed', output):
-            failed = int(match.group(1))
+        # Count PASS and FAIL lines
+        passed = output.count('PASS:')
+        failed = output.count('FAIL:')
 
-        return {'passed': passed, 'failed': failed}
+        # Also look for summary: "ok  	package/path	0.123s"
+        ok_count = output.count('\nok  ')
+        fail_count = output.count('\nFAIL')
 
-    def _parse_coverage_json(self, coverage_file: Path) -> Dict:
-        """Parse coverage.json file."""
+        return {
+            'passed': max(passed, ok_count),
+            'failed': max(failed, fail_count)
+        }
+
+    def _parse_coverage_file(self, coverage_file: Path) -> Dict:
+        """Parse Go coverage.out file."""
         try:
             with open(coverage_file) as f:
-                data = json.load(f)
+                lines = f.readlines()
 
-            # Get overall coverage percentage
-            totals = data.get('totals', {})
-            percentage = totals.get('percent_covered', 0)
+            # Skip mode line
+            if lines and lines[0].startswith('mode:'):
+                lines = lines[1:]
 
-            # Find files with low/no coverage
+            # Parse coverage lines: file.go:startLine.col,endLine.col numStmt count
+            total_stmts = 0
+            covered_stmts = 0
+            file_coverage = {}
+
+            for line in lines:
+                parts = line.strip().split()
+                if len(parts) >= 3:
+                    file_loc = parts[0].split(':')[0]  # Extract filename
+                    num_stmts = int(parts[1])
+                    count = int(parts[2])
+
+                    total_stmts += num_stmts
+                    if count > 0:
+                        covered_stmts += num_stmts
+
+                    # Track per-file coverage
+                    if file_loc not in file_coverage:
+                        file_coverage[file_loc] = {'total': 0, 'covered': 0}
+                    file_coverage[file_loc]['total'] += num_stmts
+                    if count > 0:
+                        file_coverage[file_loc]['covered'] += num_stmts
+
+            # Calculate overall percentage
+            percentage = (covered_stmts / total_stmts * 100) if total_stmts > 0 else 0
+
+            # Find files with low coverage
             gaps = []
-            files = data.get('files', {})
-            for file_path, file_data in files.items():
-                file_coverage = file_data.get('summary', {}).get('percent_covered', 0)
-                if file_coverage < 50:  # Less than 50% coverage
+            for file_path, cov_data in file_coverage.items():
+                file_pct = (cov_data['covered'] / cov_data['total'] * 100) if cov_data['total'] > 0 else 0
+                if file_pct < 50:
                     gaps.append({
                         'file': file_path,
-                        'coverage': file_coverage,
-                        'message': f'Low coverage: {file_coverage:.1f}%'
+                        'coverage': file_pct,
+                        'message': f'Low coverage: {file_pct:.1f}%'
                     })
 
             return {
@@ -408,74 +428,62 @@ class PythonAdapter(LanguageAdapter):
             return {'percentage': 0, 'gaps': []}
 
     def validate_tools(self) -> List[ToolValidationResult]:
-        """Validate Python toolchain availability."""
+        """Validate Go toolchain availability."""
         results = []
 
-        # 1. Python itself
-        results.append(self._validate_python())
+        # 1. Go itself
+        results.append(self._validate_go())
 
         # 2. Linters (from config)
-        linters = self.config.get('linters', ['pylint', 'mypy'])
-        for linter in linters:
+        linters = self.config.get('linters', ['go vet', 'staticcheck'])
+        if 'staticcheck' in linters:
             results.append(self._validate_tool(
-                linter,
+                'staticcheck',
                 version_flag='--version',
-                fix_suggestion=f'Install {linter}: pip install {linter}'
+                fix_suggestion='Install staticcheck: go install honnef.co/go/tools/cmd/staticcheck@latest',
+                optional=True
             ))
 
-        # 3. Test runner
-        test_runner = self.config.get('test_runner', 'pytest')
-        results.append(self._validate_tool(
-            test_runner,
-            version_flag='--version',
-            fix_suggestion=f'Install {test_runner}: pip install {test_runner}'
-        ))
-
-        # 4. Coverage tool (optional)
-        results.append(self._validate_tool(
-            'coverage',
-            version_flag='--version',
-            fix_suggestion='Install coverage: pip install coverage',
-            optional=True
-        ))
+        # 3. Test runner (go test - built into go, validated via go command)
+        # 4. Coverage tool (go test -cover - built into go)
 
         return results
 
-    def _validate_python(self) -> ToolValidationResult:
-        """Validate Python installation."""
-        python_cmd = shutil.which('python') or shutil.which('python3')
+    def _validate_go(self) -> ToolValidationResult:
+        """Validate Go installation."""
+        go_cmd = shutil.which('go')
 
-        if not python_cmd:
+        if not go_cmd:
             return ToolValidationResult(
-                tool_name='python',
+                tool_name='go',
                 available=False,
-                error_message='Python not found in PATH',
-                fix_suggestion='Install Python: https://python.org/downloads'
+                error_message='Go not found in PATH',
+                fix_suggestion='Install Go: https://golang.org/doc/install'
             )
 
         try:
             result = subprocess.run(
-                [python_cmd, '--version'],
+                [go_cmd, 'version'],
                 capture_output=True,
                 text=True,
                 timeout=5
             )
 
-            version_match = re.search(r'Python ([\d.]+)', result.stdout + result.stderr)
+            version_match = re.search(r'go version go([\d.]+)', result.stdout)
             version = version_match.group(1) if version_match else 'unknown'
 
             return ToolValidationResult(
-                tool_name='python',
+                tool_name='go',
                 available=True,
                 version=version,
-                path=python_cmd
+                path=go_cmd
             )
         except Exception as e:
             return ToolValidationResult(
-                tool_name='python',
+                tool_name='go',
                 available=False,
-                path=python_cmd,
-                error_message=f'Python found but failed to run: {e}'
+                path=go_cmd,
+                error_message=f'Go found but failed to run: {e}'
             )
 
     def _validate_tool(self, tool_name: str, version_flag: str, fix_suggestion: str, optional: bool = False) -> ToolValidationResult:

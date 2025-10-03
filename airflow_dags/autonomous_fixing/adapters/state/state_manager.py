@@ -9,34 +9,13 @@ import json
 import uuid
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
-from dataclasses import dataclass, asdict
+
+# Import domain models and interfaces
+from ...domain.models import Task
+from ...domain.interfaces import IStateStore, ITaskRepository
 
 
-@dataclass
-class Task:
-    """Fix task"""
-    id: str
-    type: str  # 'fix_build_error', 'fix_test_failure', 'fix_lint_issue'
-    priority: int  # 1-10, 1 = highest
-    phase: str  # 'build', 'test', 'lint'
-    file: Optional[str] = None
-    line: Optional[int] = None
-    message: str = ""
-    context: str = ""
-    created_at: str = ""
-
-    def to_dict(self) -> dict:
-        return asdict(self)
-
-    @classmethod
-    def from_dict(cls, data: dict) -> 'Task':
-        # Filter out fields that don't belong to this class (for BatchTask compatibility)
-        valid_fields = {f.name for f in cls.__dataclass_fields__.values()}
-        filtered_data = {k: v for k, v in data.items() if k in valid_fields}
-        return cls(**filtered_data)
-
-
-class StateManager:
+class StateManager(IStateStore, ITaskRepository):
     """Manage state using Redis"""
 
     def __init__(self, redis_host: str = "localhost", redis_port: int = 6379, redis_db: int = 0):

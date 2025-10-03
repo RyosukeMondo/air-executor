@@ -1,0 +1,60 @@
+# Sample Configuration for Multi-Language Autonomous Fixing
+# Run with: .venv/bin/python3 -m airflow_dags.autonomous_fixing.multi_language_orchestrator
+
+# Project to analyze
+target_project: "/home/rmondo/repos/air-executor"
+
+# Projects to analyze (explicit list)
+projects:
+  - path: "/home/rmondo/repos/air-executor"
+    language: "python"
+    enabled: true
+
+# Language configurations
+languages:
+  enabled:
+    - python
+
+  auto_detect: false  # Use explicit project list
+
+  python:
+    linters: ["pylint"]  # Just pylint for quick test
+    test_framework: "pytest"
+    complexity_threshold: 15
+    max_file_lines: 500
+
+# Priority configuration
+priorities:
+  p1_static:
+    enabled: true
+    max_duration_seconds: 60
+    success_threshold: 0.80
+
+  p2_tests:
+    enabled: false  # Disable for quick test
+
+  p3_coverage:
+    enabled: false  # Disable for quick test
+
+  p4_e2e:
+    enabled: false  # Disable for quick test
+
+# Execution settings
+execution:
+  parallel_languages: false
+  max_concurrent_projects: 1
+  fail_fast: true
+  priority_gates: true
+  max_iterations: 1  # Just one iteration for testing
+
+# State management (optional - will use in-memory if Redis unavailable)
+state_manager:
+  redis_host: "localhost"
+  redis_port: 6379
+  namespace: "autonomous_fixing_test"
+
+# Git settings
+git:
+  auto_commit: false  # Don't auto-commit for test run
+  commit_prefix: "fix"
+  push_after_commit: false

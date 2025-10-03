@@ -9,12 +9,12 @@ from typing import Dict, List
 from dataclasses import dataclass
 
 try:
-    from ..language_adapters.base import ToolValidationResult
+    from ..domain.models import ToolValidationResult
 except ImportError:
     import sys
     from pathlib import Path
     sys.path.insert(0, str(Path(__file__).parent.parent))
-    from language_adapters.base import ToolValidationResult
+    from domain.models import ToolValidationResult
 
 
 @dataclass
@@ -140,20 +140,31 @@ class ToolValidator:
 
         Logic:
         - For each language, MUST have:
-          - Static analysis tool (flutter analyze, eslint, etc.)
+          - Static analysis tool (flutter analyze, eslint, ruff, mypy, etc.)
           - Test runner (flutter test, pytest, etc.)
         - Coverage and E2E tools are optional
         """
+        # Common static analysis tool names by language
+        static_analysis_tools = {
+            'python': ['ruff', 'pylint', 'mypy', 'pyflakes', 'flake8'],
+            'javascript': ['eslint', 'tslint'],
+            'go': ['golangci-lint', 'staticcheck'],
+            'flutter': ['analyze']
+        }
+
         for lang_name, results in all_results.items():
             # Check for critical tools
             has_static_tool = False
             has_test_tool = False
 
             for result in results:
-                # Static analysis tools
-                if any(keyword in result.tool_name for keyword in ['analyze', 'lint', 'check']):
-                    if result.available:
-                        has_static_tool = True
+                # Static analysis tools - check both keywords and known tool names
+                is_static_tool = (
+                    any(keyword in result.tool_name for keyword in ['analyze', 'lint', 'check']) or
+                    result.tool_name in static_analysis_tools.get(lang_name, [])
+                )
+                if is_static_tool and result.available:
+                    has_static_tool = True
 
                 # Test tools
                 if 'test' in result.tool_name and 'coverage' not in result.tool_name:

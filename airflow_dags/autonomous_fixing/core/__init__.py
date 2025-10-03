@@ -11,6 +11,14 @@ from .analyzer import ProjectAnalyzer
 from .fixer import IssueFixer
 from .scorer import HealthScorer
 from .iteration_engine import IterationEngine
+from .analysis_verifier import AnalysisVerifier
 from .tool_validator import ToolValidator
 
-__all__ = ['ProjectAnalyzer', 'IssueFixer', 'HealthScorer', 'IterationEngine', 'ToolValidator']
+__all__ = [
+    'ProjectAnalyzer',
+    'IssueFixer',
+    'HealthScorer',
+    'IterationEngine',
+    'AnalysisVerifier',
+    'ToolValidator'
+]

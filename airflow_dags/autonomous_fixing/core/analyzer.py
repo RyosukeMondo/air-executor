@@ -12,10 +12,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 @dataclass
-class AnalysisResult:
-    """Result from analyzing projects."""
+class ProjectAnalysisResult:
+    """Result from analyzing multiple projects (collection of results)."""
     phase: str  # 'p1_static', 'p2_tests', etc.
-    results_by_project: Dict[str, any] = field(default_factory=dict)
+    results_by_project: Dict[str, any] = field(default_factory=dict)  # Maps "lang:path" -> AnalysisResult
     execution_time: float = 0.0
 
 
@@ -45,14 +45,14 @@ class ProjectAnalyzer:
         self.config = config
         self.max_workers = config.get('execution', {}).get('max_concurrent_projects', 5)
 
-    def analyze_static(self, projects_by_language: Dict[str, List[str]]) -> AnalysisResult:
+    def analyze_static(self, projects_by_language: Dict[str, List[str]]) -> ProjectAnalysisResult:
         """
         Run P1 static analysis on all projects in parallel.
 
         Returns: AnalysisResult with results_by_project keyed by "language:path"
         """
         start_time = time.time()
-        result = AnalysisResult(phase='p1_static')
+        result = ProjectAnalysisResult(phase='p1_static')
 
         # Prepare tasks for parallel execution
         tasks = []
@@ -94,7 +94,7 @@ class ProjectAnalyzer:
         print(f"\n⏱️  Completed in {result.execution_time:.1f}s")
         return result
 
-    def analyze_tests(self, projects_by_language: Dict[str, List[str]], strategy: str) -> AnalysisResult:
+    def analyze_tests(self, projects_by_language: Dict[str, List[str]], strategy: str) -> ProjectAnalysisResult:
         """
         Run P2 test analysis on all projects in parallel.
 
@@ -104,7 +104,7 @@ class ProjectAnalyzer:
         Returns: AnalysisResult with test results
         """
         start_time = time.time()
-        result = AnalysisResult(phase='p2_tests')
+        result = ProjectAnalysisResult(phase='p2_tests')
 
         # Prepare tasks
         tasks = []

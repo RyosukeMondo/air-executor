@@ -245,20 +245,29 @@ static_issues:
   # Error fixing prompt - used for linter/compiler errors
   error:
     template: |
-      Fix this {language} error in {file}:
-      {message}
+      Fix {language} errors in the project, prioritizing {file}.
+
+      Target error: {message}
+
+      Process:
+      1. Check if the error still exists
+      2. If already fixed, find and fix other similar errors in the project
+      3. If error exists, fix it following best practices
+      4. Run `{language} analyze` or linter to verify
+      5. **Create a git commit** when done with fixes
 
       Requirements:
       - Preserve existing functionality
       - Follow {language} best practices
       - Keep changes minimal and focused
-      - Run relevant checks after fixing
-      - **Create a git commit when done**: `git add . && git commit -m "fix: Fix linting error in {file}"`
+      - **Always commit even if original error was already fixed**
+
+      Git commit format: `git add . && git commit -m "fix: Fix linting errors"`
 
     notes: |
-      Keep prompt simple - Claude knows how to fix errors.
-      Provide context (language, file, message) but don't over-specify.
-      Git commit is mandatory for verification.
+      Flexible prompt - Claude can adapt if specific error already fixed.
+      Encourages fixing similar errors rather than failing.
+      Always requires commit for verification.
 
   # Complexity reduction prompt - used for cyclomatic complexity violations
   complexity:
