@@ -69,9 +69,19 @@ class IterationEngine:
 
         Returns: Dict with final results and iteration stats
         """
+        # === SETUP PHASE: Pre-Commit Hooks (Priority 0 - runs first) ===
+        print(f"\n{'='*80}")
+        print("🔧 SETUP PHASE 0: Pre-Commit Hook Configuration")
+        print(f"{'='*80}")
+        print("Configuring quality enforcement hooks (run once per project)...")
+
+        for lang_name, project_list in projects_by_language.items():
+            for project_path in project_list:
+                self.fixer.configure_precommit_hooks(project_path, lang_name)
+
         # === SETUP PHASE: Test Discovery (runs once) ===
         print(f"\n{'='*80}")
-        print("🔧 SETUP PHASE: Test Configuration Discovery")
+        print("🔧 SETUP PHASE 1: Test Configuration Discovery")
         print(f"{'='*80}")
 
         for lang_name, project_list in projects_by_language.items():

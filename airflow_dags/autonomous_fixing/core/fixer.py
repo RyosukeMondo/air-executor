@@ -327,6 +327,62 @@ class IssueFixer:
                 'warnings': {'count': 0}
             }
 
+    def configure_precommit_hooks(self, project_path: str, language: str) -> bool:
+        """
+        SETUP PHASE: Configure pre-commit hooks for quality enforcement.
+
+        This shifts quality gates from AI prompts to enforced tooling:
+        - AI configures hooks once
+        - Hooks enforce quality on every commit
+        - AI cannot bypass hooks (must fix issues)
+
+        Args:
+            project_path: Path to project
+            language: Project language
+
+        Returns: True if hooks configured successfully
+        """
+        project_name = Path(project_path).name
+        cache_path = Path('config/precommit-cache') / f'{project_name}-hooks.yaml'
+
+        # Ensure cache directory exists
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Check if already configured (< 7 days old)
+        if cache_path.exists():
+            import time
+            age_seconds = time.time() - cache_path.stat().st_mtime
+            if age_seconds < 604800:  # 7 days
+                print(f"   ✓ Pre-commit hooks already configured ({int(age_seconds/86400)} days ago)")
+                import yaml
+                with open(cache_path) as f:
+                    config = yaml.safe_load(f)
+                    return config.get('hook_framework', {}).get('installed', False)
+
+        print(f"\n🔧 Configuring pre-commit hooks for {project_name}...")
+
+        # Build prompt from config template
+        template = self.prompts['setup']['configure_precommit_hooks']['template']
+        prompt = template.format(
+            language=language,
+            project_name=project_name
+        )
+
+        # Get timeout from config
+        timeout = self.prompts.get('timeouts', {}).get('configure_hooks', 600)
+
+        # Call Claude via JSON protocol
+        result = self.claude.query(prompt, project_path, timeout, prompt_type='configure_hooks')
+
+        if result['success'] and cache_path.exists():
+            print(f"   ✓ Pre-commit hooks configured and saved to {cache_path}")
+            return True
+        else:
+            error_msg = result.get('error', 'Unknown error')
+            print(f"   ⚠️  Hook configuration failed: {error_msg}")
+            print(f"   Continuing without pre-commit enforcement (less robust)")
+            return False
+
     def discover_test_config(self, project_path: str, language: str) -> FixResult:
         """
         SETUP PHASE: Discover how to run tests for this project.

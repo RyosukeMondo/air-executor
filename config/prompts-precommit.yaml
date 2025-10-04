@@ -1,0 +1,383 @@
+# Pre-Commit Hook Configuration Prompts
+#
+# Philosophy: Shift quality gates from AI prompts to enforced tooling
+# - AI configures pre-commit hooks instead of manually running checks
+# - Pre-commit enforces quality automatically on every commit
+# - AI cannot bypass hooks (must fix issues, not disable checks)
+# - More robust, reliable, and language-agnostic
+
+# =============================================================================
+# SETUP: Pre-Commit Hook Configuration (NEW APPROACH)
+# =============================================================================
+
+setup:
+  configure_precommit_hooks:
+    template: |
+      Configure automated quality gates using pre-commit hooks for this {language} project.
+
+      **Philosophy: Shift Left - Enforce Quality at Commit Time**
+
+      Your task:
+      1. **Detect existing pre-commit setup:**
+         - Python: .pre-commit-config.yaml (pre-commit framework)
+         - JavaScript: husky + lint-staged (package.json)
+         - Go: .git/hooks/pre-commit (native)
+         - Flutter: .git/hooks/pre-commit (native)
+
+      2. **If no hooks exist, create comprehensive pre-commit configuration:**
+
+         For Python projects:
+         ```yaml
+         # .pre-commit-config.yaml
+         repos:
+           - repo: https://github.com/pre-commit/pre-commit-hooks
+             rev: v4.5.0
+             hooks:
+               - id: trailing-whitespace
+               - id: end-of-file-fixer
+               - id: check-yaml
+               - id: check-merge-conflict
+
+           - repo: local
+             hooks:
+               # Type checking MUST pass
+               - id: mypy
+                 name: mypy type checking
+                 entry: mypy
+                 language: system
+                 types: [python]
+                 pass_filenames: false
+                 args: ['.']
+
+               # Linting MUST pass
+               - id: pylint
+                 name: pylint
+                 entry: pylint
+                 language: system
+                 types: [python]
+                 args: ['--max-line-length=120']
+
+               # Tests MUST pass
+               - id: pytest
+                 name: pytest unit tests
+                 entry: pytest
+                 language: system
+                 pass_filenames: false
+                 args: ['tests/', '--tb=short']
+
+               # Coverage MUST meet threshold
+               - id: pytest-cov
+                 name: pytest coverage check
+                 entry: pytest
+                 language: system
+                 pass_filenames: false
+                 args: ['--cov=src', '--cov-report=term', '--cov-fail-under=60']
+         ```
+
+         For JavaScript/TypeScript projects:
+         ```json
+         // package.json additions
+         {{
+           "devDependencies": {{
+             "husky": "^8.0.0",
+             "lint-staged": "^15.0.0"
+           }},
+           "lint-staged": {{
+             "*.{{ts,tsx,js,jsx}}": [
+               "eslint --fix",
+               "prettier --write"
+             ],
+             "*.{{ts,tsx}}": [
+               "bash -c 'tsc --noEmit'"
+             ]
+           }},
+           "scripts": {{
+             "prepare": "husky install",
+             "precommit": "lint-staged && npm test -- --passWithNoTests"
+           }}
+         }}
+         ```
+
+         Then create .husky/pre-commit:
+         ```bash
+         #!/bin/sh
+         . "$(dirname "$0")/_/husky.sh"
+
+         # CRITICAL: Do NOT allow bypassing these checks
+         echo "🔍 Running pre-commit quality checks..."
+
+         # Type checking MUST pass
+         echo "📊 TypeScript type checking..."
+         npm run type-check || exit 1
+
+         # Linting MUST pass
+         echo "🔧 ESLint checking..."
+         npx lint-staged || exit 1
+
+         # Tests MUST pass
+         echo "🧪 Running unit tests..."
+         npm test -- --passWithNoTests || exit 1
+
+         # Coverage check (optional but recommended)
+         echo "📈 Checking test coverage..."
+         npm test -- --coverage --coverageThreshold='{{
+           "global": {{
+             "branches": 60,
+             "functions": 60,
+             "lines": 60,
+             "statements": 60
+           }}
+         }}' || exit 1
+
+         echo "✅ All pre-commit checks passed!"
+         ```
+
+         For Flutter projects:
+         ```bash
+         #!/bin/bash
+         # .git/hooks/pre-commit
+
+         echo "🔍 Running pre-commit quality checks..."
+
+         # Analysis MUST pass
+         echo "📊 Flutter analyze..."
+         flutter analyze || exit 1
+
+         # Tests MUST pass
+         echo "🧪 Running tests..."
+         flutter test || exit 1
+
+         echo "✅ All pre-commit checks passed!"
+         ```
+
+      3. **Install and activate hooks:**
+         - Python: `pip install pre-commit && pre-commit install`
+         - JavaScript: `npm install && npx husky install`
+         - Flutter/Go: `chmod +x .git/hooks/pre-commit`
+
+      4. **Verify hooks work:**
+         - Make a trivial change
+         - Try to commit
+         - Ensure hooks run and can block bad commits
+
+      5. **Document in README or CONTRIBUTING:**
+         ```markdown
+         ## Quality Gates
+
+         This project enforces quality at commit time using pre-commit hooks:
+
+         - ✅ Type checking (tsc/mypy) MUST pass
+         - ✅ Linting (eslint/pylint) MUST pass
+         - ✅ Unit tests MUST pass
+         - ✅ Coverage threshold (60%) MUST be met
+
+         **IMPORTANT:** Do NOT bypass pre-commit hooks with `--no-verify`.
+         If checks fail, fix the code - don't disable the checks.
+
+         To run checks manually:
+         - `npm run precommit` (JavaScript)
+         - `pre-commit run --all-files` (Python)
+         - `.git/hooks/pre-commit` (Flutter/Go)
+         ```
+
+      6. **Save configuration to cache:**
+         - Create file: config/precommit-cache/{{project_name}}-hooks.yaml
+         - Document what hooks are installed and why
+
+      **CRITICAL RULES:**
+      - ❌ NEVER add `--no-verify` to git commands
+      - ❌ NEVER disable or skip hooks in configuration
+      - ❌ NEVER lower quality thresholds to make commits pass
+      - ✅ ALWAYS fix the code to meet the standards
+      - ✅ ALWAYS keep hooks enabled and enforced
+
+      **Output format (YAML):**
+      ```yaml
+      # Pre-commit hook configuration
+      project_name: {{project_name}}
+      language: {{language}}
+      configured_at: {{timestamp}}
+
+      hook_framework:
+        type: pre-commit  # or husky, native
+        config_file: .pre-commit-config.yaml  # or package.json, .git/hooks/pre-commit
+        installed: true
+        verified: true
+
+      quality_gates:
+        type_checking:
+          enabled: true
+          tool: tsc  # or mypy
+          blocking: true
+
+        linting:
+          enabled: true
+          tool: eslint  # or pylint, flutter analyze
+          blocking: true
+
+        unit_tests:
+          enabled: true
+          command: npm test  # or pytest, flutter test
+          blocking: true
+
+        coverage:
+          enabled: true
+          threshold: 60
+          blocking: true
+
+      verification:
+        test_commit_blocked: true
+        hooks_cannot_be_bypassed: true
+        notes: "Verified hooks run and block bad commits"
+
+      documentation:
+        readme_updated: true
+        contributing_guide: true
+        developer_onboarding: true
+      ```
+
+      **Why This Approach is Superior:**
+
+      1. **Enforcement over trust:** Hooks FORCE quality, prompts only ask
+      2. **Language agnostic:** Every language has pre-commit solutions
+      3. **Fail fast:** Catch issues before they enter git history
+      4. **Developer training:** Teaches good practices through enforcement
+      5. **CI/CD alignment:** Pre-commit = local CI simulation
+      6. **No bypassing:** Hooks make it hard to commit bad code
+      7. **Self-documenting:** Hook config IS the quality standard
+
+      Use LLM-as-a-judge:
+      - Analyze project to determine best hook framework
+      - Configure appropriate checks for the language/framework
+      - Verify hooks actually work by testing them
+      - Document clearly for other developers
+
+    timeout: 600  # 10 minutes for hook configuration
+
+    notes: |
+      This is a SETUP phase - runs once per project.
+      Shifts quality enforcement from prompts to pre-commit hooks.
+      Much more robust than asking AI to manually run checks.
+
+# =============================================================================
+# P1/P2: Pre-Commit Enforcement (UPDATED APPROACH)
+# =============================================================================
+
+static_issues:
+  # Instead of "run eslint and fix errors", just:
+  fix_precommit_failures:
+    template: |
+      The pre-commit hooks are blocking commits due to quality issues.
+
+      **Your task: Fix the code to pass pre-commit checks**
+
+      1. **Identify what's failing:**
+         - Run: `pre-commit run --all-files` (Python)
+         - Run: `npm run precommit` (JavaScript)
+         - Run: `.git/hooks/pre-commit` (Flutter/Go)
+
+      2. **Fix the issues:**
+         - Type errors → fix the types
+         - Lint errors → fix the code style
+         - Test failures → fix the bugs
+         - Coverage below threshold → add tests
+
+      3. **Verify fixes work:**
+         - Re-run pre-commit checks
+         - Ensure all checks pass
+         - Try a test commit
+
+      4. **Commit when checks pass:**
+         - Normal commit workflow
+         - Hooks will run automatically
+         - If hooks pass, commit succeeds
+
+      **CRITICAL RULES:**
+      - ❌ NEVER use `git commit --no-verify` to bypass hooks
+      - ❌ NEVER disable hooks in configuration
+      - ❌ NEVER lower quality thresholds
+      - ✅ ALWAYS fix the code to meet standards
+
+      The pre-commit hooks are your quality contract - respect them.
+
+tests:
+  # Tests are enforced by pre-commit, but creation still needed
+  create_tests_with_hooks:
+    template: |
+      This {language} project needs tests, and pre-commit hooks enforce test quality.
+
+      **Your task: Create tests that will pass pre-commit validation**
+
+      1. **Understand the quality gates:**
+         - Check .pre-commit-config.yaml or package.json for test requirements
+         - Note coverage thresholds (typically 60%+)
+         - Note test patterns (e.g., tests/, __tests__/)
+
+      2. **Create meaningful tests:**
+         - Follow the project's test conventions
+         - Ensure tests actually test behavior
+         - Cover main functionality to meet coverage threshold
+
+      3. **CRITICAL - Verify tests pass hooks:**
+         - Run pre-commit checks locally
+         - Ensure tests pass
+         - Ensure coverage meets threshold
+         - Fix any failures BEFORE committing
+
+      4. **Commit only when hooks pass:**
+         - Pre-commit will run tests automatically
+         - If tests fail, hook blocks commit
+         - Fix issues, don't bypass hooks
+
+      **The hooks will enforce quality - your job is to meet their standards.**
+
+# =============================================================================
+# Migration Strategy
+# =============================================================================
+
+migration:
+  existing_projects:
+    strategy: |
+      For projects WITHOUT pre-commit hooks:
+
+      1. Run `configure_precommit_hooks` prompt (one-time setup)
+      2. Verify hooks work with test commit
+      3. Switch to using hooks for quality enforcement
+      4. Update autonomous fixing to rely on hooks
+
+      For projects WITH pre-commit hooks:
+
+      1. Detect existing hooks
+      2. Document configuration in cache
+      3. Use hooks as quality authority
+      4. Never bypass or disable hooks
+
+    backward_compatibility:
+      - Keep existing prompts for projects without hooks
+      - Gradually migrate projects to hook-based enforcement
+      - Eventually deprecate manual quality checking prompts
+
+# =============================================================================
+# Benefits Summary
+# =============================================================================
+
+benefits:
+  reliability:
+    - "Hooks enforce quality, prompts only suggest"
+    - "Cannot bypass without explicit --no-verify flag"
+    - "Same checks run locally and in CI"
+
+  developer_experience:
+    - "Immediate feedback on quality issues"
+    - "No waiting for CI to fail"
+    - "Clear standards encoded in configuration"
+
+  autonomous_fixing:
+    - "AI knows the quality contract (it's in the hook config)"
+    - "AI cannot bypass hooks (they're enforced by git)"
+    - "AI learns project standards from hook configuration"
+
+  maintenance:
+    - "Quality standards live in version control"
+    - "One source of truth for quality checks"
+    - "Easy to update standards (update hook config)"

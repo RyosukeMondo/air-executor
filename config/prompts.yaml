@@ -112,10 +112,94 @@ analysis:
       Output cached for fast subsequent runs.
 
 # =============================================================================
-# SETUP: Test Discovery Prompt
+# SETUP: Pre-Commit Hook Configuration (PRIORITY 0 - Run First)
 # =============================================================================
 
 setup:
+  configure_precommit_hooks:
+    template: |
+      Configure automated quality gates using pre-commit hooks for this {language} project.
+
+      **Your task: Set up pre-commit hooks to enforce quality automatically**
+
+      1. **Check if hooks already exist:**
+         - Python: .pre-commit-config.yaml
+         - JavaScript: .husky/ directory or package.json with "husky"/"lint-staged"
+         - All: .git/hooks/pre-commit file
+
+      2. **If NO hooks exist, create them:**
+
+         For JavaScript/TypeScript (use husky + lint-staged):
+         ```bash
+         # Install dependencies
+         npm install --save-dev husky lint-staged
+
+         # Initialize husky
+         npx husky install
+
+         # Create pre-commit hook
+         npx husky add .husky/pre-commit "npm run precommit"
+         ```
+
+         Update package.json:
+         ```json
+         {{
+           "scripts": {{
+             "precommit": "lint-staged && npm test -- --passWithNoTests",
+             "type-check": "tsc --noEmit"
+           }},
+           "lint-staged": {{
+             "*.{{ts,tsx,js,jsx}}": ["eslint --fix", "prettier --write"],
+             "*.{{ts,tsx}}": ["bash -c 'npm run type-check'"]
+           }}
+         }}
+         ```
+
+         Create .husky/pre-commit:
+         ```bash
+         #!/bin/sh
+         . "$(dirname "$0")/_/husky.sh"
+
+         echo "🔍 Pre-commit quality checks..."
+
+         # Type checking
+         npm run type-check || exit 1
+
+         # Linting
+         npx lint-staged || exit 1
+
+         # Tests
+         npm test -- --passWithNoTests || exit 1
+
+         echo "✅ All checks passed!"
+         ```
+
+      3. **Verify hooks work:**
+         - Make a small change
+         - Try to commit
+         - Confirm hooks run and can block commits
+
+      4. **Document:**
+         - Add section to README about pre-commit hooks
+         - Note: "Do NOT use --no-verify to bypass hooks"
+
+      5. **Save config:**
+         - Create: config/precommit-cache/{{project_name}}-hooks.yaml
+         - Document what hooks are configured
+
+      **CRITICAL RULES:**
+      - ❌ NEVER add --no-verify to git commands
+      - ❌ NEVER disable hooks
+      - ✅ ALWAYS fix code to meet standards
+
+      **Commit when done:** `git commit -m "chore: Configure pre-commit hooks for quality enforcement"`
+
+    timeout: 600
+    notes: |
+      NEW APPROACH: Shift quality from prompts to enforced hooks.
+      Run this ONCE per project before P1/P2 phases.
+      Makes autonomous fixing more robust and reliable.
+
   discover_tests:
     template: |
       You are setting up automated testing for a {language} project.
@@ -242,7 +326,7 @@ setup:
 # =============================================================================
 
 static_issues:
-  # Error fixing prompt - used for linter/compiler errors
+  # Error fixing prompt - respects pre-commit hooks if they exist
   error:
     template: |
       Fix {language} errors in the project, prioritizing {file}.
@@ -250,17 +334,26 @@ static_issues:
       Target error: {message}
 
       Process:
-      1. Check if the error still exists
-      2. If already fixed, find and fix other similar errors in the project
-      3. If error exists, fix it following best practices
-      4. Run `{language} analyze` or linter to verify
-      5. **Create a git commit** when done with fixes
+      1. **Check for pre-commit hooks:**
+         - Look for .husky/, .pre-commit-config.yaml, or .git/hooks/pre-commit
+         - If hooks exist, they will enforce quality automatically
+
+      2. Check if the error still exists
+      3. If already fixed, find and fix other similar errors in the project
+      4. If error exists, fix it following best practices
+
+      5. **Verify fixes:**
+         - If pre-commit hooks exist: try a test commit (hooks will validate)
+         - If no hooks: run linter/type-checker manually
+
+      6. **Create a git commit** when done with fixes
 
       Requirements:
       - Preserve existing functionality
       - Follow {language} best practices
       - Keep changes minimal and focused
-      - **Always commit even if original error was already fixed**
+      - **If pre-commit hooks block commit: fix the issues, don't bypass hooks**
+      - **NEVER use --no-verify flag**
 
       Git commit format: `git add . && git commit -m "fix: Fix linting errors"`
 
@@ -292,24 +385,32 @@ static_issues:
 # =============================================================================
 
 tests:
-  # Fix failing tests prompt - used when tests exist but are failing
+  # Fix failing tests prompt - respects pre-commit hooks
   fix_failures:
     template: |
       Fix failing {language} tests.
       {failed} tests are failing out of {total} total tests.
 
       Process:
-      1. Run tests to see failures
-      2. Analyze failure messages
-      3. Fix the code (not the tests, unless tests are wrong)
-      4. Re-run tests to verify fixes work
-      5. Repeat until all tests pass
-      6. **IMPORTANT**: Create a git commit when done
+      1. **Check for pre-commit hooks:**
+         - If hooks exist, they will run tests automatically on commit
+         - This ensures tests must pass before commit succeeds
+
+      2. Run tests to see failures
+      3. Analyze failure messages
+      4. Fix the code (not the tests, unless tests are wrong)
+      5. Re-run tests to verify fixes work
+      6. Repeat until all tests pass
+
+      7. **IMPORTANT**: Create a git commit when done
+         - If pre-commit hooks exist, they will validate tests automatically
+         - If hooks block commit, fix the issues - don't bypass with --no-verify
 
       **Git Commit Required**:
       - Run `git add .` to stage changes
       - Run `git commit -m "fix: Fix test failures"`
       - Commit is REQUIRED for fix to be counted as successful
+      - **NEVER use --no-verify to bypass pre-commit hooks**
 
       Focus on fixing the root cause, not just making tests pass.
 
@@ -410,7 +511,8 @@ language_overrides:
 # =============================================================================
 
 timeouts:
-  discover_tests: 600      # 10 minutes for test discovery (SETUP)
+  configure_hooks: 600     # 10 minutes for pre-commit hook setup (SETUP 0)
+  discover_tests: 600      # 10 minutes for test discovery (SETUP 1)
   fix_static_issue: 300    # 5 minutes per static issue fix
   fix_test_failure: 600    # 10 minutes per project test fixing
   create_tests: 900        # 15 minutes for test creation
