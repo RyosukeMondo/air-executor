@@ -12,6 +12,7 @@ from ...domain.models import AnalysisResult, ToolValidationResult
 from ..error_parser import ErrorParserStrategy
 from ..test_result_parser import TestResultParserStrategy
 from .base import LanguageAdapter
+from .python_linters import PythonLinters
 
 
 class PythonAdapter(LanguageAdapter):
@@ -43,25 +44,23 @@ class PythonAdapter(LanguageAdapter):
         """Run configured linters (ruff/pylint + mypy)."""
         start_time = time.time()
         result = AnalysisResult(
-            language=self.language_name,
-            phase='static',
-            project_path=project_path
+            language=self.language_name, phase="static", project_path=project_path
         )
 
         try:
             errors = []
 
             # Run linters based on config
-            linters = self.config.get('linters', ['ruff', 'mypy'])
+            linters = self.config.get("linters", ["ruff", "mypy"])
 
-            if 'ruff' in linters:
-                errors.extend(self._run_ruff(project_path))
+            if "ruff" in linters:
+                errors.extend(PythonLinters.run_ruff(project_path))
 
-            if 'pylint' in linters:
-                errors.extend(self._run_pylint(project_path))
+            if "pylint" in linters:
+                errors.extend(PythonLinters.run_pylint(project_path))
 
-            if 'mypy' in linters:
-                errors.extend(self._run_mypy(project_path))
+            if "mypy" in linters:
+                errors.extend(PythonLinters.run_mypy(project_path))
 
             result.errors = errors
             result.file_size_violations = self.check_file_sizes(project_path)
@@ -81,47 +80,41 @@ class PythonAdapter(LanguageAdapter):
         """Run pytest with strategy using centralized parsing."""
         start_time = time.time()
         result = AnalysisResult(
-            language=self.language_name,
-            phase='tests',
-            project_path=project_path
+            language=self.language_name, phase="tests", project_path=project_path
         )
 
         try:
             # Build pytest command based on strategy
-            xml_file = Path(project_path) / '.pytest-results.xml'
-            cmd = ['pytest', f'--junitxml={xml_file}']
+            xml_file = Path(project_path) / ".pytest-results.xml"
+            cmd = ["pytest", f"--junitxml={xml_file}"]
 
-            if strategy == 'minimal':
+            if strategy == "minimal":
                 # Only fast tests, no slow or integration
-                cmd.extend(['-m', 'not slow and not integration', '--tb=short'])
+                cmd.extend(["-m", "not slow and not integration", "--tb=short"])
                 timeout = 300  # 5 min
-            elif strategy == 'selective':
+            elif strategy == "selective":
                 # No integration tests
-                cmd.extend(['-m', 'not integration'])
+                cmd.extend(["-m", "not integration"])
                 timeout = 900  # 15 min
             else:  # comprehensive
                 # Full test suite
-                cmd.extend(['-v'])
+                cmd.extend(["-v"])
                 timeout = 1800  # 30 min
 
             test_result = subprocess.run(
-                cmd,
-                cwd=project_path,
-                capture_output=True,
-                text=True,
-                timeout=timeout
+                cmd, cwd=project_path, capture_output=True, text=True, timeout=timeout
             )
 
             # Parse test results using centralized strategy (SOLID: Single Responsibility)
             output = test_result.stdout + test_result.stderr
             counts = TestResultParserStrategy.parse(
-                language='python',
+                language="python",
                 output=output,
-                output_file=xml_file if xml_file.exists() else None
+                output_file=xml_file if xml_file.exists() else None,
             )
 
             # Parse test failures for error reporting
-            result.test_failures = self.parse_errors(output, 'tests')
+            result.test_failures = self.parse_errors(output, "tests")
 
             # Apply parsed counts
             result.tests_passed = counts.passed
@@ -148,27 +141,25 @@ class PythonAdapter(LanguageAdapter):
         """Analyze test coverage using pytest-cov."""
         start_time = time.time()
         result = AnalysisResult(
-            language=self.language_name,
-            phase='coverage',
-            project_path=project_path
+            language=self.language_name, phase="coverage", project_path=project_path
         )
 
         try:
             # Run pytest with coverage
-            cmd = ['pytest', '--cov', '--cov-report=json', '--cov-report=term']
+            cmd = ["pytest", "--cov", "--cov-report=json", "--cov-report=term"]
             subprocess.run(
                 cmd,
                 cwd=project_path,
                 capture_output=True,
-                timeout=1800  # 30 min
+                timeout=1800,  # 30 min
             )
 
             # Parse coverage JSON
-            coverage_file = Path(project_path) / 'coverage.json'
+            coverage_file = Path(project_path) / "coverage.json"
             if coverage_file.exists():
                 coverage_data = self._parse_coverage_json(coverage_file)
-                result.coverage_percentage = coverage_data['percentage']
-                result.coverage_gaps = coverage_data['gaps']
+                result.coverage_percentage = coverage_data["percentage"]
+                result.coverage_gaps = coverage_data["gaps"]
 
             result.success = True
             result.execution_time = time.time() - start_time
@@ -185,27 +176,22 @@ class PythonAdapter(LanguageAdapter):
     def run_e2e_tests(self, project_path: str) -> AnalysisResult:
         """Run E2E tests (marked with @pytest.mark.e2e)."""
         start_time = time.time()
-        result = AnalysisResult(
-            language=self.language_name,
-            phase='e2e',
-            project_path=project_path
-        )
+        result = AnalysisResult(language=self.language_name, phase="e2e", project_path=project_path)
 
         try:
             # Run only E2E marked tests
-            cmd = ['pytest', '-m', 'e2e', '-v']
+            cmd = ["pytest", "-m", "e2e", "-v"]
             test_result = subprocess.run(
                 cmd,
                 cwd=project_path,
                 capture_output=True,
                 text=True,
-                timeout=3600  # 60 min
+                timeout=3600,  # 60 min
             )
 
             # Parse runtime errors
             result.runtime_errors = self.parse_errors(
-                test_result.stdout + test_result.stderr,
-                'e2e'
+                test_result.stdout + test_result.stderr, "e2e"
             )
 
             result.success = test_result.returncode == 0
@@ -223,25 +209,22 @@ class PythonAdapter(LanguageAdapter):
     def parse_errors(self, output: str, phase: str) -> List[Dict]:
         """Parse Python error messages using centralized parser (SOLID: SRP)."""
         # Use centralized error parser for all phases
-        return ErrorParserStrategy.parse(
-            language='python',
-            output=output,
-            phase=phase
-        )
+        return ErrorParserStrategy.parse(language="python", output=output, phase=phase)
+
     def calculate_complexity(self, file_path: str) -> int:
         """Calculate cyclomatic complexity using radon."""
         try:
             # Use radon for accurate complexity
             result = subprocess.run(
-                ['radon', 'cc', file_path, '-s', '-n', 'A'],
+                ["radon", "cc", file_path, "-s", "-n", "A"],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
             )
 
             # Parse radon output: "A 1:0 ClassName.method_name - A (1)"
             max_complexity = 0
-            for match in re.finditer(r'\((\d+)\)', result.stdout):
+            for match in re.finditer(r"\((\d+)\)", result.stdout):
                 complexity = int(match.group(1))
                 max_complexity = max(max_complexity, complexity)
 
@@ -254,16 +237,16 @@ class PythonAdapter(LanguageAdapter):
     def _simple_complexity(self, file_path: str) -> int:
         """Simple complexity heuristic (fallback)."""
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 content = f.read()
 
             complexity = 1
-            complexity += content.count(' if ')
-            complexity += content.count(' for ')
-            complexity += content.count(' while ')
-            complexity += content.count(' and ')
-            complexity += content.count(' or ')
-            complexity += content.count('except ')
+            complexity += content.count(" if ")
+            complexity += content.count(" for ")
+            complexity += content.count(" while ")
+            complexity += content.count(" and ")
+            complexity += content.count(" or ")
+            complexity += content.count("except ")
 
             return complexity
 
@@ -273,119 +256,12 @@ class PythonAdapter(LanguageAdapter):
     def _get_source_files(self, project_path: Path) -> List[Path]:
         """Get all Python source files."""
         source_files = []
-        for pattern in ['**/*.py']:
+        for pattern in ["**/*.py"]:
             source_files.extend(project_path.rglob(pattern))
 
         # Exclude common non-source directories
-        excluded = {'venv', '.venv', 'env', '__pycache__', '.tox', 'build', 'dist'}
+        excluded = {"venv", ".venv", "env", "__pycache__", ".tox", "build", "dist"}
         return [f for f in source_files if not any(e in f.parts for e in excluded)]
-
-    def _run_ruff(self, project_path: str) -> List[Dict]:
-        """Run ruff and parse errors."""
-        try:
-            # Find ruff executable (may be in venv)
-            ruff_cmd = shutil.which('ruff')
-            if not ruff_cmd:
-                # Try venv location
-                import sys
-                if hasattr(sys, 'prefix'):
-                    venv_ruff = Path(sys.prefix) / 'bin' / 'ruff'
-                    if venv_ruff.exists():
-                        ruff_cmd = str(venv_ruff)
-
-            if not ruff_cmd:
-                return []  # Ruff not available
-
-            result = subprocess.run(
-                [ruff_cmd, 'check', '.', '--output-format=json'],
-                cwd=project_path,
-                capture_output=True,
-                text=True,
-                timeout=120
-            )
-
-            # Parse JSON output (ruff returns non-zero if errors found)
-            if result.stdout:
-                lint_results = json.loads(result.stdout)
-                return [
-                    {
-                        'severity': 'error',
-                        'file': item.get('filename', ''),
-                        'line': item.get('location', {}).get('row', 0),
-                        'column': item.get('location', {}).get('column', 0),
-                        'message': item.get('message', ''),
-                        'code': item.get('code', '')
-                    }
-                    for item in lint_results
-                ]
-
-        except Exception:
-            pass
-
-        return []
-
-    def _run_pylint(self, project_path: str) -> List[Dict]:
-        """Run pylint and parse errors."""
-        try:
-            result = subprocess.run(
-                ['pylint', '.', '--output-format=json'],
-                cwd=project_path,
-                capture_output=True,
-                text=True,
-                timeout=120
-            )
-
-            # Parse JSON output
-            if result.stdout:
-                lint_results = json.loads(result.stdout)
-                return [
-                    {
-                        'severity': item.get('type', 'error'),
-                        'file': item.get('path', ''),
-                        'line': item.get('line', 0),
-                        'column': item.get('column', 0),
-                        'message': item.get('message', ''),
-                        'code': item.get('symbol', '')
-                    }
-                    for item in lint_results
-                    if item.get('type') in ('error', 'fatal')
-                ]
-
-        except Exception:
-            pass
-
-        return []
-
-    def _run_mypy(self, project_path: str) -> List[Dict]:
-        """Run mypy and parse errors."""
-        try:
-            result = subprocess.run(
-                ['mypy', '.', '--show-error-codes'],
-                cwd=project_path,
-                capture_output=True,
-                text=True,
-                timeout=120
-            )
-
-            errors = []
-            # Mypy format: file.py:line: error: message [error-code]
-            pattern = r'(.+\.py):(\d+):\s*(error|warning):\s*(.+?)\s*\[(.+?)\]'
-            for match in re.finditer(pattern, result.stdout):
-                errors.append({
-                    'severity': match.group(3),
-                    'file': match.group(1),
-                    'line': int(match.group(2)),
-                    'column': 0,
-                    'message': match.group(4),
-                    'code': match.group(5)
-                })
-
-            return errors
-
-        except Exception:
-            pass
-
-        return []
 
     def _parse_coverage_json(self, coverage_file: Path) -> Dict:
         """Parse coverage.json file."""
@@ -394,28 +270,27 @@ class PythonAdapter(LanguageAdapter):
                 data = json.load(f)
 
             # Get overall coverage percentage
-            totals = data.get('totals', {})
-            percentage = totals.get('percent_covered', 0)
+            totals = data.get("totals", {})
+            percentage = totals.get("percent_covered", 0)
 
             # Find files with low/no coverage
             gaps = []
-            files = data.get('files', {})
+            files = data.get("files", {})
             for file_path, file_data in files.items():
-                file_coverage = file_data.get('summary', {}).get('percent_covered', 0)
+                file_coverage = file_data.get("summary", {}).get("percent_covered", 0)
                 if file_coverage < 50:  # Less than 50% coverage
-                    gaps.append({
-                        'file': file_path,
-                        'coverage': file_coverage,
-                        'message': f'Low coverage: {file_coverage:.1f}%'
-                    })
+                    gaps.append(
+                        {
+                            "file": file_path,
+                            "coverage": file_coverage,
+                            "message": f"Low coverage: {file_coverage:.1f}%",
+                        }
+                    )
 
-            return {
-                'percentage': percentage,
-                'gaps': gaps
-            }
+            return {"percentage": percentage, "gaps": gaps}
 
         except Exception:
-            return {'percentage': 0, 'gaps': []}
+            return {"percentage": 0, "gaps": []}
 
     def validate_tools(self) -> List[ToolValidationResult]:
         """Validate Python toolchain availability."""
@@ -425,70 +300,72 @@ class PythonAdapter(LanguageAdapter):
         results.append(self._validate_python())
 
         # 2. Linters (from config)
-        linters = self.config.get('linters', ['ruff', 'mypy'])
+        linters = self.config.get("linters", ["ruff", "mypy"])
         for linter in linters:
-            results.append(self._validate_tool(
-                linter,
-                version_flag='--version',
-                fix_suggestion=f'Install {linter}: pip install {linter}'
-            ))
+            results.append(
+                self._validate_tool(
+                    linter,
+                    version_flag="--version",
+                    fix_suggestion=f"Install {linter}: pip install {linter}",
+                )
+            )
 
         # 3. Test runner
-        test_runner = self.config.get('test_runner', 'pytest')
-        results.append(self._validate_tool(
-            test_runner,
-            version_flag='--version',
-            fix_suggestion=f'Install {test_runner}: pip install {test_runner}'
-        ))
+        test_runner = self.config.get("test_runner", "pytest")
+        results.append(
+            self._validate_tool(
+                test_runner,
+                version_flag="--version",
+                fix_suggestion=f"Install {test_runner}: pip install {test_runner}",
+            )
+        )
 
         # 4. Coverage tool (optional)
-        results.append(self._validate_tool(
-            'coverage',
-            version_flag='--version',
-            fix_suggestion='Install coverage: pip install coverage',
-            optional=True
-        ))
+        results.append(
+            self._validate_tool(
+                "coverage",
+                version_flag="--version",
+                fix_suggestion="Install coverage: pip install coverage",
+                optional=True,
+            )
+        )
 
         return results
 
     def _validate_python(self) -> ToolValidationResult:
         """Validate Python installation."""
-        python_cmd = shutil.which('python') or shutil.which('python3')
+        python_cmd = shutil.which("python") or shutil.which("python3")
 
         if not python_cmd:
             return ToolValidationResult(
-                tool_name='python',
+                tool_name="python",
                 available=False,
-                error_message='Python not found in PATH',
-                fix_suggestion='Install Python: https://python.org/downloads'
+                error_message="Python not found in PATH",
+                fix_suggestion="Install Python: https://python.org/downloads",
             )
 
         try:
             result = subprocess.run(
-                [python_cmd, '--version'],
-                capture_output=True,
-                text=True,
-                timeout=5
+                [python_cmd, "--version"], capture_output=True, text=True, timeout=5
             )
 
-            version_match = re.search(r'Python ([\d.]+)', result.stdout + result.stderr)
-            version = version_match.group(1) if version_match else 'unknown'
+            version_match = re.search(r"Python ([\d.]+)", result.stdout + result.stderr)
+            version = version_match.group(1) if version_match else "unknown"
 
             return ToolValidationResult(
-                tool_name='python',
-                available=True,
-                version=version,
-                path=python_cmd
+                tool_name="python", available=True, version=version, path=python_cmd
             )
         except Exception as e:
             return ToolValidationResult(
-                tool_name='python',
+                tool_name="python",
                 available=False,
                 path=python_cmd,
-                error_message=f'Python found but failed to run: {e}'
+                error_message=f"Python found but failed to run: {e}",
             )
 
-    def _validate_tool(self, tool_name: str, version_flag: str, fix_suggestion: str, optional: bool = False) -> ToolValidationResult:
+    def _validate_tool(
+        self, tool_name: str, version_flag: str, fix_suggestion: str, optional: bool = False
+    ) -> ToolValidationResult:
         """Generic tool validation."""
         # First check PATH
         tool_cmd = shutil.which(tool_name)
@@ -496,9 +373,10 @@ class PythonAdapter(LanguageAdapter):
         # If not in PATH, check if running in venv and look there
         if not tool_cmd:
             import sys
-            if hasattr(sys, 'prefix') and sys.prefix != sys.base_prefix:
+
+            if hasattr(sys, "prefix") and sys.prefix != sys.base_prefix:
                 # We're in a venv, check venv bin directory
-                venv_bin = Path(sys.prefix) / 'bin' / tool_name
+                venv_bin = Path(sys.prefix) / "bin" / tool_name
                 if venv_bin.exists():
                     tool_cmd = str(venv_bin)
 
@@ -506,33 +384,29 @@ class PythonAdapter(LanguageAdapter):
             return ToolValidationResult(
                 tool_name=tool_name,
                 available=False,
-                error_message=f'{tool_name} not found in PATH' if not optional else f'{tool_name} not found (optional)',
-                fix_suggestion=fix_suggestion if not optional else None
+                error_message=f"{tool_name} not found in PATH"
+                if not optional
+                else f"{tool_name} not found (optional)",
+                fix_suggestion=fix_suggestion if not optional else None,
             )
 
         try:
             result = subprocess.run(
-                [tool_cmd, version_flag],
-                capture_output=True,
-                text=True,
-                timeout=5
+                [tool_cmd, version_flag], capture_output=True, text=True, timeout=5
             )
 
             # Try to extract version from output
             output = result.stdout + result.stderr
-            version_match = re.search(r'([\d.]+)', output)
-            version = version_match.group(1) if version_match else 'unknown'
+            version_match = re.search(r"([\d.]+)", output)
+            version = version_match.group(1) if version_match else "unknown"
 
             return ToolValidationResult(
-                tool_name=tool_name,
-                available=True,
-                version=version,
-                path=tool_cmd
+                tool_name=tool_name, available=True, version=version, path=tool_cmd
             )
         except Exception as e:
             return ToolValidationResult(
                 tool_name=tool_name,
                 available=False,
                 path=tool_cmd,
-                error_message=f'{tool_name} found but failed to run: {e}'
+                error_message=f"{tool_name} found but failed to run: {e}",
             )
