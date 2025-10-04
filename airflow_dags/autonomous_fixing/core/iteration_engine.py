@@ -6,6 +6,7 @@ No analysis, no fixing, no scoring - just iteration coordination.
 """
 
 from pathlib import Path
+from typing import TYPE_CHECKING, Optional
 
 from .analysis_verifier import AnalysisVerifier
 from .debug_logger import DebugLogger
@@ -14,6 +15,12 @@ from .setup_tracker import SetupTracker
 from .state_manager import ProjectStateManager
 from .time_gatekeeper import TimeGatekeeper
 from .validators.preflight import PreflightValidator
+
+if TYPE_CHECKING:
+    from ..config import OrchestratorConfig
+    from .analyzer import ProjectAnalyzer
+    from .fixer import IssueFixer
+    from .scorer import HealthScorer
 
 
 class IterationEngine:
@@ -32,29 +39,66 @@ class IterationEngine:
     - Calculate scores (delegates to HealthScorer)
     """
 
-    def __init__(self, analyzer, fixer, scorer, config: dict, project_name: str = "multi-project"):
+    def __init__(
+        self,
+        config: "OrchestratorConfig | dict",
+        analyzer: Optional["ProjectAnalyzer"] = None,
+        fixer: Optional["IssueFixer"] = None,
+        scorer: Optional["HealthScorer"] = None,
+        hook_manager: Optional[HookLevelManager] = None,
+        project_name: str = "multi-project",
+    ):
         """
+        Initialize iteration engine with optional dependency injection.
+
         Args:
-            analyzer: ProjectAnalyzer instance
-            fixer: IssueFixer instance
-            scorer: HealthScorer instance
-            config: Configuration dict with max_iterations
+            config: Configuration (OrchestratorConfig or dict for backward compatibility)
+            analyzer: Optional ProjectAnalyzer instance (required, raise error if None)
+            fixer: Optional IssueFixer instance (creates default if None)
+            scorer: Optional HealthScorer instance (creates default if None)
+            hook_manager: Optional HookLevelManager instance (creates default if None)
             project_name: Name for logging purposes
+
+        Note:
+            For backward compatibility with orchestrator, analyzer must be provided.
+            Tests can inject all dependencies including mocks.
         """
+        # Support both OrchestratorConfig and dict (backward compatibility)
+        from ..config import OrchestratorConfig
+
+        if isinstance(config, dict):
+            self.orchestrator_config = OrchestratorConfig.from_dict(config)
+            self.config = config
+        else:
+            self.orchestrator_config = config
+            self.config = config.to_dict()
+
+        self.max_iterations = self.config.get("execution", {}).get("max_iterations", 5)
+
+        # Dependency injection with defaults
+        # Note: analyzer requires language_adapters, so must be provided by caller
+        if analyzer is None:
+            raise ValueError(
+                "ProjectAnalyzer must be provided. "
+                "IterationEngine cannot create it without language_adapters."
+            )
         self.analyzer = analyzer
-        self.fixer = fixer
-        self.scorer = scorer
-        self.config = config
-        self.max_iterations = config.get("execution", {}).get("max_iterations", 5)
+
+        # Create defaults for components that don't need extra dependencies
+        from .fixer import IssueFixer
+        from .scorer import HealthScorer
+
+        self.fixer = fixer or IssueFixer(self.config)
+        self.scorer = scorer or HealthScorer(self.config)
+        self.hook_manager = hook_manager or HookLevelManager()
 
         # Initialize components (SRP: each has one job)
-        self.debug_logger = DebugLogger(config, project_name)
-        self.time_gate = TimeGatekeeper(config)
-        self.verifier = AnalysisVerifier(config)
-        self.hook_manager = HookLevelManager()  # Progressive hook enforcement
+        self.debug_logger = DebugLogger(self.config, project_name)
+        self.time_gate = TimeGatekeeper(self.config)
+        self.verifier = AnalysisVerifier(self.config)
 
         # Setup optimization components
-        self.setup_tracker = SetupTracker(config.get("state_manager"))
+        self.setup_tracker = SetupTracker(self.config.get("state_manager"))
         self.validator = PreflightValidator(self.setup_tracker)
 
         # Pass debug logger to fixer for wrapper call logging

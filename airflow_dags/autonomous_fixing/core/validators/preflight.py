@@ -45,6 +45,7 @@ class PreflightValidator:
         setup_tracker: SetupTracker,
         config: PreflightConfig | None = None,
         state_config: StateConfig | None = None,
+        state_manager_factory=None,
     ):
         """
         Initialize validator with setup state tracker.
@@ -54,6 +55,9 @@ class PreflightValidator:
             config: Optional PreflightConfig. If None, uses default configuration.
             state_config: Optional StateConfig for ProjectStateManager.
                 If None, uses default paths.
+            state_manager_factory: Optional callable that creates state manager instances.
+                Signature: (project_path: Path, config: StateConfig) -> IStateRepository
+                If None, defaults to ProjectStateManager for backward compatibility.
 
         Example:
             >>> # Default configuration
@@ -63,11 +67,17 @@ class PreflightValidator:
             >>> test_config = PreflightConfig.for_testing(tmp_path)
             >>> state_config = StateConfig.for_testing(tmp_path)
             >>> validator = PreflightValidator(tracker, config=test_config, state_config=state_config)
+
+            >>> # Inject mock state manager for testing
+            >>> mock_factory = lambda path, cfg: MockStateManager()
+            >>> validator = PreflightValidator(tracker, state_manager_factory=mock_factory)
         """
         self.logger = logging.getLogger(__name__)
         self.setup_tracker = setup_tracker
         self.config = config or PreflightConfig()
         self.state_config = state_config or StateConfig()
+        # Default to ProjectStateManager for backward compatibility
+        self.state_manager_factory = state_manager_factory or ProjectStateManager
 
     @contextmanager
     def _measure_validation(
@@ -261,8 +271,8 @@ class PreflightValidator:
         start_time = time.time()
         project_name = project_path.name
 
-        # Check 1: Use ProjectStateManager for state validation (checks filesystem + cache)
-        state_manager = ProjectStateManager(project_path, config=self.state_config)
+        # Check 1: Use injected state manager factory for state validation (checks filesystem + cache)
+        state_manager = self.state_manager_factory(project_path, config=self.state_config)
         should_reconfig, reason = state_manager.should_reconfigure("hooks")
 
         elapsed = (time.time() - start_time) * 1000
@@ -304,8 +314,8 @@ class PreflightValidator:
         if result := self._check_setup_state(project_path, "tests", start_time):
             return result
 
-        # Check 2: Use ProjectStateManager for state validation
-        state_manager = ProjectStateManager(project_path, config=self.state_config)
+        # Check 2: Use injected state manager factory for state validation
+        state_manager = self.state_manager_factory(project_path, config=self.state_config)
         should_reconfig, reason = state_manager.should_reconfigure("tests")
 
         elapsed = (time.time() - start_time) * 1000

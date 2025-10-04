@@ -238,9 +238,14 @@ class TestIterationEngineAdapterAccess:
 
         mock_fixer = Mock()
         mock_scorer = Mock()
-        config = {"execution": {"max_iterations": 5}}
+        config = {
+            "execution": {"max_iterations": 5},
+            "debug": {"enabled": False, "log_dir": "/tmp/debug"},
+        }
 
-        return IterationEngine(mock_analyzer, mock_fixer, mock_scorer, config)
+        return IterationEngine(
+            config=config, analyzer=mock_analyzer, fixer=mock_fixer, scorer=mock_scorer
+        )
 
     def test_iteration_engine_accesses_adapters_via_dict(self, iteration_engine):
         """IterationEngine should access adapters via self.analyzer.adapters dict."""

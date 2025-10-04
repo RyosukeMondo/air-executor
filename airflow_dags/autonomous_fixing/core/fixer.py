@@ -5,6 +5,8 @@ Clean, focused module that ONLY handles calling claude_wrapper to fix issues.
 No analysis, no scoring, no iteration logic - just fixing.
 """
 
+from typing import TYPE_CHECKING, Any, Optional
+
 from ..adapters.ai.claude_client import ClaudeClient
 from ..domain.enums import IssueType
 from ..domain.models import FixResult
@@ -12,6 +14,9 @@ from .analysis_delegate import AnalysisDelegate
 from .commit_verifier import CommitVerifier
 from .issue_extractor import IssueExtractor
 from .prompt_manager import PromptManager
+
+if TYPE_CHECKING:
+    from ..config.orchestrator_config import OrchestratorConfig
 
 
 class IssueFixer:
@@ -30,15 +35,28 @@ class IssueFixer:
     - Manage iterations (that's IterationEngine's job)
     """
 
-    def __init__(self, config: dict, debug_logger=None):
+    def __init__(
+        self,
+        config: "OrchestratorConfig | dict",
+        debug_logger=None,
+        ai_client: Optional[Any] = None,
+    ):
         """
         Args:
-            config: Configuration dict with wrapper settings
+            config: OrchestratorConfig or dict with wrapper settings
             debug_logger: Optional DebugLogger instance
+            ai_client: Optional AI client (ClaudeClient). If None, creates default ClaudeClient.
         """
-        self.config = config
-        wrapper_path = config.get("wrapper", {}).get("path", "scripts/claude_wrapper.py")
-        python_exec = config.get("wrapper", {}).get("python_executable", "python")
+        # Support both OrchestratorConfig and dict
+        if isinstance(config, dict):
+            from ..config.orchestrator_config import OrchestratorConfig
+
+            self.orchestrator_config = OrchestratorConfig.from_dict(config)
+            self.config = config
+        else:
+            self.orchestrator_config = config
+            self.config = config.to_dict()
+
         self.debug_logger = debug_logger
 
         # Initialize helpers
@@ -46,11 +64,22 @@ class IssueFixer:
         self.commit_verifier = CommitVerifier()
         self.issue_extractor = IssueExtractor()
 
-        # Initialize Claude client with debug logger and config
-        self.claude = ClaudeClient(wrapper_path, python_exec, debug_logger, config)
+        # Initialize Claude client (use injected or create default)
+        self.claude = ai_client or self._create_claude_client()
 
         # Initialize analysis delegate
-        self.analysis_delegate = AnalysisDelegate(config, debug_logger)
+        self.analysis_delegate = AnalysisDelegate(self.config, debug_logger)
+
+    def _create_claude_client(self) -> ClaudeClient:
+        """Create default Claude client from config.
+
+        Returns:
+            ClaudeClient configured with wrapper settings from config.
+        """
+        wrapper_path = self.config.get("wrapper", {}).get("path", "scripts/claude_wrapper.py")
+        python_exec = self.config.get("wrapper", {}).get("python_executable", "python")
+
+        return ClaudeClient(wrapper_path, python_exec, self.debug_logger, self.config)
 
     def fix_static_issues(self, analysis_result, iteration: int, max_issues: int = 10) -> FixResult:
         """

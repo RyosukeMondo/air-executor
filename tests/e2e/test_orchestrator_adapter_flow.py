@@ -74,13 +74,10 @@ class TestOrchestratorE2E:
 
     @pytest.fixture
     def fixer(self, config):
-        """Create IssueFixer with mocked Claude client."""
-        with patch("airflow_dags.autonomous_fixing.core.fixer.ClaudeClient") as mock_claude:
-            mock_client = Mock()
-            mock_claude.return_value = mock_client
-            fixer = IssueFixer(config)
-            fixer.claude = mock_client
-            return fixer
+        """Create IssueFixer with mocked Claude client via dependency injection."""
+        mock_client = Mock()
+        # Use dependency injection instead of patching
+        return IssueFixer(config, ai_client=mock_client)
 
     @pytest.fixture
     def scorer(self, config):
@@ -89,8 +86,9 @@ class TestOrchestratorE2E:
 
     @pytest.fixture
     def iteration_engine(self, analyzer, fixer, scorer, config):
-        """Create IterationEngine with all components."""
-        return IterationEngine(analyzer, fixer, scorer, config)
+        """Create IterationEngine with all components using new signature."""
+        # IterationEngine now takes config first, then optional dependencies
+        return IterationEngine(config, analyzer=analyzer, fixer=fixer, scorer=scorer)
 
     def test_analyzer_has_adapters_dict(self, analyzer):
         """ProjectAnalyzer must have adapters as a dict, not a method."""

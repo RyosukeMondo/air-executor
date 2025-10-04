@@ -83,8 +83,16 @@ class MultiLanguageOrchestrator:
         self.analyzer = ProjectAnalyzer(self.adapters, self.config)
         self.fixer = IssueFixer(self.config)
         self.scorer = HealthScorer(self.config)
+
+        # Create iteration engine with dependency injection
+        # Pass config first (new signature), then inject all dependencies
         self.iteration_engine = IterationEngine(
-            self.analyzer, self.fixer, self.scorer, self.config, project_name
+            config=self.config,
+            analyzer=self.analyzer,
+            fixer=self.fixer,
+            scorer=self.scorer,
+            hook_manager=None,  # Will use default HookLevelManager
+            project_name=project_name,
         )
 
     def execute(self) -> dict:

@@ -2,7 +2,7 @@
 
 import time
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 import yaml
@@ -28,163 +28,205 @@ class TestPreflightValidatorHookConfig:
         config = PreflightConfig.for_testing(tmp_path)
         return PreflightValidator(mock_tracker, config=config)
 
-    @patch("airflow_dags.autonomous_fixing.core.validators.preflight.ProjectStateManager")
-    def test_can_skip_when_state_not_tracked(
-        self, mock_state_manager_class, validator, mock_tracker, tmp_path
-    ):
-        """Test that validation fails when state not tracked."""
+    def test_can_skip_when_state_not_tracked(self, mock_tracker, tmp_path):
+        """Test that validation fails when state not tracked - using dependency injection."""
         project_path = tmp_path / "project"
         project_path.mkdir()
 
-        # Mock ProjectStateManager to return "needs reconfiguration"
+        # Create mock state manager via factory injection
         mock_state_manager = Mock()
         mock_state_manager.should_reconfigure.return_value = (True, "no hooks state found")
-        mock_state_manager_class.return_value = mock_state_manager
+
+        # Inject mock factory instead of patching
+        def mock_factory(path, config):
+            return mock_state_manager
+
+        config = PreflightConfig.for_testing(tmp_path)
+        validator = PreflightValidator(
+            mock_tracker, config=config, state_manager_factory=mock_factory
+        )
 
         can_skip, reason = validator.can_skip_hook_config(project_path)
 
         assert can_skip is False
         assert "no hooks state found" in reason
 
-    @patch("airflow_dags.autonomous_fixing.core.validators.preflight.ProjectStateManager")
-    def test_can_skip_when_cache_missing(
-        self, mock_state_manager_class, validator, mock_tracker, tmp_path
-    ):
-        """Test that validation fails when cache file missing."""
+    def test_can_skip_when_cache_missing(self, mock_tracker, tmp_path):
+        """Test that validation fails when cache file missing - using dependency injection."""
         project_path = tmp_path / "project"
         project_path.mkdir()
 
-        # Mock ProjectStateManager to return "state missing"
+        # Create mock state manager via factory injection
         mock_state_manager = Mock()
         mock_state_manager.should_reconfigure.return_value = (True, "state file missing")
-        mock_state_manager_class.return_value = mock_state_manager
+
+        # Inject mock factory
+        def mock_factory(path, config):
+            return mock_state_manager
+
+        config = PreflightConfig.for_testing(tmp_path)
+        validator = PreflightValidator(
+            mock_tracker, config=config, state_manager_factory=mock_factory
+        )
 
         can_skip, reason = validator.can_skip_hook_config(project_path)
 
         assert can_skip is False
         assert "state file missing" in reason
 
-    @patch("airflow_dags.autonomous_fixing.core.validators.preflight.ProjectStateManager")
-    def test_can_skip_when_cache_stale(
-        self, mock_state_manager_class, validator, mock_tracker, tmp_path
-    ):
-        """Test that validation fails when cache is stale (>30 days)."""
+    def test_can_skip_when_cache_stale(self, mock_tracker, tmp_path):
+        """Test that validation fails when cache is stale (>30 days) - using dependency injection."""
         project_path = tmp_path / "project"
         project_path.mkdir()
 
-        # Mock ProjectStateManager to return "state stale"
+        # Create mock state manager via factory injection
         mock_state_manager = Mock()
         mock_state_manager.should_reconfigure.return_value = (
             True,
             "state stale (32d old, max 30d)",
         )
-        mock_state_manager_class.return_value = mock_state_manager
+
+        # Inject mock factory
+        def mock_factory(path, config):
+            return mock_state_manager
+
+        config = PreflightConfig.for_testing(tmp_path)
+        validator = PreflightValidator(
+            mock_tracker, config=config, state_manager_factory=mock_factory
+        )
 
         can_skip, reason = validator.can_skip_hook_config(project_path)
 
         assert can_skip is False
         assert "state stale" in reason
 
-    @patch("airflow_dags.autonomous_fixing.core.validators.preflight.ProjectStateManager")
-    def test_can_skip_when_cache_invalid_yaml(
-        self, mock_state_manager_class, validator, mock_tracker, tmp_path
-    ):
+    def test_can_skip_when_cache_invalid_yaml(self, mock_tracker, tmp_path):
         """Test that validation fails when state file is corrupted."""
         project_path = tmp_path / "project"
         project_path.mkdir()
 
-        # Mock ProjectStateManager to return "state corrupted"
+        # Create mock state manager via factory injection
         mock_state_manager = Mock()
         mock_state_manager.should_reconfigure.return_value = (
             True,
             "state file corrupted (deleted)",
         )
-        mock_state_manager_class.return_value = mock_state_manager
+
+        # Inject mock factory
+        def mock_factory(path, config):
+            return mock_state_manager
+
+        config = PreflightConfig.for_testing(tmp_path)
+        validator = PreflightValidator(
+            mock_tracker, config=config, state_manager_factory=mock_factory
+        )
 
         can_skip, reason = validator.can_skip_hook_config(project_path)
 
         assert can_skip is False
         assert "state file corrupted" in reason
 
-    @patch("airflow_dags.autonomous_fixing.core.validators.preflight.ProjectStateManager")
-    def test_can_skip_when_cache_missing_required_field(
-        self, mock_state_manager_class, validator, mock_tracker, tmp_path
-    ):
+    def test_can_skip_when_cache_missing_required_field(self, mock_tracker, tmp_path):
         """Test that validation fails when state file missing required metadata."""
         project_path = tmp_path / "project"
         project_path.mkdir()
 
-        # Mock ProjectStateManager to return "state corrupted"
+        # Create mock state manager via factory injection
         mock_state_manager = Mock()
         mock_state_manager.should_reconfigure.return_value = (
             True,
             "state file corrupted (invalid frontmatter)",
         )
-        mock_state_manager_class.return_value = mock_state_manager
+
+        # Inject mock factory
+        def mock_factory(path, config):
+            return mock_state_manager
+
+        config = PreflightConfig.for_testing(tmp_path)
+        validator = PreflightValidator(
+            mock_tracker, config=config, state_manager_factory=mock_factory
+        )
 
         can_skip, reason = validator.can_skip_hook_config(project_path)
 
         assert can_skip is False
         assert "state file corrupted" in reason
 
-    @patch("airflow_dags.autonomous_fixing.core.validators.preflight.ProjectStateManager")
-    def test_can_skip_when_precommit_config_missing(
-        self, mock_state_manager_class, validator, mock_tracker, tmp_path
-    ):
+    def test_can_skip_when_precommit_config_missing(self, mock_tracker, tmp_path):
         """Test that validation fails when .pre-commit-config.yaml deleted."""
         project_path = tmp_path / "project"
         project_path.mkdir()
 
-        # Mock ProjectStateManager to return "file deleted"
+        # Create mock state manager via factory injection
         mock_state_manager = Mock()
         mock_state_manager.should_reconfigure.return_value = (
             True,
             "required file deleted: .pre-commit-config.yaml",
         )
-        mock_state_manager_class.return_value = mock_state_manager
+
+        # Inject mock factory
+        def mock_factory(path, config):
+            return mock_state_manager
+
+        config = PreflightConfig.for_testing(tmp_path)
+        validator = PreflightValidator(
+            mock_tracker, config=config, state_manager_factory=mock_factory
+        )
 
         can_skip, reason = validator.can_skip_hook_config(project_path)
 
         assert can_skip is False
         assert "required file deleted" in reason or "file deleted" in reason
 
-    @patch("airflow_dags.autonomous_fixing.core.validators.preflight.ProjectStateManager")
-    def test_can_skip_when_git_hook_missing(
-        self, mock_state_manager_class, validator, mock_tracker, tmp_path
-    ):
+    def test_can_skip_when_git_hook_missing(self, mock_tracker, tmp_path):
         """Test that validation fails when .git/hooks/pre-commit deleted."""
         project_path = tmp_path / "project"
         project_path.mkdir()
 
-        # Mock ProjectStateManager to return "file deleted"
+        # Create mock state manager via factory injection
         mock_state_manager = Mock()
         mock_state_manager.should_reconfigure.return_value = (
             True,
             "required file deleted: .git/hooks/pre-commit",
         )
-        mock_state_manager_class.return_value = mock_state_manager
+
+        # Inject mock factory
+        def mock_factory(path, config):
+            return mock_state_manager
+
+        config = PreflightConfig.for_testing(tmp_path)
+        validator = PreflightValidator(
+            mock_tracker, config=config, state_manager_factory=mock_factory
+        )
 
         can_skip, reason = validator.can_skip_hook_config(project_path)
 
         assert can_skip is False
         assert "required file deleted" in reason or "file deleted" in reason
 
-    @patch("airflow_dags.autonomous_fixing.core.validators.preflight.ProjectStateManager")
-    def test_can_skip_success(self, mock_state_manager_class, validator, mock_tracker, tmp_path):
-        """Test successful skip when all conditions met."""
+    def test_can_skip_success(self, mock_tracker, tmp_path):
+        """Test successful skip when all conditions met - using dependency injection."""
         project_path = tmp_path / "project"
         project_path.mkdir()
 
         # Create .pre-commit-config.yaml to trigger "already configured" logic
         (project_path / ".pre-commit-config.yaml").touch()
 
-        # Mock ProjectStateManager to return "no reconfiguration needed"
+        # Create mock state manager via factory injection
         mock_state_manager = Mock()
         mock_state_manager.should_reconfigure.return_value = (
             False,
             "pre-commit hooks already configured",
         )
-        mock_state_manager_class.return_value = mock_state_manager
+
+        # Inject mock factory
+        def mock_factory(path, config):
+            return mock_state_manager
+
+        config = PreflightConfig.for_testing(tmp_path)
+        validator = PreflightValidator(
+            mock_tracker, config=config, state_manager_factory=mock_factory
+        )
 
         can_skip, reason = validator.can_skip_hook_config(project_path)
 
@@ -221,103 +263,128 @@ class TestPreflightValidatorTestDiscovery:
         config = PreflightConfig.for_testing(tmp_path)
         return PreflightValidator(mock_tracker, config=config)
 
-    @patch("airflow_dags.autonomous_fixing.core.validators.preflight.ProjectStateManager")
-    def test_can_skip_when_state_not_tracked(
-        self, mock_state_manager_class, validator, mock_tracker, tmp_path
-    ):
-        """Test that validation fails when state not tracked."""
+    def test_can_skip_when_state_not_tracked(self, mock_tracker, tmp_path):
+        """Test that validation fails when state not tracked - using dependency injection."""
         project_path = tmp_path / "project"
         project_path.mkdir()
 
-        # Mock ProjectStateManager to return "needs reconfiguration"
+        # Create mock state manager via factory injection
         mock_state_manager = Mock()
         mock_state_manager.should_reconfigure.return_value = (True, "no tests state found")
-        mock_state_manager_class.return_value = mock_state_manager
+
+        # Inject mock factory
+        def mock_factory(path, config):
+            return mock_state_manager
+
+        config = PreflightConfig.for_testing(tmp_path)
+        validator = PreflightValidator(
+            mock_tracker, config=config, state_manager_factory=mock_factory
+        )
 
         can_skip, reason = validator.can_skip_test_discovery(project_path)
 
         assert can_skip is False
         assert "no tests state found" in reason or "setup state not tracked" in reason
 
-    @patch("airflow_dags.autonomous_fixing.core.validators.preflight.ProjectStateManager")
-    def test_can_skip_when_cache_missing(
-        self, mock_state_manager_class, validator, mock_tracker, tmp_path
-    ):
+    def test_can_skip_when_cache_missing(self, mock_tracker, tmp_path):
         """Test that validation fails when state file missing."""
         project_path = tmp_path / "project"
         project_path.mkdir()
         mock_tracker.is_setup_complete.return_value = True
 
-        # Mock ProjectStateManager to return "state missing"
+        # Create mock state manager via factory injection
         mock_state_manager = Mock()
         mock_state_manager.should_reconfigure.return_value = (True, "state file missing")
-        mock_state_manager_class.return_value = mock_state_manager
+
+        # Inject mock factory
+        def mock_factory(path, config):
+            return mock_state_manager
+
+        config = PreflightConfig.for_testing(tmp_path)
+        validator = PreflightValidator(
+            mock_tracker, config=config, state_manager_factory=mock_factory
+        )
 
         can_skip, reason = validator.can_skip_test_discovery(project_path)
 
         assert can_skip is False
         assert "state file missing" in reason or "setup state not tracked" in reason
 
-    @patch("airflow_dags.autonomous_fixing.core.validators.preflight.ProjectStateManager")
-    def test_can_skip_when_cache_stale(
-        self, mock_state_manager_class, validator, mock_tracker, tmp_path
-    ):
+    def test_can_skip_when_cache_stale(self, mock_tracker, tmp_path):
         """Test that validation fails when state is stale (>30 days)."""
         project_path = tmp_path / "project"
         project_path.mkdir()
         mock_tracker.is_setup_complete.return_value = True
 
-        # Mock ProjectStateManager to return "state stale"
+        # Create mock state manager via factory injection
         mock_state_manager = Mock()
         mock_state_manager.should_reconfigure.return_value = (
             True,
             "state stale (32d old, max 30d)",
         )
-        mock_state_manager_class.return_value = mock_state_manager
+
+        # Inject mock factory
+        def mock_factory(path, config):
+            return mock_state_manager
+
+        config = PreflightConfig.for_testing(tmp_path)
+        validator = PreflightValidator(
+            mock_tracker, config=config, state_manager_factory=mock_factory
+        )
 
         can_skip, reason = validator.can_skip_test_discovery(project_path)
 
         assert can_skip is False
         assert "state stale" in reason or "setup state not tracked" in reason
 
-    @patch("airflow_dags.autonomous_fixing.core.validators.preflight.ProjectStateManager")
-    def test_can_skip_when_cache_missing_required_fields(
-        self, mock_state_manager_class, validator, mock_tracker, tmp_path
-    ):
+    def test_can_skip_when_cache_missing_required_fields(self, mock_tracker, tmp_path):
         """Test that validation fails when state file missing required metadata."""
         project_path = tmp_path / "project"
         project_path.mkdir()
         mock_tracker.is_setup_complete.return_value = True
 
-        # Mock ProjectStateManager to return "state corrupted"
+        # Create mock state manager via factory injection
         mock_state_manager = Mock()
         mock_state_manager.should_reconfigure.return_value = (
             True,
             "state file corrupted (invalid frontmatter)",
         )
-        mock_state_manager_class.return_value = mock_state_manager
+
+        # Inject mock factory
+        def mock_factory(path, config):
+            return mock_state_manager
+
+        config = PreflightConfig.for_testing(tmp_path)
+        validator = PreflightValidator(
+            mock_tracker, config=config, state_manager_factory=mock_factory
+        )
 
         can_skip, reason = validator.can_skip_test_discovery(project_path)
 
         assert can_skip is False
         assert "state file corrupted" in reason or "setup state not tracked" in reason
 
-    @patch("airflow_dags.autonomous_fixing.core.validators.preflight.ProjectStateManager")
-    def test_can_skip_when_cache_has_empty_fields(
-        self, mock_state_manager_class, validator, mock_tracker, tmp_path
-    ):
+    def test_can_skip_when_cache_has_empty_fields(self, mock_tracker, tmp_path):
         """Test that validation fails when state file has invalid data."""
         project_path = tmp_path / "project"
         project_path.mkdir()
         mock_tracker.is_setup_complete.return_value = True
 
-        # Mock ProjectStateManager to return "state corrupted"
+        # Create mock state manager via factory injection
         mock_state_manager = Mock()
         mock_state_manager.should_reconfigure.return_value = (
             True,
             "state file corrupted (deleted)",
         )
-        mock_state_manager_class.return_value = mock_state_manager
+
+        # Inject mock factory
+        def mock_factory(path, config):
+            return mock_state_manager
+
+        config = PreflightConfig.for_testing(tmp_path)
+        validator = PreflightValidator(
+            mock_tracker, config=config, state_manager_factory=mock_factory
+        )
 
         can_skip, reason = validator.can_skip_test_discovery(project_path)
 
