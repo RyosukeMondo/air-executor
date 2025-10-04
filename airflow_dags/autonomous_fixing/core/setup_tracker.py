@@ -49,32 +49,46 @@ class SetupTracker:
         self.redis_client = None
         self.namespace = "autonomous_fix"
 
-        # Try to initialize Redis if config provided and library available
-        if redis_config and REDIS_AVAILABLE:
-            try:
-                self.redis_client = redis.Redis(
-                    host=redis_config.get('redis_host', 'localhost'),
-                    port=redis_config.get('redis_port', 6379),
-                    db=0,
-                    decode_responses=True,
-                    socket_connect_timeout=0.1,  # 100ms timeout
-                    socket_timeout=0.1
-                )
-                self.namespace = redis_config.get('namespace', 'autonomous_fix')
-                # Test connection
-                self.redis_client.ping()
-                self.logger.info("SetupTracker: Redis connection established")
-            except (redis.ConnectionError, redis.TimeoutError, OSError) as e:
-                self.logger.warning(f"SetupTracker: Redis connection failed, using filesystem fallback: {e}")
-                self.redis_client = None
-            except redis.RedisError as e:
-                self.logger.warning(f"SetupTracker: Redis error, using filesystem fallback: {e}")
-                self.redis_client = None
-        elif redis_config and not REDIS_AVAILABLE:
-            self.logger.warning("SetupTracker: Redis library not installed, using filesystem fallback")
-
-        # Ensure state directory exists
+        self._initialize_redis(redis_config)
         self.STATE_DIR.mkdir(parents=True, exist_ok=True)
+
+    def _initialize_redis(self, redis_config: Optional[dict]) -> None:
+        """Initialize Redis connection if config provided and library available."""
+        if not redis_config:
+            return
+
+        if not REDIS_AVAILABLE:
+            self.logger.warning("SetupTracker: Redis library not installed, using filesystem fallback")
+            return
+
+        self.redis_client = self._attempt_redis_connection(redis_config)
+
+    def _attempt_redis_connection(self, redis_config: dict):
+        """
+        Attempt to establish Redis connection.
+
+        Returns:
+            Redis client on success, None on failure
+        """
+        try:
+            client = redis.Redis(
+                host=redis_config.get('redis_host', 'localhost'),
+                port=redis_config.get('redis_port', 6379),
+                db=0,
+                decode_responses=True,
+                socket_connect_timeout=0.1,  # 100ms timeout
+                socket_timeout=0.1
+            )
+            self.namespace = redis_config.get('namespace', 'autonomous_fix')
+            client.ping()  # Test connection
+            self.logger.info("SetupTracker: Redis connection established")
+            return client
+        except (redis.ConnectionError, redis.TimeoutError, OSError) as e:
+            self.logger.warning(f"SetupTracker: Redis connection failed, using filesystem fallback: {e}")
+            return None
+        except redis.RedisError as e:
+            self.logger.warning(f"SetupTracker: Redis error, using filesystem fallback: {e}")
+            return None
 
     def mark_setup_complete(self, project: str, phase: str) -> None:
         """
@@ -112,37 +126,68 @@ class SetupTracker:
             True if setup completed recently, False otherwise
         """
         # Try Redis first (primary storage)
-        if self.redis_client:
-            try:
-                key = self._get_redis_key(project, phase)
-                exists = self.redis_client.exists(key)
-                if exists:
-                    self.logger.debug(f"SetupTracker: Found {phase} completion in Redis for {Path(project).name}")
-                    return True
-            except (redis.ConnectionError, redis.TimeoutError) as e:
-                self.logger.warning(f"SetupTracker: Redis connection error, using filesystem: {e}")
-            except redis.RedisError as e:
-                self.logger.warning(f"SetupTracker: Redis query failed, using filesystem: {e}")
+        if self._check_redis_completion(project, phase):
+            return True
 
         # Fallback to filesystem
-        marker_path = self._get_marker_path(project, phase)
-        if marker_path.exists():
-            try:
-                timestamp_str = marker_path.read_text().strip()
-                timestamp = datetime.fromisoformat(timestamp_str)
-                age = datetime.now() - timestamp
+        return self._check_filesystem_completion(project, phase)
 
-                if age < timedelta(seconds=self.TTL_SECONDS):
-                    self.logger.debug(f"SetupTracker: Found valid {phase} marker (age: {age.days}d) for {Path(project).name}")
-                    return True
-                else:
-                    self.logger.debug(f"SetupTracker: Found stale {phase} marker (age: {age.days}d) for {Path(project).name}")
-                    return False
-            except (OSError, ValueError) as e:
-                self.logger.warning(f"SetupTracker: Failed to read marker {marker_path}: {e}")
-                return False
+    def _check_redis_completion(self, project: str, phase: str) -> bool:
+        """
+        Check if setup completion exists in Redis.
+
+        Returns:
+            True if found in Redis, False otherwise
+        """
+        if not self.redis_client:
+            return False
+
+        try:
+            key = self._get_redis_key(project, phase)
+            if self.redis_client.exists(key):
+                self.logger.debug(f"SetupTracker: Found {phase} completion in Redis for {Path(project).name}")
+                return True
+        except (redis.ConnectionError, redis.TimeoutError) as e:
+            self.logger.warning(f"SetupTracker: Redis connection error, using filesystem: {e}")
+        except redis.RedisError as e:
+            self.logger.warning(f"SetupTracker: Redis query failed, using filesystem: {e}")
 
         return False
+
+    def _check_filesystem_completion(self, project: str, phase: str) -> bool:
+        """
+        Check if setup completion exists in filesystem and is not stale.
+
+        Returns:
+            True if valid marker found, False otherwise
+        """
+        marker_path = self._get_marker_path(project, phase)
+        if not marker_path.exists():
+            return False
+
+        return self._validate_marker_freshness(marker_path, project, phase)
+
+    def _validate_marker_freshness(self, marker_path: Path, project: str, phase: str) -> bool:
+        """
+        Validate that marker file is fresh (not stale).
+
+        Returns:
+            True if marker is fresh, False if stale or invalid
+        """
+        try:
+            timestamp_str = marker_path.read_text().strip()
+            timestamp = datetime.fromisoformat(timestamp_str)
+            age = datetime.now() - timestamp
+
+            if age < timedelta(seconds=self.TTL_SECONDS):
+                self.logger.debug(f"SetupTracker: Found valid {phase} marker (age: {age.days}d) for {Path(project).name}")
+                return True
+
+            self.logger.debug(f"SetupTracker: Found stale {phase} marker (age: {age.days}d) for {Path(project).name}")
+            return False
+        except (OSError, ValueError) as e:
+            self.logger.warning(f"SetupTracker: Failed to read marker {marker_path}: {e}")
+            return False
 
     def _get_redis_key(self, project: str, phase: str) -> str:
         """
