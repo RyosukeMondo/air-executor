@@ -1,10 +1,11 @@
 """Unit tests for PreflightValidator."""
 
-import pytest
 import time
-import yaml
 from pathlib import Path
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock
+
+import pytest
+import yaml
 
 from airflow_dags.autonomous_fixing.core.setup_tracker import SetupTracker
 from airflow_dags.autonomous_fixing.core.validators.preflight import PreflightValidator

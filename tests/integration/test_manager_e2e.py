@@ -1,13 +1,13 @@
 """End-to-end integration tests for job manager."""
 
-import pytest
 import tempfile
-import time
 import uuid
 from pathlib import Path
 
+import pytest
+
 from air_executor.core.job import Job, JobState
-from air_executor.core.task import Task, TaskQueue, TaskStatus
+from air_executor.core.task import Task, TaskQueue
 from air_executor.manager.config import Config
 from air_executor.manager.poller import JobPoller
 from air_executor.manager.spawner import RunnerSpawner

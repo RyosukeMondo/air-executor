@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from airflow_dags.autonomous_fixing.adapters.languages.python import PythonAdapter
 
+
 def main():
     print("\n" + "="*80)
     print("PYTHON ADAPTER - REAL USAGE TEST")
@@ -25,7 +26,7 @@ def main():
     }
 
     adapter = PythonAdapter(config)
-    print(f"\n✓ PythonAdapter created")
+    print("\n✓ PythonAdapter created")
     print(f"  Language: {adapter.language_name}")
 
     # Test 1: Detect projects
@@ -71,7 +72,7 @@ def main():
 
         result = adapter.static_analysis(test_project)
 
-        print(f"✓ Analysis complete:")
+        print("✓ Analysis complete:")
         print(f"   Language: {result.language}")
         print(f"   Phase: {result.phase}")
         print(f"   Project: {result.project_path}")
@@ -80,7 +81,7 @@ def main():
         print(f"   Complexity violations: {len(result.complexity_violations)}")
 
         if result.errors:
-            print(f"\n   First 3 errors:")
+            print("\n   First 3 errors:")
             for i, error in enumerate(result.errors[:3], 1):
                 print(f"      {i}. {error.get('file', '?')}:{error.get('line', '?')} - {error.get('message', '')[:80]}")
 

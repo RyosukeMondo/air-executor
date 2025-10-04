@@ -43,6 +43,7 @@ htmlcov/
 
 # Air Executor
 .air-executor/
+.ai-state/
 *.log
 logs/
 

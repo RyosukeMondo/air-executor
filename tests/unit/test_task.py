@@ -1,6 +1,5 @@
 """Unit tests for Task domain model and TaskQueue."""
 
-import pytest
 import tempfile
 from pathlib import Path
 

@@ -1,6 +1,5 @@
 """Main CLI entry point for Air-Executor."""
 
-import sys
 from pathlib import Path
 
 import click

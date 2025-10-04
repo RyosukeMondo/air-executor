@@ -1,10 +1,11 @@
 """Unit tests for Job domain model."""
 
-import pytest
-from datetime import datetime
-from pathlib import Path
 import tempfile
 import uuid
+from datetime import datetime
+from pathlib import Path
+
+import pytest
 
 from air_executor.core.job import Job, JobState
 
