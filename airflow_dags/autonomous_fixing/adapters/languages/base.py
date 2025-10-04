@@ -245,8 +245,19 @@ class LanguageAdapter(ILanguageAdapter, ABC):
                             "message": f"Complexity {complexity} exceeds threshold {self.complexity_threshold}",
                         }
                     )
-            except Exception:
-                # Skip files that fail analysis
+            except (FileNotFoundError, PermissionError):
+                # Skip files that are inaccessible (expected for some files)
+                continue
+            except RuntimeError as e:
+                # Configuration errors (radon not installed, etc) - FAIL FAST
+                if "not installed" in str(e).lower() or "no module named" in str(e).lower():
+                    raise  # Re-raise configuration errors immediately
+                # Skip other runtime errors (malformed files, etc)
+                print(f"   ⚠️  Skipping {file_path.name}: {e}")
+                continue
+            except Exception as e:
+                # Unexpected errors - log and skip
+                print(f"   ⚠️  Unexpected error analyzing {file_path.name}: {type(e).__name__}: {e}")
                 continue
 
         return violations

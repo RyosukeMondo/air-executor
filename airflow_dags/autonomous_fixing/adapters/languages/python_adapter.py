@@ -4,6 +4,7 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Dict, List
@@ -212,27 +213,42 @@ class PythonAdapter(LanguageAdapter):
         return ErrorParserStrategy.parse(language="python", output=output, phase=phase)
 
     def calculate_complexity(self, file_path: str) -> int:
-        """Calculate cyclomatic complexity using radon."""
-        try:
-            # Use radon for accurate complexity
-            result = subprocess.run(
-                ["radon", "cc", file_path, "-s", "-n", "A"],
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
+        """Calculate cyclomatic complexity using radon.
 
-            # Parse radon output: "A 1:0 ClassName.method_name - A (1)"
-            max_complexity = 0
-            for match in re.finditer(r"\((\d+)\)", result.stdout):
-                complexity = int(match.group(1))
-                max_complexity = max(max_complexity, complexity)
+        Raises:
+            FileNotFoundError: If file doesn't exist
+            subprocess.TimeoutExpired: If radon hangs
+            RuntimeError: If radon is not installed or fails
+        """
+        # Verify file exists first
+        if not Path(file_path).exists():
+            raise FileNotFoundError(f"Cannot calculate complexity: {file_path} does not exist")
 
-            return max_complexity
+        # Use radon for accurate complexity via Python module (works with venv)
+        result = subprocess.run(
+            [sys.executable, "-m", "radon", "cc", file_path, "-s", "-n", "A"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
 
-        except Exception:
-            # Fallback to simple heuristic
-            return self._simple_complexity(file_path)
+        # Check if radon failed
+        if result.returncode != 0:
+            error_msg = result.stderr or result.stdout or "Unknown error"
+            if "No module named" in error_msg:
+                raise RuntimeError(
+                    f"Radon is not installed. Install with: pip install radon\n"
+                    f"Error: {error_msg}"
+                )
+            raise RuntimeError(f"Radon failed with exit code {result.returncode}: {error_msg}")
+
+        # Parse radon output: "A 1:0 ClassName.method_name - A (1)"
+        max_complexity = 0
+        for match in re.finditer(r"\((\d+)\)", result.stdout):
+            complexity = int(match.group(1))
+            max_complexity = max(max_complexity, complexity)
+
+        return max_complexity
 
     def _simple_complexity(self, file_path: str) -> int:
         """Simple complexity heuristic (fallback)."""
