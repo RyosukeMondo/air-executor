@@ -25,6 +25,171 @@ def run_command(cmd, cwd):
     )
     return result.returncode, result.stdout, result.stderr
 
+def setup_test_repo(test_repo):
+    """Initialize git repository with initial commit."""
+    run_command("git init", test_repo)
+    run_command("git config user.email 'test@example.com'", test_repo)
+    run_command("git config user.name 'Test User'", test_repo)
+
+    # Create a simple file
+    test_file = test_repo / "example.py"
+    test_file.write_text("def hello():\n    print('Hello, World!')\n")
+
+    # Initial commit
+    run_command("git add .", test_repo)
+    run_command("git commit -m 'Initial commit'", test_repo)
+
+    # Get initial commit
+    rc, initial_commit, _ = run_command("git rev-parse HEAD", test_repo)
+    return initial_commit.strip()
+
+
+def build_test_command(test_repo):
+    """Build command for wrapper to test commit creation."""
+    prompt = """Make a small change to example.py:
+1. Add a docstring to the hello() function
+2. Save the file
+3. Create a git commit with message: "docs: Add docstring to hello function"
+
+IMPORTANT: You MUST create a git commit. This is required.
+Run: git add . && git commit -m "docs: Add docstring to hello function"
+"""
+
+    return {
+        "action": "prompt",
+        "prompt": prompt,
+        "options": {
+            "cwd": str(test_repo),
+            "permission_mode": "bypassPermissions",
+            "exit_on_complete": True
+        }
+    }
+
+
+def run_wrapper(python, wrapper_path, command):
+    """Execute wrapper and collect events."""
+    proc = subprocess.Popen(
+        [str(python), str(wrapper_path)],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+
+    # Send command
+    command_json = json.dumps(command) + "\n"
+    proc.stdin.write(command_json)
+    proc.stdin.flush()
+
+    return proc
+
+
+def collect_wrapper_events(proc, timeout=120):
+    """Collect events from wrapper stdout until shutdown or timeout."""
+    events = []
+    print("\n📥 Wrapper events:")
+    print("-"*80)
+
+    try:
+        timeout_time = time.time() + timeout
+        while time.time() < timeout_time:
+            line = proc.stdout.readline()
+            if not line:
+                break
+
+            line = line.strip()
+            if not line:
+                continue
+
+            try:
+                event = json.loads(line)
+                event_type = event.get('event')
+                events.append(event)
+                print(f"  {event_type}")
+
+                # Stop on shutdown
+                if event_type in ['shutdown', 'auto_shutdown']:
+                    break
+
+            except json.JSONDecodeError:
+                pass
+
+        # Kill if still running
+        if proc.poll() is None:
+            proc.kill()
+
+    except Exception as e:
+        proc.kill()
+        print(f"\n❌ Exception: {e}")
+        raise
+
+    print("-"*80)
+    return events
+
+
+def check_wrapper_success(events):
+    """Determine if wrapper claims success based on events."""
+    has_run_completed = any(e.get('event') == 'run_completed' for e in events)
+    has_run_failed = any(e.get('event') == 'run_failed' for e in events)
+    return has_run_completed and not has_run_failed
+
+
+def verify_commit_created(test_repo, initial_commit):
+    """Check if a new commit was created."""
+    rc, current_commit, _ = run_command("git rev-parse HEAD", test_repo)
+    current_commit = current_commit.strip()
+    return current_commit != initial_commit, current_commit
+
+
+def print_commit_details(test_repo):
+    """Print details of the latest commit."""
+    rc, commit_msg, _ = run_command("git log -1 --pretty=format:'%s'", test_repo)
+    print(f"  Commit message: {commit_msg}")
+
+    rc, files_changed, _ = run_command("git diff --name-only HEAD~1", test_repo)
+    print(f"  Files changed: {files_changed.strip()}")
+
+
+def report_test_results(wrapper_claims_success, commit_was_created):
+    """Report final test results and return success status."""
+    if wrapper_claims_success and not commit_was_created:
+        print("\n" + "="*80)
+        print("❌ CRITICAL FAILURE: Wrapper Claims Success but No Commit!")
+        print("="*80)
+        print("This is the exact issue the user reported:")
+        print("  - claude_wrapper says 'run_completed'")
+        print("  - But NO git commit was actually created")
+        print("  - This causes the autonomous fixer to fail")
+        print()
+        print("Possible causes:")
+        print("  1. Claude didn't actually create the commit")
+        print("  2. Claude created commit in wrong directory")
+        print("  3. Git command failed silently")
+        print("  4. Permission issues")
+        print("="*80)
+        return False
+
+    if wrapper_claims_success and commit_was_created:
+        print("\n" + "="*80)
+        print("✅ TEST PASSED - Commit Verification Working!")
+        print("="*80)
+        print("Wrapper correctly:")
+        print("  ✅ Executed the prompt")
+        print("  ✅ Created git commit")
+        print("  ✅ Reported success")
+        print("="*80)
+        return True
+
+    print("\n" + "="*80)
+    print("❓ INCONCLUSIVE - Wrapper Failed or Timeout")
+    print("="*80)
+    print(f"Wrapper claimed success: {wrapper_claims_success}")
+    print(f"Commit was created: {commit_was_created}")
+    print("\nThis might be OK if the prompt was too hard or timed out.")
+    print("="*80)
+    return False
+
+
 def test_wrapper_with_commit():
     """Test that wrapper actually creates git commits."""
     project_root = Path(__file__).parent.parent
@@ -46,118 +211,35 @@ def test_wrapper_with_commit():
         print(f"📁 Test repo: {test_repo}")
 
         # Initialize git repo
-        run_command("git init", test_repo)
-        run_command("git config user.email 'test@example.com'", test_repo)
-        run_command("git config user.name 'Test User'", test_repo)
-
-        # Create a simple file
-        test_file = test_repo / "example.py"
-        test_file.write_text("def hello():\n    print('Hello, World!')\n")
-
-        # Initial commit
-        run_command("git add .", test_repo)
-        run_command("git commit -m 'Initial commit'", test_repo)
-
-        # Get initial commit
-        rc, initial_commit, _ = run_command("git rev-parse HEAD", test_repo)
-        initial_commit = initial_commit.strip()
+        initial_commit = setup_test_repo(test_repo)
         print(f"📍 Initial commit: {initial_commit[:8]}")
 
-        # Build prompt that SHOULD create a commit
-        prompt = """Make a small change to example.py:
-1. Add a docstring to the hello() function
-2. Save the file
-3. Create a git commit with message: "docs: Add docstring to hello function"
-
-IMPORTANT: You MUST create a git commit. This is required.
-Run: git add . && git commit -m "docs: Add docstring to hello function"
-"""
-
         # Build command
-        command = {
-            "action": "prompt",
-            "prompt": prompt,
-            "options": {
-                "cwd": str(test_repo),
-                "permission_mode": "bypassPermissions",
-                "exit_on_complete": True
-            }
-        }
+        command = build_test_command(test_repo)
 
         print("\n📤 Sending command to wrapper...")
         print(f"  Prompt: Add docstring + create commit")
 
         # Run wrapper
         start = time.time()
-        proc = subprocess.Popen(
-            [str(python), str(wrapper_path)],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
-
-        # Send command
-        command_json = json.dumps(command) + "\n"
-        proc.stdin.write(command_json)
-        proc.stdin.flush()
+        proc = run_wrapper(python, wrapper_path, command)
 
         # Collect events
-        events = []
-        print("\n📥 Wrapper events:")
-        print("-"*80)
-
         try:
-            timeout_time = time.time() + 120  # 2 minute timeout
-            while time.time() < timeout_time:
-                line = proc.stdout.readline()
-                if not line:
-                    break
-
-                line = line.strip()
-                if not line:
-                    continue
-
-                try:
-                    event = json.loads(line)
-                    event_type = event.get('event')
-                    events.append(event)
-                    print(f"  {event_type}")
-
-                    # Stop on shutdown
-                    if event_type in ['shutdown', 'auto_shutdown']:
-                        break
-
-                except json.JSONDecodeError:
-                    pass
-
-            # Kill if still running
-            if proc.poll() is None:
-                proc.kill()
-
+            events = collect_wrapper_events(proc)
             duration = time.time() - start
-
-        except Exception as e:
-            proc.kill()
-            print(f"\n❌ Exception: {e}")
+        except Exception:
             return False
 
-        print("-"*80)
-
         # Check wrapper result
-        has_run_completed = any(e.get('event') == 'run_completed' for e in events)
-        has_run_failed = any(e.get('event') == 'run_failed' for e in events)
-        wrapper_claims_success = has_run_completed and not has_run_failed
+        wrapper_claims_success = check_wrapper_success(events)
 
         print(f"\n⏱️  Duration: {duration:.1f}s")
         print(f"🔚 Exit code: {proc.returncode}")
         print(f"{'✅' if wrapper_claims_success else '❌'} Wrapper claims success: {wrapper_claims_success}")
 
-        # Now the CRITICAL check: Did a commit actually happen?
-        rc, current_commit, _ = run_command("git rev-parse HEAD", test_repo)
-        current_commit = current_commit.strip()
-
-        commit_was_created = (current_commit != initial_commit)
+        # Verify commit was created
+        commit_was_created, current_commit = verify_commit_created(test_repo, initial_commit)
 
         print(f"\n🔍 Git Verification:")
         print(f"  Initial commit: {initial_commit[:8]}")
@@ -165,51 +247,10 @@ Run: git add . && git commit -m "docs: Add docstring to hello function"
         print(f"  {'✅' if commit_was_created else '❌'} Commit created: {commit_was_created}")
 
         if commit_was_created:
-            # Show commit details
-            rc, commit_msg, _ = run_command("git log -1 --pretty=format:'%s'", test_repo)
-            print(f"  Commit message: {commit_msg}")
+            print_commit_details(test_repo)
 
-            rc, files_changed, _ = run_command("git diff --name-only HEAD~1", test_repo)
-            print(f"  Files changed: {files_changed.strip()}")
-
-        # The CRITICAL test
-        if wrapper_claims_success and not commit_was_created:
-            print("\n" + "="*80)
-            print("❌ CRITICAL FAILURE: Wrapper Claims Success but No Commit!")
-            print("="*80)
-            print("This is the exact issue the user reported:")
-            print("  - claude_wrapper says 'run_completed'")
-            print("  - But NO git commit was actually created")
-            print("  - This causes the autonomous fixer to fail")
-            print()
-            print("Possible causes:")
-            print("  1. Claude didn't actually create the commit")
-            print("  2. Claude created commit in wrong directory")
-            print("  3. Git command failed silently")
-            print("  4. Permission issues")
-            print("="*80)
-            return False
-
-        elif wrapper_claims_success and commit_was_created:
-            print("\n" + "="*80)
-            print("✅ TEST PASSED - Commit Verification Working!")
-            print("="*80)
-            print("Wrapper correctly:")
-            print("  ✅ Executed the prompt")
-            print("  ✅ Created git commit")
-            print("  ✅ Reported success")
-            print("="*80)
-            return True
-
-        else:
-            print("\n" + "="*80)
-            print("❓ INCONCLUSIVE - Wrapper Failed or Timeout")
-            print("="*80)
-            print(f"Wrapper claimed success: {wrapper_claims_success}")
-            print(f"Commit was created: {commit_was_created}")
-            print("\nThis might be OK if the prompt was too hard or timed out.")
-            print("="*80)
-            return False
+        # Report results
+        return report_test_results(wrapper_claims_success, commit_was_created)
 
 if __name__ == "__main__":
     try:
