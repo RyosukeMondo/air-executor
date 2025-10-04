@@ -24,6 +24,7 @@ from typing import Optional
 @dataclass
 class TestCounts:
     """Test result counts - SSOT for test statistics."""
+
     passed: int = 0
     failed: int = 0
     skipped: int = 0
@@ -59,6 +60,7 @@ class TestResultParser(ABC):
 # JavaScript/TypeScript Parsers
 # =============================================================================
 
+
 class JestJSONParser(TestResultParser):
     """Parse Jest JSON output - PREFERRED."""
 
@@ -67,7 +69,7 @@ class JestJSONParser(TestResultParser):
         try:
             # Try file first (cleanest)
             if output_file and output_file.exists():
-                with open(output_file) as f:
+                with open(output_file, encoding="utf-8") as f:
                     data = json.load(f)
                 return self._parse_json_data(data)
 
@@ -87,9 +89,9 @@ class JestJSONParser(TestResultParser):
     def _parse_json_data(self, data: dict) -> TestCounts:
         """Extract counts from Jest JSON structure."""
         return TestCounts(
-            passed=data.get('numPassedTests', 0),
-            failed=data.get('numFailedTests', 0),
-            skipped=data.get('numPendingTests', 0)
+            passed=data.get("numPassedTests", 0),
+            failed=data.get("numFailedTests", 0),
+            skipped=data.get("numPendingTests", 0),
         )
 
 
@@ -102,9 +104,9 @@ class JestTextParser(TestResultParser):
             # Jest final summary: "Tests: 28 failed, 5 skipped, 64 passed, 97 total"
             # Use findall to get all matches, take last (final summary)
 
-            passed_matches = re.findall(r'(\d+) passed', output)
-            failed_matches = re.findall(r'(\d+) failed', output)
-            skipped_matches = re.findall(r'(\d+) skipped', output)
+            passed_matches = re.findall(r"(\d+) passed", output)
+            failed_matches = re.findall(r"(\d+) failed", output)
+            skipped_matches = re.findall(r"(\d+) skipped", output)
 
             if not (passed_matches or failed_matches):
                 return None  # No test output found
@@ -112,7 +114,7 @@ class JestTextParser(TestResultParser):
             return TestCounts(
                 passed=int(passed_matches[-1]) if passed_matches else 0,
                 failed=int(failed_matches[-1]) if failed_matches else 0,
-                skipped=int(skipped_matches[-1]) if skipped_matches else 0
+                skipped=int(skipped_matches[-1]) if skipped_matches else 0,
             )
 
         except Exception:
@@ -126,17 +128,17 @@ class VitestJSONParser(TestResultParser):
         """Parse Vitest --reporter=json output."""
         try:
             if output_file and output_file.exists():
-                with open(output_file) as f:
+                with open(output_file, encoding="utf-8") as f:
                     data = json.load(f)
             else:
                 # Find JSON in output
                 data = json.loads(output)
 
-            results = data.get('testResults', {})
+            results = data.get("testResults", {})
             return TestCounts(
-                passed=results.get('numPassedTests', 0),
-                failed=results.get('numFailedTests', 0),
-                skipped=results.get('numPendingTests', 0)
+                passed=results.get("numPassedTests", 0),
+                failed=results.get("numFailedTests", 0),
+                skipped=results.get("numPendingTests", 0),
             )
 
         except Exception:
@@ -146,6 +148,7 @@ class VitestJSONParser(TestResultParser):
 # =============================================================================
 # Python Parsers
 # =============================================================================
+
 
 class PytestJUnitXMLParser(TestResultParser):
     """Parse pytest JUnit XML output - PREFERRED."""
@@ -159,18 +162,14 @@ class PytestJUnitXMLParser(TestResultParser):
             tree = ET.parse(output_file)
             root = tree.getroot()
 
-            total = int(root.attrib.get('tests', 0))
-            failures = int(root.attrib.get('failures', 0))
-            errors = int(root.attrib.get('errors', 0))
-            skipped = int(root.attrib.get('skipped', 0))
+            total = int(root.attrib.get("tests", 0))
+            failures = int(root.attrib.get("failures", 0))
+            errors = int(root.attrib.get("errors", 0))
+            skipped = int(root.attrib.get("skipped", 0))
 
             passed = total - failures - errors - skipped
 
-            return TestCounts(
-                passed=passed,
-                failed=failures + errors,
-                skipped=skipped
-            )
+            return TestCounts(passed=passed, failed=failures + errors, skipped=skipped)
 
         except Exception:
             return None
@@ -183,9 +182,9 @@ class PytestTextParser(TestResultParser):
         """Parse pytest text summary."""
         try:
             # pytest: "= 42 passed, 3 failed, 1 skipped in 1.23s ="
-            passed_match = re.search(r'(\d+) passed', output)
-            failed_match = re.search(r'(\d+) failed', output)
-            skipped_match = re.search(r'(\d+) skipped', output)
+            passed_match = re.search(r"(\d+) passed", output)
+            failed_match = re.search(r"(\d+) failed", output)
+            skipped_match = re.search(r"(\d+) skipped", output)
 
             if not (passed_match or failed_match):
                 return None
@@ -193,7 +192,7 @@ class PytestTextParser(TestResultParser):
             return TestCounts(
                 passed=int(passed_match.group(1)) if passed_match else 0,
                 failed=int(failed_match.group(1)) if failed_match else 0,
-                skipped=int(skipped_match.group(1)) if skipped_match else 0
+                skipped=int(skipped_match.group(1)) if skipped_match else 0,
             )
 
         except Exception:
@@ -203,6 +202,7 @@ class PytestTextParser(TestResultParser):
 # =============================================================================
 # Go Parsers
 # =============================================================================
+
 
 class GoTestJSONParser(TestResultParser):
     """Parse Go test -json output - PREFERRED."""
@@ -218,17 +218,17 @@ class GoTestJSONParser(TestResultParser):
             for line in output.splitlines():
                 try:
                     event = json.loads(line)
-                    action = event.get('Action')
+                    action = event.get("Action")
 
                     # Only count test-level events
-                    if 'Test' in event and not event['Test'].startswith('Test'):
+                    if "Test" in event and not event["Test"].startswith("Test"):
                         continue  # Skip sub-tests
 
-                    if action == 'pass':
+                    if action == "pass":
                         passed += 1
-                    elif action == 'fail':
+                    elif action == "fail":
                         failed += 1
-                    elif action == 'skip':
+                    elif action == "skip":
                         skipped += 1
 
                 except json.JSONDecodeError:
@@ -250,8 +250,8 @@ class GoTestTextParser(TestResultParser):
         """Parse go test text output."""
         try:
             # Count PASS/FAIL lines
-            passed = len(re.findall(r'^PASS', output, re.MULTILINE))
-            failed = len(re.findall(r'^FAIL', output, re.MULTILINE))
+            passed = len(re.findall(r"^PASS", output, re.MULTILINE))
+            failed = len(re.findall(r"^FAIL", output, re.MULTILINE))
 
             if passed + failed == 0:
                 return None
@@ -265,6 +265,7 @@ class GoTestTextParser(TestResultParser):
 # =============================================================================
 # Flutter/Dart Parsers
 # =============================================================================
+
 
 class FlutterTestJSONParser(TestResultParser):
     """Parse Flutter test --machine output - PREFERRED."""
@@ -280,16 +281,16 @@ class FlutterTestJSONParser(TestResultParser):
             for line in output.splitlines():
                 try:
                     event = json.loads(line)
-                    event_type = event.get('type')
+                    event_type = event.get("type")
 
-                    if event_type == 'testDone':
-                        result = event.get('result')
-                        if result == 'success':
+                    if event_type == "testDone":
+                        result = event.get("result")
+                        if result == "success":
                             passed += 1
-                        elif result == 'failure' or result == 'error':
+                        elif result == "failure" or result == "error":
                             failed += 1
 
-                    elif event_type == 'testSkipped':
+                    elif event_type == "testSkipped":
                         skipped += 1
 
                 except json.JSONDecodeError:
@@ -308,6 +309,7 @@ class FlutterTestJSONParser(TestResultParser):
 # Parser Strategy - SSOT for Parser Selection
 # =============================================================================
 
+
 class TestResultParserStrategy:
     """
     Strategy for parsing test results with fallback.
@@ -319,35 +321,22 @@ class TestResultParserStrategy:
 
     # Parser configuration - SSOT
     PARSERS = {
-        'javascript': {
-            'preferred': JestJSONParser(),
-            'fallback': JestTextParser()
+        "javascript": {"preferred": JestJSONParser(), "fallback": JestTextParser()},
+        "typescript": {"preferred": JestJSONParser(), "fallback": JestTextParser()},
+        "vitest": {
+            "preferred": VitestJSONParser(),
+            "fallback": JestTextParser(),  # Similar format
         },
-        'typescript': {
-            'preferred': JestJSONParser(),
-            'fallback': JestTextParser()
+        "python": {"preferred": PytestJUnitXMLParser(), "fallback": PytestTextParser()},
+        "go": {"preferred": GoTestJSONParser(), "fallback": GoTestTextParser()},
+        "flutter": {
+            "preferred": FlutterTestJSONParser(),
+            "fallback": JestTextParser(),  # Similar format
         },
-        'vitest': {
-            'preferred': VitestJSONParser(),
-            'fallback': JestTextParser()  # Similar format
-        },
-        'python': {
-            'preferred': PytestJUnitXMLParser(),
-            'fallback': PytestTextParser()
-        },
-        'go': {
-            'preferred': GoTestJSONParser(),
-            'fallback': GoTestTextParser()
-        },
-        'flutter': {
-            'preferred': FlutterTestJSONParser(),
-            'fallback': JestTextParser()  # Similar format
-        }
     }
 
     @classmethod
-    def parse(cls, language: str, output: str,
-              output_file: Optional[Path] = None) -> TestCounts:
+    def parse(cls, language: str, output: str, output_file: Optional[Path] = None) -> TestCounts:
         """
         Parse test output using best available parser.
 
@@ -362,17 +351,17 @@ class TestResultParserStrategy:
         parsers = cls.PARSERS.get(language.lower())
         if not parsers:
             # Unknown language - try text parsers
-            parsers = {'fallback': JestTextParser()}
+            parsers = {"fallback": JestTextParser()}
 
         # Try preferred parser first (structured output)
-        if 'preferred' in parsers:
-            result = parsers['preferred'].parse(output, output_file)
+        if "preferred" in parsers:
+            result = parsers["preferred"].parse(output, output_file)
             if result:
                 return result
 
         # Fallback to text parser (regex)
-        if 'fallback' in parsers:
-            result = parsers['fallback'].parse(output, output_file)
+        if "fallback" in parsers:
+            result = parsers["fallback"].parse(output, output_file)
             if result:
                 return result
 
@@ -380,8 +369,7 @@ class TestResultParserStrategy:
         return TestCounts()
 
     @classmethod
-    def register_parser(cls, language: str, parser: TestResultParser,
-                       preferred: bool = True):
+    def register_parser(cls, language: str, parser: TestResultParser, preferred: bool = True):
         """
         Register custom parser for a language.
 
@@ -390,5 +378,5 @@ class TestResultParserStrategy:
         if language not in cls.PARSERS:
             cls.PARSERS[language] = {}
 
-        key = 'preferred' if preferred else 'fallback'
+        key = "preferred" if preferred else "fallback"
         cls.PARSERS[language][key] = parser

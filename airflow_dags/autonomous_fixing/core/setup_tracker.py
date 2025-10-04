@@ -13,6 +13,7 @@ from typing import Optional
 
 try:
     import redis
+
     REDIS_AVAILABLE = True
 except ImportError:
     REDIS_AVAILABLE = False
@@ -58,7 +59,9 @@ class SetupTracker:
             return
 
         if not REDIS_AVAILABLE:
-            self.logger.warning("SetupTracker: Redis library not installed, using filesystem fallback")
+            self.logger.warning(
+                "SetupTracker: Redis library not installed, " "using filesystem fallback"
+            )
             return
 
         self.redis_client = self._attempt_redis_connection(redis_config)
@@ -72,22 +75,24 @@ class SetupTracker:
         """
         try:
             client = redis.Redis(
-                host=redis_config.get('redis_host', 'localhost'),
-                port=redis_config.get('redis_port', 6379),
+                host=redis_config.get("redis_host", "localhost"),
+                port=redis_config.get("redis_port", 6379),
                 db=0,
                 decode_responses=True,
                 socket_connect_timeout=0.1,  # 100ms timeout
-                socket_timeout=0.1
+                socket_timeout=0.1,
             )
-            self.namespace = redis_config.get('namespace', 'autonomous_fix')
+            self.namespace = redis_config.get("namespace", "autonomous_fix")
             client.ping()  # Test connection
             self.logger.info("SetupTracker: Redis connection established")
             return client
         except (redis.ConnectionError, redis.TimeoutError, OSError) as e:
-            self.logger.warning(f"SetupTracker: Redis connection failed, using filesystem fallback: {e}")
+            self.logger.warning(
+                "SetupTracker: Redis connection failed, " "using filesystem fallback: %s", e
+            )
             return None
         except redis.RedisError as e:
-            self.logger.warning(f"SetupTracker: Redis error, using filesystem fallback: {e}")
+            self.logger.warning("SetupTracker: Redis error, using filesystem fallback: %s", e)
             return None
 
     def mark_setup_complete(self, project: str, phase: str) -> None:
@@ -105,11 +110,15 @@ class SetupTracker:
 
         # Try Redis first (primary storage)
         if self._redis_store(project, phase):
-            self.logger.debug(f"SetupTracker: Marked {phase} complete in Redis for {Path(project).name}")
+            self.logger.debug(
+                "SetupTracker: Marked %s complete in Redis for %s", phase, Path(project).name
+            )
 
         # Always store filesystem marker (fallback + redundancy)
         self._filesystem_store(project, phase, timestamp)
-        self.logger.debug(f"SetupTracker: Marked {phase} complete in filesystem for {Path(project).name}")
+        self.logger.debug(
+            "SetupTracker: Marked %s complete in filesystem for %s", phase, Path(project).name
+        )
 
     def is_setup_complete(self, project: str, phase: str) -> bool:
         """
@@ -145,12 +154,14 @@ class SetupTracker:
         try:
             key = self._get_redis_key(project, phase)
             if self.redis_client.exists(key):
-                self.logger.debug(f"SetupTracker: Found {phase} completion in Redis for {Path(project).name}")
+                self.logger.debug(
+                    "SetupTracker: Found %s completion in Redis for %s", phase, Path(project).name
+                )
                 return True
         except (redis.ConnectionError, redis.TimeoutError) as e:
-            self.logger.warning(f"SetupTracker: Redis connection error, using filesystem: {e}")
+            self.logger.warning("SetupTracker: Redis connection error, using filesystem: %s", e)
         except redis.RedisError as e:
-            self.logger.warning(f"SetupTracker: Redis query failed, using filesystem: {e}")
+            self.logger.warning("SetupTracker: Redis query failed, using filesystem: %s", e)
 
         return False
 
@@ -180,13 +191,23 @@ class SetupTracker:
             age = datetime.now() - timestamp
 
             if age < timedelta(seconds=self.TTL_SECONDS):
-                self.logger.debug(f"SetupTracker: Found valid {phase} marker (age: {age.days}d) for {Path(project).name}")
+                self.logger.debug(
+                    "SetupTracker: Found valid %s marker (age: %dd) for %s",
+                    phase,
+                    age.days,
+                    Path(project).name,
+                )
                 return True
 
-            self.logger.debug(f"SetupTracker: Found stale {phase} marker (age: {age.days}d) for {Path(project).name}")
+            self.logger.debug(
+                "SetupTracker: Found stale %s marker (age: %dd) for %s",
+                phase,
+                age.days,
+                Path(project).name,
+            )
             return False
         except (OSError, ValueError) as e:
-            self.logger.warning(f"SetupTracker: Failed to read marker {marker_path}: {e}")
+            self.logger.warning("SetupTracker: Failed to read marker %s: %s", marker_path, e)
             return False
 
     def _get_redis_key(self, project: str, phase: str) -> str:
@@ -223,17 +244,13 @@ class SetupTracker:
 
         try:
             key = self._get_redis_key(project, phase)
-            self.redis_client.setex(
-                key,
-                self.TTL_SECONDS,
-                datetime.now().isoformat()
-            )
+            self.redis_client.setex(key, self.TTL_SECONDS, datetime.now().isoformat())
             return True
         except (redis.ConnectionError, redis.TimeoutError) as e:
-            self.logger.warning(f"SetupTracker: Redis connection error for {phase}: {e}")
+            self.logger.warning("SetupTracker: Redis connection error for %s: %s", phase, e)
             return False
         except redis.RedisError as e:
-            self.logger.warning(f"SetupTracker: Redis store failed for {phase}: {e}")
+            self.logger.warning("SetupTracker: Redis store failed for %s: %s", phase, e)
             return False
 
     def _get_marker_path(self, project: str, phase: str) -> Path:
@@ -271,4 +288,4 @@ class SetupTracker:
             marker_path.write_text(timestamp)
             marker_path.chmod(0o600)  # Owner read/write only
         except (OSError, PermissionError) as e:
-            self.logger.warning(f"SetupTracker: Failed to write marker {marker_path}: {e}")
+            self.logger.warning("SetupTracker: Failed to write marker %s: %s", marker_path, e)

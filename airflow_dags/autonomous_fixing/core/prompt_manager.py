@@ -28,7 +28,7 @@ class PromptManager:
 
         for path in possible_paths:
             if path.exists():
-                with open(path, "r") as f:
+                with open(path, "r", encoding="utf-8") as f:
                     return yaml.safe_load(f)
 
         # Fallback: return minimal default prompts if config not found
@@ -41,7 +41,10 @@ class PromptManager:
             "static_issues": {
                 "error": {"template": "Fix this {language} error in {file}:\n{message}"},
                 "complexity": {
-                    "template": "Refactor {file} to reduce complexity from {complexity} to below {threshold}"
+                    "template": (
+                        "Refactor {file} to reduce complexity "
+                        "from {complexity} to below {threshold}"
+                    )
                 },
             },
             "tests": {
@@ -59,10 +62,15 @@ class PromptManager:
             },
             "setup": {
                 "configure_precommit_hooks": {
-                    "template": "Configure pre-commit hooks for {language} project {project_name}"
+                    "template": (
+                        "Configure pre-commit hooks for {language} " "project {project_name}"
+                    )
                 },
                 "discover_tests": {
-                    "template": "Discover test configuration for {language} project {project_name} at {project_path}"
+                    "template": (
+                        "Discover test configuration for {language} "
+                        "project {project_name} at {project_path}"
+                    )
                 },
             },
             "timeouts": {

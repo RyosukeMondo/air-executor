@@ -19,7 +19,7 @@ import yaml
 class HookLevelManager:
     """Manages progressive pre-commit hook enforcement."""
 
-    def __init__(self, config_path: str = 'config/hook-levels.yaml'):
+    def __init__(self, config_path: str = "config/hook-levels.yaml"):
         """
         Initialize hook level manager.
 
@@ -32,26 +32,29 @@ class HookLevelManager:
     def _load_config(self) -> Dict:
         """Load hook levels configuration."""
         if self.config_path.exists():
-            with open(self.config_path) as f:
+            with open(self.config_path, encoding="utf-8") as f:
                 return yaml.safe_load(f)
         else:
             # Return minimal default config
             return {
-                'levels': {
-                    0: {'name': 'framework_only', 'checks': []},
-                    1: {'name': 'type_safety', 'checks': ['type_check', 'build']},
-                    2: {'name': 'tests', 'checks': ['type_check', 'build', 'unit_tests']},
-                    3: {'name': 'full_quality', 'checks': ['type_check', 'build', 'unit_tests', 'coverage', 'lint']}
+                "levels": {
+                    0: {"name": "framework_only", "checks": []},
+                    1: {"name": "type_safety", "checks": ["type_check", "build"]},
+                    2: {"name": "tests", "checks": ["type_check", "build", "unit_tests"]},
+                    3: {
+                        "name": "full_quality",
+                        "checks": ["type_check", "build", "unit_tests", "coverage", "lint"],
+                    },
                 }
             }
 
     def _get_level_file_path(self, project: Path, language: str) -> Path:
         """Get language-specific level file path (SRP)."""
         level_files = {
-            'javascript': project / '.husky' / '.level',
-            'python': project / '.pre-commit-level',
-            'go': project / '.git' / 'hooks' / '.level',
-            'flutter': project / '.git' / 'hooks' / '.level'
+            "javascript": project / ".husky" / ".level",
+            "python": project / ".pre-commit-level",
+            "go": project / ".git" / "hooks" / ".level",
+            "flutter": project / ".git" / "hooks" / ".level",
         }
         return level_files.get(language)
 
@@ -103,7 +106,7 @@ class HookLevelManager:
     def _verify_tests(self, project_path: str, adapter) -> tuple[bool, str]:
         """Verify tests exist and pass (SRP for level 2)"""
         print("      🧪 Verifying tests...")
-        test_result = adapter.run_tests(project_path, strategy='minimal')
+        test_result = adapter.run_tests(project_path, strategy="minimal")
         if not test_result.success:
             return False, f"Tests failed: {test_result.tests_failed} failing"
         if test_result.tests_passed == 0:
@@ -114,7 +117,7 @@ class HookLevelManager:
         """Verify coverage meets threshold and linting passes (SRP for level 3)"""
         print("      📈 Verifying coverage...")
         cov_result = adapter.analyze_coverage(project_path)
-        if not hasattr(cov_result, 'coverage_percentage') or not cov_result.coverage_percentage:
+        if not hasattr(cov_result, "coverage_percentage") or not cov_result.coverage_percentage:
             return False, "Coverage analysis unavailable"
         if cov_result.coverage_percentage < 60.0:
             return False, f"Coverage {cov_result.coverage_percentage:.1f}% < 60%"
@@ -126,8 +129,9 @@ class HookLevelManager:
 
         return True, ""
 
-    def can_upgrade_to_level(self, project_path: str, language: str,
-                            target_level: int, adapter) -> tuple[bool, str]:
+    def can_upgrade_to_level(
+        self, project_path: str, language: str, target_level: int, adapter
+    ) -> tuple[bool, str]:
         """
         Check if project quality allows upgrading to target level.
 
@@ -176,8 +180,8 @@ class HookLevelManager:
     def _display_enforced_checks(self, level_config: Dict):
         """Display what checks are now enforced (SRP)."""
         print("\n   📋 Now enforcing:")
-        for check in level_config.get('checks', []):
-            check_id = check['id'] if isinstance(check, dict) else check
+        for check in level_config.get("checks", []):
+            check_id = check["id"] if isinstance(check, dict) else check
             print(f"      • {check_id}")
 
     def upgrade_to_level(self, project_path: str, language: str, target_level: int) -> bool:
@@ -192,7 +196,7 @@ class HookLevelManager:
         Returns: True if upgrade successful
         """
         project = Path(project_path)
-        level_config = self.config['levels'][target_level]
+        level_config = self.config["levels"][target_level]
 
         print(f"\n   🔒 Upgrading hooks to Level {target_level}: {level_config['name']}")
 
@@ -207,62 +211,67 @@ class HookLevelManager:
     def _get_cache_file_path(self, project_path: str) -> Path:
         """Get metadata cache file path (SRP)."""
         project_name = Path(project_path).name
-        cache_dir = Path('config/precommit-cache')
+        cache_dir = Path("config/precommit-cache")
         cache_dir.mkdir(parents=True, exist_ok=True)
-        return cache_dir / f'{project_name}-hooks.yaml'
+        return cache_dir / f"{project_name}-hooks.yaml"
 
     def _load_or_create_cache(self, cache_file: Path, project_path: str, language: str) -> Dict:
         """Load existing cache or create new one (SRP)."""
         if cache_file.exists():
-            with open(cache_file) as f:
+            with open(cache_file, encoding="utf-8") as f:
                 return yaml.safe_load(f) or {}
 
         return {
-            'project_name': Path(project_path).name,
-            'language': language,
-            'levels': {},
-            'progression_history': []
+            "project_name": Path(project_path).name,
+            "language": language,
+            "levels": {},
+            "progression_history": [],
         }
 
     def _update_cache_data(self, cache: Dict, level: int, level_config: Dict):
         """Update cache data structure with new level (SRP)."""
         from datetime import datetime
 
-        cache['current_level'] = level
-        cache['levels'][level] = {
-            'enabled_at': datetime.now().isoformat(),
-            'status': 'active',
-            'checks': level_config.get('checks', [])
+        cache["current_level"] = level
+        cache["levels"][level] = {
+            "enabled_at": datetime.now().isoformat(),
+            "status": "active",
+            "checks": level_config.get("checks", []),
         }
-        cache['progression_history'].append({
-            'level': level,
-            'timestamp': datetime.now().isoformat(),
-            'reason': f"Phase {self._level_to_phase(level)} gate passed"
-        })
+        cache["progression_history"].append(
+            {
+                "level": level,
+                "timestamp": datetime.now().isoformat(),
+                "reason": f"Phase {self._level_to_phase(level)} gate passed",
+            }
+        )
 
-    def _update_metadata_cache(self, project_path: str, language: str,
-                               level: int, level_config: Dict):
+    def _update_metadata_cache(
+        self, project_path: str, language: str, level: int, level_config: Dict
+    ):
         """Update hook metadata cache with new level."""
         cache_file = self._get_cache_file_path(project_path)
         cache = self._load_or_create_cache(cache_file, project_path, language)
         self._update_cache_data(cache, level, level_config)
 
-        with open(cache_file, 'w') as f:
+        with open(cache_file, "w", encoding="utf-8") as f:
             yaml.dump(cache, f, default_flow_style=False, sort_keys=False)
 
     def _level_to_phase(self, level: int) -> str:
         """Map hook level to phase name."""
-        return {0: 'SETUP', 1: 'P1', 2: 'P2', 3: 'P3'}.get(level, 'UNKNOWN')
+        return {0: "SETUP", 1: "P1", 2: "P2", 3: "P3"}.get(level, "UNKNOWN")
 
     def _get_target_level_for_phase(self, phase: str) -> int | None:
         """Map phase to target hook level (SRP)."""
         return {
-            'p1': 1,  # Type safety
-            'p2': 2,  # + Tests
-            'p3': 3   # + Coverage + lint
+            "p1": 1,  # Type safety
+            "p2": 2,  # + Tests
+            "p3": 3,  # + Coverage + lint
         }.get(phase.lower())
 
-    def _print_upgrade_header(self, phase: str, score: float, current_level: int, target_level: int):
+    def _print_upgrade_header(
+        self, phase: str, score: float, current_level: int, target_level: int
+    ):
         """Print upgrade attempt header (SRP)."""
         print(f"\n{'='*80}")
         print(f"🎉 {phase.upper()} gate passed (score: {score:.1%})!")
@@ -281,9 +290,9 @@ class HookLevelManager:
         print("   Quality cannot regress below this level.")
         print(f"   Future commits must pass Level {target_level} checks.")
 
-    def upgrade_after_gate_passed(self, project_path: str, language: str,
-                                 phase: str, gate_passed: bool, score: float,
-                                 adapter) -> bool:
+    def upgrade_after_gate_passed(
+        self, project_path: str, language: str, phase: str, gate_passed: bool, score: float, adapter
+    ) -> bool:
         """
         Attempt to upgrade hooks after phase gate passes.
 
@@ -350,9 +359,7 @@ class HookLevelManager:
         if current_level == 0:
             return False
 
-        can_pass, reason = self.can_upgrade_to_level(
-            project_path, language, current_level, adapter
-        )
+        can_pass, reason = self.can_upgrade_to_level(project_path, language, current_level, adapter)
 
         if not can_pass:
             self._print_regression_warning(current_level, reason)
@@ -362,7 +369,7 @@ class HookLevelManager:
 
     def get_level_info(self, level: int) -> Dict:
         """Get configuration info for a hook level."""
-        return self.config['levels'].get(level, {})
+        return self.config["levels"].get(level, {})
 
     def _format_summary_header(self, current_level: int, level_info: Dict) -> str:
         """Format summary header section (SRP)."""
@@ -378,8 +385,8 @@ class HookLevelManager:
             return "⏭️  No enforcement yet (learning mode)\n   Hooks will be enabled as quality gates pass\n"
 
         details = "Enforced Checks:\n"
-        for check in level_info.get('checks', []):
-            check_id = check['id'] if isinstance(check, dict) else check
+        for check in level_info.get("checks", []):
+            check_id = check["id"] if isinstance(check, dict) else check
             details += f"  ✅ {check_id}\n"
         return details
 

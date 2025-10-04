@@ -135,7 +135,7 @@ class ClaudeClient:
         log_dir.mkdir(exist_ok=True)
         realtime_log = log_dir / "wrapper-realtime.log"
 
-        with open(realtime_log, "a") as log_file:
+        with open(realtime_log, "a", encoding="utf-8") as log_file:
             while True:
                 line = process.stdout.readline()
                 if not line:

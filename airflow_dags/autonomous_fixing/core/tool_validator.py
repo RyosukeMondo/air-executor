@@ -13,6 +13,7 @@ try:
 except ImportError:
     import sys
     from pathlib import Path
+
     sys.path.insert(0, str(Path(__file__).parent.parent))
     from domain.models import ToolValidationResult
 
@@ -20,6 +21,7 @@ except ImportError:
 @dataclass
 class ValidationSummary:
     """Summary of all tool validations."""
+
     total_tools: int
     available_tools: int
     missing_tools: int
@@ -131,7 +133,7 @@ class ToolValidator:
             warnings=warnings,
             errors=errors,
             can_proceed=can_proceed,
-            fix_suggestions=fix_suggestions
+            fix_suggestions=fix_suggestions,
         )
 
     def _determine_can_proceed(self, all_results: Dict[str, List[ToolValidationResult]]) -> bool:
@@ -146,10 +148,10 @@ class ToolValidator:
         """
         # Common static analysis tool names by language
         static_analysis_tools = {
-            'python': ['ruff', 'pylint', 'mypy', 'pyflakes', 'flake8'],
-            'javascript': ['eslint', 'tslint'],
-            'go': ['golangci-lint', 'staticcheck'],
-            'flutter': ['analyze']
+            "python": ["ruff", "pylint", "mypy", "pyflakes", "flake8"],
+            "javascript": ["eslint", "tslint"],
+            "go": ["golangci-lint", "staticcheck"],
+            "flutter": ["analyze"],
         }
 
         for lang_name, results in all_results.items():
@@ -158,15 +160,14 @@ class ToolValidator:
 
             for result in results:
                 # Static analysis tools - check both keywords and known tool names
-                is_static_tool = (
-                    any(keyword in result.tool_name for keyword in ['analyze', 'lint', 'check']) or
-                    result.tool_name in static_analysis_tools.get(lang_name, [])
-                )
+                is_static_tool = any(
+                    keyword in result.tool_name for keyword in ["analyze", "lint", "check"]
+                ) or result.tool_name in static_analysis_tools.get(lang_name, [])
                 if is_static_tool and result.available:
                     has_static_tool = True
 
                 # Test tools
-                if 'test' in result.tool_name and 'coverage' not in result.tool_name:
+                if "test" in result.tool_name and "coverage" not in result.tool_name:
                     if result.available:
                         pass
 
@@ -191,7 +192,7 @@ class ToolValidator:
                 warnings=[],
                 errors=[f"No adapter for language: {language}"],
                 can_proceed=False,
-                fix_suggestions=[f"Add {language} support to config"]
+                fix_suggestions=[f"Add {language} support to config"],
             )
 
         adapter = self.adapters[language]
@@ -237,7 +238,7 @@ class ToolValidator:
             warnings=[],
             errors=errors,
             can_proceed=can_proceed,
-            fix_suggestions=fix_suggestions
+            fix_suggestions=fix_suggestions,
         )
 
 
@@ -286,10 +287,10 @@ def _check_all_mode():
     )
 
     adapters = {
-        'flutter': FlutterAdapter({}),
-        'python': PythonAdapter({}),
-        'javascript': JavaScriptAdapter({}),
-        'go': GoAdapter({})
+        "flutter": FlutterAdapter({}),
+        "python": PythonAdapter({}),
+        "javascript": JavaScriptAdapter({}),
+        "go": GoAdapter({}),
     }
 
     validator = ToolValidator(adapters, {})
@@ -307,16 +308,16 @@ def _create_adapters_from_config(languages: dict) -> dict:
     )
 
     adapters = {}
-    enabled = languages.get('enabled', [])
+    enabled = languages.get("enabled", [])
 
-    if 'flutter' in enabled:
-        adapters['flutter'] = FlutterAdapter(languages.get('flutter', {}))
-    if 'python' in enabled:
-        adapters['python'] = PythonAdapter(languages.get('python', {}))
-    if 'javascript' in enabled:
-        adapters['javascript'] = JavaScriptAdapter(languages.get('javascript', {}))
-    if 'go' in enabled:
-        adapters['go'] = GoAdapter(languages.get('go', {}))
+    if "flutter" in enabled:
+        adapters["flutter"] = FlutterAdapter(languages.get("flutter", {}))
+    if "python" in enabled:
+        adapters["python"] = PythonAdapter(languages.get("python", {}))
+    if "javascript" in enabled:
+        adapters["javascript"] = JavaScriptAdapter(languages.get("javascript", {}))
+    if "go" in enabled:
+        adapters["go"] = GoAdapter(languages.get("go", {}))
 
     return adapters
 
@@ -335,23 +336,23 @@ def main():
         _print_usage()
         sys.exit(1)
 
-    if sys.argv[1] == '--check-flutter':
+    if sys.argv[1] == "--check-flutter":
         sys.exit(_check_flutter_mode())
 
-    if sys.argv[1] == '--check-all':
+    if sys.argv[1] == "--check-all":
         sys.exit(_check_all_mode())
 
     # Load config and validate
     config_file = sys.argv[1]
-    with open(config_file) as f:
+    with open(config_file, encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
-    adapters = _create_adapters_from_config(config.get('languages', {}))
+    adapters = _create_adapters_from_config(config.get("languages", {}))
     validator = ToolValidator(adapters, config)
     summary = validator.validate_all_tools()
 
     sys.exit(0 if summary.can_proceed else 1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

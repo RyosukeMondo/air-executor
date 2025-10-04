@@ -11,9 +11,16 @@ All actual work is delegated to specialized modules:
 
 import sys
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Union
 
 import yaml
+
+# Import configuration
+try:
+    from .config import OrchestratorConfig
+except ImportError:
+    sys.path.insert(0, str(Path(__file__).parent))
+    from config import OrchestratorConfig
 
 # Import language adapters (from new location)
 try:
@@ -49,28 +56,36 @@ class MultiLanguageOrchestrator:
     - Manage iterations (delegates to IterationEngine)
     """
 
-    def __init__(self, config: Dict, project_name: str = "multi-project"):
+    def __init__(
+        self,
+        config: Union[OrchestratorConfig, Dict],
+        project_name: str = "multi-project",
+    ):
         """
         Args:
-            config: Full configuration dict
+            config: Configuration (OrchestratorConfig or dict for backward compatibility)
             project_name: Project name for logging
         """
-        self.config = config
+        # Support both OrchestratorConfig and dict (backward compatibility)
+        if isinstance(config, dict):
+            self.orchestrator_config = OrchestratorConfig.from_dict(config)
+        else:
+            self.orchestrator_config = config
+
+        # Keep config as dict for now (until all components are updated)
+        self.config = config if isinstance(config, dict) else self.orchestrator_config.to_dict()
         self.project_name = project_name
 
         # Initialize language adapters (SRP: each adapter handles one language)
         self.adapters = self._create_language_adapters()
 
         # Initialize core modules (SRP: each module has one job)
-        self.analyzer = ProjectAnalyzer(self.adapters, config)
-        self.fixer = IssueFixer(config)
-        self.scorer = HealthScorer(config)
+        # Use self.config (dict) for components until they're updated
+        self.analyzer = ProjectAnalyzer(self.adapters, self.config)
+        self.fixer = IssueFixer(self.config)
+        self.scorer = HealthScorer(self.config)
         self.iteration_engine = IterationEngine(
-            self.analyzer,
-            self.fixer,
-            self.scorer,
-            config,
-            project_name
+            self.analyzer, self.fixer, self.scorer, self.config, project_name
         )
 
     def execute(self) -> Dict:
@@ -93,22 +108,22 @@ class MultiLanguageOrchestrator:
             print("\n❌ Cannot proceed - missing critical tools")
             print("   Please install required tools and try again\n")
             return {
-                'success': False,
-                'error': 'Missing critical tools',
-                'validation': validation_summary
+                "success": False,
+                "error": "Missing critical tools",
+                "validation": validation_summary,
             }
 
         # Get projects (explicit list from config)
-        if 'projects' in self.config:
+        if "projects" in self.config:
             print("Using explicit project list from config\n")
             projects_by_language = self._get_projects_from_config()
         else:
             print("❌ No projects list in config")
-            return {'success': False, 'error': 'No projects configured'}
+            return {"success": False, "error": "No projects configured"}
 
         if not any(projects_by_language.values()):
             print("❌ No projects detected")
-            return {'success': False, 'error': 'No projects found'}
+            return {"success": False, "error": "No projects found"}
 
         self._print_project_summary(projects_by_language)
 
@@ -118,19 +133,19 @@ class MultiLanguageOrchestrator:
     def _create_language_adapters(self) -> Dict:
         """Create language adapters from config."""
         adapters = {}
-        languages = self.config.get('languages', {})
+        languages = self.config.get("languages", {})
 
-        if 'flutter' in languages.get('enabled', []):
-            adapters['flutter'] = FlutterAdapter(languages.get('flutter', {}))
+        if "flutter" in languages.get("enabled", []):
+            adapters["flutter"] = FlutterAdapter(languages.get("flutter", {}))
 
-        if 'python' in languages.get('enabled', []):
-            adapters['python'] = PythonAdapter(languages.get('python', {}))
+        if "python" in languages.get("enabled", []):
+            adapters["python"] = PythonAdapter(languages.get("python", {}))
 
-        if 'javascript' in languages.get('enabled', []):
-            adapters['javascript'] = JavaScriptAdapter(languages.get('javascript', {}))
+        if "javascript" in languages.get("enabled", []):
+            adapters["javascript"] = JavaScriptAdapter(languages.get("javascript", {}))
 
-        if 'go' in languages.get('enabled', []):
-            adapters['go'] = GoAdapter(languages.get('go', {}))
+        if "go" in languages.get("enabled", []):
+            adapters["go"] = GoAdapter(languages.get("go", {}))
 
         return adapters
 
@@ -138,9 +153,9 @@ class MultiLanguageOrchestrator:
         """Get explicit project list from config, organized by language."""
         projects_by_language = {}
 
-        for project in self.config.get('projects', []):
-            project_path = project['path']
-            language = project['language']
+        for project in self.config.get("projects", []):
+            project_path = project["path"]
+            language = project["language"]
 
             if language in self.adapters:
                 if language not in projects_by_language:
@@ -170,7 +185,7 @@ def main():
 
     # Load configuration
     try:
-        with open(config_path, 'r') as f:
+        with open(config_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
     except FileNotFoundError:
         print(f"❌ Config file not found: {config_path}")
@@ -184,8 +199,8 @@ def main():
     result = orchestrator.execute()
 
     # Exit with appropriate code
-    sys.exit(0 if result.get('success') else 1)
+    sys.exit(0 if result.get("success") else 1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

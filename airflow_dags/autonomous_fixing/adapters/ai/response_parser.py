@@ -57,7 +57,7 @@ class ResponseParser:
             return
 
         try:
-            with open(self.config_path, 'r') as f:
+            with open(self.config_path, "r", encoding="utf-8") as f:
                 config = yaml.safe_load(f)
 
             if not config:
@@ -65,17 +65,17 @@ class ResponseParser:
                 return
 
             # Load noise patterns if provided
-            if 'noise_patterns' in config:
-                if isinstance(config['noise_patterns'], list):
-                    self.noise_patterns = config['noise_patterns']
+            if "noise_patterns" in config:
+                if isinstance(config["noise_patterns"], list):
+                    self.noise_patterns = config["noise_patterns"]
                     logger.info(f"Loaded {len(self.noise_patterns)} noise patterns from config")
                 else:
                     logger.warning("Invalid noise_patterns format in config, using defaults")
 
             # Load error indicators if provided
-            if 'error_indicators' in config:
-                if isinstance(config['error_indicators'], list):
-                    self.error_indicators = config['error_indicators']
+            if "error_indicators" in config:
+                if isinstance(config["error_indicators"], list):
+                    self.error_indicators = config["error_indicators"]
                     logger.info(f"Loaded {len(self.error_indicators)} error indicators from config")
                 else:
                     logger.warning("Invalid error_indicators format in config, using defaults")
@@ -100,8 +100,8 @@ class ResponseParser:
                 - errors: List[str] (if failure, all error lines)
                 - status: str (if success, "completed")
         """
-        stderr = response.get('stderr', '')
-        generic_error = response.get('error', '')
+        stderr = response.get("stderr", "")
+        generic_error = response.get("error", "")
 
         # Try to extract real errors from stderr first
         stderr_result = self._parse_stderr(stderr, operation_type)
@@ -114,7 +114,7 @@ class ResponseParser:
             return generic_result
 
         # Check success flag
-        if response.get('success'):
+        if response.get("success"):
             return {"success": True, "status": "completed"}
 
         # Fallback: unknown error
@@ -138,7 +138,7 @@ class ResponseParser:
         return {
             "success": False,
             "error_message": f"[{operation_type}] {error_message}",
-            "errors": real_errors
+            "errors": real_errors,
         }
 
     def _parse_generic_error(
@@ -160,7 +160,7 @@ class ResponseParser:
         return {
             "success": False,
             "error_message": f"[{operation_type}] {generic_error}",
-            "errors": [generic_error]
+            "errors": [generic_error],
         }
 
     def _create_unknown_error(self, operation_type: str) -> Dict:
@@ -168,7 +168,7 @@ class ResponseParser:
         return {
             "success": False,
             "error_message": f"[{operation_type}] Unknown error - no clear success indicator",
-            "errors": []
+            "errors": [],
         }
 
     def _extract_real_errors(self, stderr: str) -> List[str]:
@@ -184,7 +184,7 @@ class ResponseParser:
         if not stderr:
             return []
 
-        lines = stderr.split('\n')
+        lines = stderr.split("\n")
         real_errors = []
 
         for line in lines:

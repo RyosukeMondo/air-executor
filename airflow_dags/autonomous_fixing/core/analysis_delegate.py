@@ -60,7 +60,7 @@ class AnalysisDelegate:
             age_seconds = time.time() - cache_path.stat().st_mtime
             if age_seconds < 300:  # 5 minutes
                 print(f"   ✓ Using cached analysis ({int(age_seconds)}s old)")
-                with open(cache_path) as f:
+                with open(cache_path, encoding="utf-8") as f:
                     return yaml.safe_load(f)
 
         print(f"\n🔍 Analyzing {project_name} static code quality...")
@@ -76,7 +76,7 @@ class AnalysisDelegate:
 
         if result["success"] and cache_path.exists():
             print(f"   ✓ Analysis complete, saved to {cache_path}")
-            with open(cache_path) as f:
+            with open(cache_path, encoding="utf-8") as f:
                 return yaml.safe_load(f)
         else:
             error_msg = result.get("error_message") or result.get("error", "Unknown error")
@@ -116,7 +116,7 @@ class AnalysisDelegate:
                 print(
                     f"   ✓ Pre-commit hooks already configured ({int(age_seconds/86400)} days ago)"
                 )
-                with open(cache_path) as f:
+                with open(cache_path, encoding="utf-8") as f:
                     config = yaml.safe_load(f)
                     return config.get("hook_framework", {}).get("installed", False)
 
@@ -135,7 +135,8 @@ class AnalysisDelegate:
             print(f"   ✓ Pre-commit hooks configured and saved to {cache_path}")
             return True
         elif result["success"] and not cache_path.exists():
-            # Wrapper succeeded but didn't create cache file (likely timeout without completion event)
+            # Wrapper succeeded but didn't create cache file
+            # (likely timeout without completion event)
             error_msg = "Wrapper completed but output file not created (possible timeout)"
             print(f"   ⚠️  Hook configuration failed: {error_msg}")
             print("   Continuing without pre-commit enforcement (less robust)")

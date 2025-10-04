@@ -24,46 +24,46 @@ class FixOrchestrator:
 
     def __init__(self, config_path: str):
         # Load configuration
-        with open(config_path) as f:
+        with open(config_path, encoding="utf-8") as f:
             self.config = yaml.safe_load(f)
 
         # Initialize components
-        self.project_path = Path(self.config['target_project']['path'])
+        self.project_path = Path(self.config["target_project"]["path"])
 
         # Smart health monitor with tiered checks
-        health_config = self.config.get('health_check', {})
+        health_config = self.config.get("health_check", {})
         self.health_monitor = SmartHealthMonitor(
             str(self.project_path),
-            file_size_threshold=health_config.get('file_size_threshold', 300),
-            static_pass_threshold=health_config.get('static_pass_threshold', 0.6)
+            file_size_threshold=health_config.get("file_size_threshold", 300),
+            static_pass_threshold=health_config.get("static_pass_threshold", 0.6),
         )
 
         self.state_manager = StateManager(
-            redis_host=self.config['redis']['host'],
-            redis_port=self.config['redis']['port'],
-            redis_db=self.config['redis']['db']
+            redis_host=self.config["redis"]["host"],
+            redis_port=self.config["redis"]["port"],
+            redis_db=self.config["redis"]["db"],
         )
         self.issue_discovery = IssueDiscovery(str(self.project_path))
 
         # Issue grouper for batch processing
-        grouping_config = self.config.get('issue_grouping', {})
+        grouping_config = self.config.get("issue_grouping", {})
         self.issue_grouper = IssueGrouper(
-            max_cleanup_batch_size=grouping_config.get('max_cleanup_batch_size', 50),
-            max_location_batch_size=grouping_config.get('max_location_batch_size', 20),
-            mega_batch_mode=grouping_config.get('mega_batch_mode', False)
+            max_cleanup_batch_size=grouping_config.get("max_cleanup_batch_size", 50),
+            max_location_batch_size=grouping_config.get("max_location_batch_size", 20),
+            mega_batch_mode=grouping_config.get("mega_batch_mode", False),
         )
 
         self.executor = AirExecutorRunner(
-            wrapper_path=self.config['air_executor']['wrapper_path'],
+            wrapper_path=self.config["air_executor"]["wrapper_path"],
             working_dir=str(self.project_path),
-            timeout=self.config['air_executor']['timeout'],
-            auto_commit=self.config['air_executor']['auto_commit']
+            timeout=self.config["air_executor"]["timeout"],
+            auto_commit=self.config["air_executor"]["auto_commit"],
         )
 
         # Configuration
-        self.completion_criteria = self.config['completion_criteria']
-        self.circuit_breaker = self.config['circuit_breaker']
-        self.batch_sizes = self.config['batch_sizes']
+        self.completion_criteria = self.config["completion_criteria"]
+        self.circuit_breaker = self.config["circuit_breaker"]
+        self.batch_sizes = self.config["batch_sizes"]
 
         # State
         self.run_count = 0
@@ -78,7 +78,7 @@ class FixOrchestrator:
         print(f"Mode: {'SIMULATION' if simulation else 'LIVE'}")
         print("=" * 60)
 
-        max_iter = max_iterations or self.circuit_breaker['max_total_runs']
+        max_iter = max_iterations or self.circuit_breaker["max_total_runs"]
 
         while self.run_count < max_iter:
             self.run_count += 1
@@ -89,9 +89,7 @@ class FixOrchestrator:
             print(f"{'='*60}")
 
             # Step 1: Smart Health check (tiered: static → dynamic if needed)
-            smart_metrics = self.health_monitor.check_health(
-                force_dynamic=self.force_dynamic_check
-            )
+            smart_metrics = self.health_monitor.check_health(force_dynamic=self.force_dynamic_check)
             self.state_manager.record_run_result(run_id, smart_metrics.to_dict())
 
             # Step 2: Check completion (force dynamic check for accurate assessment)
@@ -127,7 +125,9 @@ class FixOrchestrator:
 
             # Step 7: Execute batch
             if simulation:
-                print(f"\n🎭 SIMULATION: Would execute {len(tasks[:self.batch_sizes.get(f'{phase}_fixes', 5)])} tasks")
+                print(
+                    f"\n🎭 SIMULATION: Would execute {len(tasks[:self.batch_sizes.get(f'{phase}_fixes', 5)])} tasks"
+                )
                 time.sleep(2)  # Simulate execution time
             else:
                 self._execute_batch(phase)
@@ -146,22 +146,22 @@ class FixOrchestrator:
         dynamic = smart_metrics.dynamic
 
         # Static checks must pass
-        if criteria.get('build_passes') and static.analysis_status != 'pass':
+        if criteria.get("build_passes") and static.analysis_status != "pass":
             return False
 
         # Analysis errors must be below threshold
-        if static.analysis_errors > criteria.get('max_lint_errors', 0):
+        if static.analysis_errors > criteria.get("max_lint_errors", 0):
             return False
 
         # If we have dynamic metrics, check test criteria
         if dynamic:
             # Test pass rate must meet threshold
             if dynamic.total_tests > 0:
-                if dynamic.test_pass_rate < criteria.get('min_test_pass_rate', 0.95):
+                if dynamic.test_pass_rate < criteria.get("min_test_pass_rate", 0.95):
                     return False
 
         # Check stability (last N runs)
-        stability_runs = criteria.get('stability_runs', 3)
+        stability_runs = criteria.get("stability_runs", 3)
         history = self.state_manager.get_run_history(count=stability_runs)
 
         if len(history) < stability_runs:
@@ -169,12 +169,12 @@ class FixOrchestrator:
 
         # All recent runs must be healthy (check static metrics)
         for run in history:
-            run_metrics = run.get('metrics', {})
-            static_data = run_metrics.get('static', {})
+            run_metrics = run.get("metrics", {})
+            static_data = run_metrics.get("static", {})
 
-            if static_data.get('analysis_status') != 'pass':
+            if static_data.get("analysis_status") != "pass":
                 return False
-            if static_data.get('analysis_errors', 0) > 0:
+            if static_data.get("analysis_errors", 0) > 0:
                 return False
 
         return True
@@ -182,18 +182,18 @@ class FixOrchestrator:
     def _should_stop(self) -> bool:
         """Check circuit breaker conditions"""
         # Check consecutive failures
-        if self.state_manager.is_circuit_open(self.circuit_breaker['max_consecutive_failures']):
+        if self.state_manager.is_circuit_open(self.circuit_breaker["max_consecutive_failures"]):
             return True
 
         # Check maximum duration
         duration_hours = (time.time() - self.start_time) / 3600
-        if duration_hours > self.circuit_breaker['max_duration_hours']:
+        if duration_hours > self.circuit_breaker["max_duration_hours"]:
             return True
 
         # Check if no progress in last N runs
         history = self.state_manager.get_run_history(count=5)
         if len(history) >= 5:
-            health_scores = [h['metrics'].get('overall_health_score', 0) for h in history]
+            health_scores = [h["metrics"].get("overall_health_score", 0) for h in history]
             if len(set(health_scores)) == 1:  # No change
                 print("  ⚠️ No progress in last 5 runs")
                 return True
@@ -207,31 +207,33 @@ class FixOrchestrator:
         dynamic = smart_metrics.dynamic
 
         # Check static issues first
-        if static.analysis_status == 'fail' or static.analysis_errors > 0:
-            return 'build'
+        if static.analysis_status == "fail" or static.analysis_errors > 0:
+            return "build"
 
         # If static passes and we have dynamic data, check tests
         if dynamic:
             # Calculate failures from pass rate
             if dynamic.total_tests > 0:
-                test_failed = dynamic.total_tests - int(dynamic.total_tests * dynamic.test_pass_rate)
+                test_failed = dynamic.total_tests - int(
+                    dynamic.total_tests * dynamic.test_pass_rate
+                )
                 if test_failed > 0:
-                    return 'test'
+                    return "test"
 
         # Check warnings
         if static.analysis_warnings > 0:
-            return 'lint'
+            return "lint"
 
-        return 'build'  # Default
+        return "build"  # Default
 
     def _discover_issues(self, phase: str) -> List[Task]:
         """Discover issues for the given phase and group them"""
         # Discover raw issues
-        if phase == 'build':
+        if phase == "build":
             raw_tasks = self.issue_discovery.discover_build_issues()
-        elif phase == 'test':
+        elif phase == "test":
             raw_tasks = self.issue_discovery.discover_test_failures()
-        elif phase == 'lint':
+        elif phase == "lint":
             raw_tasks = self.issue_discovery.discover_lint_issues()
         else:
             return []
@@ -246,7 +248,7 @@ class FixOrchestrator:
     def _queue_tasks(self, tasks: List[Task], phase: str):
         """Queue discovered tasks"""
         # Limit batch size
-        batch_size = self.batch_sizes.get(f'{phase}_fixes', 5)
+        batch_size = self.batch_sizes.get(f"{phase}_fixes", 5)
         tasks_to_queue = tasks[:batch_size]
 
         print(f"\n📝 Queueing {len(tasks_to_queue)} tasks (found {len(tasks)} total)")
@@ -256,7 +258,7 @@ class FixOrchestrator:
 
     def _execute_batch(self, phase: str):
         """Execute batch of tasks via air-executor"""
-        batch_size = self.batch_sizes.get(f'{phase}_fixes', 5)
+        batch_size = self.batch_sizes.get(f"{phase}_fixes", 5)
         tasks = self.state_manager.get_next_tasks(count=batch_size)
 
         if not tasks:
@@ -290,11 +292,14 @@ class FixOrchestrator:
                 self.state_manager.increment_failure_count()
 
         # Store session summary
-        self.state_manager.store_session_summary(phase, {
-            'fixed_count': fixed_count,
-            'total_count': total_count,
-            'success_rate': fixed_count / total_count if total_count > 0 else 0
-        })
+        self.state_manager.store_session_summary(
+            phase,
+            {
+                "fixed_count": fixed_count,
+                "total_count": total_count,
+                "success_rate": fixed_count / total_count if total_count > 0 else 0,
+            },
+        )
 
         print(f"\n  ✅ Fixed {fixed_count}/{total_count} tasks")
 
@@ -307,9 +312,9 @@ class FixOrchestrator:
         """Print final summary"""
         duration = time.time() - self.start_time
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("📊 FINAL SUMMARY")
-        print("="*60)
+        print("=" * 60)
         print(f"Total runs: {self.run_count}")
         print(f"Duration: {duration/60:.1f} minutes")
 
@@ -327,7 +332,7 @@ class FixOrchestrator:
 
         print("\nRun history:")
         for run in self.state_manager.get_run_history(count=3):
-            m = run['metrics']
+            m = run["metrics"]
             print(f"  - {run['run_id']}: health={m.get('overall_health_score', 0):.0%}")
 
 

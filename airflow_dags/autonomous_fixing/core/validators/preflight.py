@@ -13,6 +13,7 @@ from typing import Iterator, Optional, Tuple
 
 import yaml
 
+from ...config.preflight_config import PreflightConfig
 from ..setup_tracker import SetupTracker
 from ..state_manager import ProjectStateManager
 
@@ -33,19 +34,30 @@ class PreflightValidator:
     - Orchestrate setup flow (that's IterationEngine's job)
     """
 
-    CACHE_MAX_AGE_SECONDS = 7 * 24 * 60 * 60  # 7 days
+    # Legacy constants for backward compatibility (use config instead)
+    CACHE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60  # 30 days (matches config default)
     HOOK_CACHE_DIR = Path("config/precommit-cache")
     TEST_CACHE_DIR = Path("config/test-cache")
 
-    def __init__(self, setup_tracker: SetupTracker):
+    def __init__(self, setup_tracker: SetupTracker, config: Optional[PreflightConfig] = None):
         """
         Initialize validator with setup state tracker.
 
         Args:
             setup_tracker: SetupTracker instance for querying setup completion
+            config: Optional configuration object. If None, uses default configuration.
+
+        Example:
+            >>> # Default configuration
+            >>> validator = PreflightValidator(tracker)
+
+            >>> # Custom configuration for tests
+            >>> test_config = PreflightConfig.for_testing(tmp_path)
+            >>> validator = PreflightValidator(tracker, config=test_config)
         """
         self.logger = logging.getLogger(__name__)
         self.setup_tracker = setup_tracker
+        self.config = config or PreflightConfig()
 
     @contextmanager
     def _measure_validation(
@@ -118,7 +130,8 @@ class PreflightValidator:
 
         # Check freshness
         cache_age = time.time() - cache_path.stat().st_mtime
-        if cache_age > self.CACHE_MAX_AGE_SECONDS:
+        max_age_seconds = self.config.cache_max_age_days * 24 * 60 * 60
+        if cache_age > max_age_seconds:
             days_old = int(cache_age / 86400)
             elapsed = (time.time() - start_time) * 1000
             self.logger.debug(
@@ -314,7 +327,7 @@ class PreflightValidator:
             and reason explains validation result
         """
         try:
-            with open(cache_path) as f:
+            with open(cache_path, encoding="utf-8") as f:
                 data = yaml.safe_load(f)
 
             if not isinstance(data, dict):
@@ -354,7 +367,7 @@ class PreflightValidator:
             and reason explains validation result
         """
         try:
-            with open(cache_path) as f:
+            with open(cache_path, encoding="utf-8") as f:
                 data = yaml.safe_load(f)
 
             if not isinstance(data, dict):
