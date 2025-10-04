@@ -96,7 +96,8 @@ class DebugLogger:
             'wrapper_calls': [],
             'iterations': [],
             'fixes': {'attempted': 0, 'successful': 0},
-            'tests': {'created': 0, 'fixed': 0}
+            'tests': {'created': 0, 'fixed': 0},
+            'setup_skips': {'hooks': {}, 'tests': {}}
         }
 
         self.log_event('session_start', {
@@ -231,8 +232,54 @@ class DebugLogger:
             'tests_created': tests_created
         })
 
+    def log_setup_skip_stats(
+        self,
+        phase: str,
+        skipped: int,
+        total: int,
+        time_saved: float,
+        cost_saved: float
+    ):
+        """
+        Log setup skip statistics.
+
+        Args:
+            phase: Setup phase ('hooks' or 'tests')
+            skipped: Number of projects skipped
+            total: Total number of projects
+            time_saved: Time saved in seconds
+            cost_saved: Cost saved in dollars
+        """
+        if not self.enabled:
+            return
+
+        stats = {
+            'skipped': skipped,
+            'total': total,
+            'time_saved': time_saved,
+            'cost_saved': cost_saved,
+            'skip_rate': skipped / total if total > 0 else 0.0
+        }
+
+        self.metrics['setup_skips'][phase] = stats
+
+        self.log_event('setup_skip_stats', {
+            'phase': phase,
+            **stats
+        })
+
     def get_metrics(self) -> Dict:
         """Get current metrics snapshot."""
+        # Calculate total setup savings
+        total_time_saved = sum(
+            stats.get('time_saved', 0)
+            for stats in self.metrics['setup_skips'].values()
+        )
+        total_cost_saved = sum(
+            stats.get('cost_saved', 0)
+            for stats in self.metrics['setup_skips'].values()
+        )
+
         return {
             **self.metrics,
             'summary': {
@@ -245,7 +292,9 @@ class DebugLogger:
                 'avg_wrapper_duration': (
                     sum(c['duration'] for c in self.metrics['wrapper_calls']) / len(self.metrics['wrapper_calls'])
                     if self.metrics['wrapper_calls'] else 0.0
-                )
+                ),
+                'total_time_saved': total_time_saved,
+                'total_cost_saved': total_cost_saved
             }
         }
 

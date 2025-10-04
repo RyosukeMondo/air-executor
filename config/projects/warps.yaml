@@ -38,10 +38,16 @@ wrapper:
   python_executable: "/home/rmondo/.venv/air-executor/bin/python"
   timeout: 1200
 
+# Setup Optimization: Optional Redis configuration for distributed state sharing
+# If Redis is unavailable, system automatically falls back to filesystem markers (.ai-state/)
+# Redis provides:
+#   - Faster state queries (<10ms vs ~50ms filesystem)
+#   - Distributed state sharing across multiple environments
+#   - Built-in TTL management (30-day automatic expiration)
 state_manager:
-  redis_host: "localhost"
-  redis_port: 6379
-  namespace: "warps_fix"
+  redis_host: "localhost"  # Redis server hostname
+  redis_port: 6379          # Redis server port (default: 6379)
+  namespace: "warps_fix"    # Key namespace for isolation (prevents cross-project conflicts)
 
 logging:
   level: "INFO"

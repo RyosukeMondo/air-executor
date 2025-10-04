@@ -5,11 +5,14 @@ Clean, focused module that ONLY handles the iteration loop logic.
 No analysis, no fixing, no scoring - just iteration coordination.
 """
 
+from pathlib import Path
 from typing import Dict
 from .debug_logger import DebugLogger
 from .time_gatekeeper import TimeGatekeeper
 from .analysis_verifier import AnalysisVerifier
 from .hook_level_manager import HookLevelManager
+from .setup_tracker import SetupTracker
+from .validators.preflight import PreflightValidator
 
 
 class IterationEngine:
@@ -49,6 +52,10 @@ class IterationEngine:
         self.verifier = AnalysisVerifier(config)
         self.hook_manager = HookLevelManager()  # Progressive hook enforcement
 
+        # Setup optimization components
+        self.setup_tracker = SetupTracker(config.get('state_manager'))
+        self.validator = PreflightValidator(self.setup_tracker)
+
         # Pass debug logger to fixer for wrapper call logging
         self.fixer.debug_logger = self.debug_logger
         self.fixer.claude.debug_logger = self.debug_logger
@@ -77,18 +84,96 @@ class IterationEngine:
         print(f"{'='*80}")
         print("Configuring quality enforcement hooks (run once per project)...")
 
+        # Track skip statistics for hooks
+        hooks_total = sum(len(project_list) for project_list in projects_by_language.values())
+        hooks_skipped = 0
+        hooks_time_saved = 0.0
+        hooks_cost_saved = 0.0
+
         for lang_name, project_list in projects_by_language.items():
             for project_path in project_list:
-                self.fixer.configure_precommit_hooks(project_path, lang_name)
+                # Pre-flight validation: check if setup can be skipped
+                can_skip, reason = self.validator.can_skip_hook_config(Path(project_path))
+                if can_skip:
+                    print(f"   ⏭️  {Path(project_path).name}: {reason}")
+                    hooks_skipped += 1
+                    hooks_time_saved += 60.0  # 60 seconds per hook setup
+                    hooks_cost_saved += 0.50  # $0.50 per hook setup (25K tokens @ $0.02/1K)
+                    continue
+
+                # Proceed with AI-powered hook configuration
+                success = self.fixer.configure_precommit_hooks(project_path, lang_name)
+
+                # Mark setup complete if successful
+                if success:
+                    self.setup_tracker.mark_setup_complete(project_path, 'hooks')
+
+        # Log hook setup statistics
+        if hooks_skipped > 0:
+            print(f"\n   ⏭️  Skipped hook setup for {hooks_skipped}/{hooks_total} projects")
+            print(f"   💰 Savings: {hooks_time_saved:.0f}s + ${hooks_cost_saved:.2f}")
+            self.debug_logger.log_setup_skip_stats(
+                phase='hooks',
+                skipped=hooks_skipped,
+                total=hooks_total,
+                time_saved=hooks_time_saved,
+                cost_saved=hooks_cost_saved
+            )
 
         # === SETUP PHASE: Test Discovery (runs once) ===
         print(f"\n{'='*80}")
         print("🔧 SETUP PHASE 1: Test Configuration Discovery")
         print(f"{'='*80}")
 
+        # Track skip statistics for tests
+        tests_total = sum(len(project_list) for project_list in projects_by_language.values())
+        tests_skipped = 0
+        tests_time_saved = 0.0
+        tests_cost_saved = 0.0
+
         for lang_name, project_list in projects_by_language.items():
             for project_path in project_list:
-                self.fixer.discover_test_config(project_path, lang_name)
+                # Pre-flight validation: check if discovery can be skipped
+                can_skip, reason = self.validator.can_skip_test_discovery(Path(project_path))
+                if can_skip:
+                    print(f"   ⏭️  {Path(project_path).name}: {reason}")
+                    tests_skipped += 1
+                    tests_time_saved += 90.0  # 90 seconds per test discovery
+                    tests_cost_saved += 0.60  # $0.60 per test discovery (30K tokens @ $0.02/1K)
+                    continue
+
+                # Proceed with AI-powered test discovery
+                result = self.fixer.discover_test_config(project_path, lang_name)
+
+                # Mark setup complete if successful
+                if result.success:
+                    self.setup_tracker.mark_setup_complete(project_path, 'tests')
+
+        # Log test discovery statistics
+        if tests_skipped > 0:
+            print(f"\n   ⏭️  Skipped test discovery for {tests_skipped}/{tests_total} projects")
+            print(f"   💰 Savings: {tests_time_saved:.0f}s + ${tests_cost_saved:.2f}")
+            self.debug_logger.log_setup_skip_stats(
+                phase='tests',
+                skipped=tests_skipped,
+                total=tests_total,
+                time_saved=tests_time_saved,
+                cost_saved=tests_cost_saved
+            )
+
+        # Log combined setup statistics
+        total_skipped = hooks_skipped + tests_skipped
+        total_projects = hooks_total  # Same count for both phases
+        total_time_saved = hooks_time_saved + tests_time_saved
+        total_cost_saved = hooks_cost_saved + tests_cost_saved
+
+        if total_skipped > 0:
+            print(f"\n{'='*80}")
+            print(f"📊 SETUP OPTIMIZATION SUMMARY")
+            print(f"{'='*80}")
+            print(f"   ⏭️  Total skipped: {total_skipped}/{total_projects * 2} setup operations")
+            print(f"   💰 Total savings: {total_time_saved:.0f}s + ${total_cost_saved:.2f}")
+            print(f"{'='*80}")
 
         print(f"\n🔄 Starting improvement iterations (max: {self.max_iterations})")
 
