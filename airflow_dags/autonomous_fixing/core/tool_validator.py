@@ -241,6 +241,86 @@ class ToolValidator:
         )
 
 
+def _print_usage():
+    """Print usage instructions (SRP)"""
+    print("Usage:")
+    print("  python tool_validator.py <config.yaml>")
+    print("  python tool_validator.py --check-flutter")
+    print("  python tool_validator.py --check-all")
+
+
+def _print_validation_result(result):
+    """Print single validation result (SRP, KISS)"""
+    status = "✅" if result.available else "❌"
+    print(f"{status} {result.tool_name}")
+    if result.version:
+        print(f"   Version: {result.version}")
+    if result.path:
+        print(f"   Path: {result.path}")
+    if result.error_message:
+        print(f"   Error: {result.error_message}")
+    if result.fix_suggestion:
+        print(f"   Fix: {result.fix_suggestion}")
+
+
+def _check_flutter_mode():
+    """Handle --check-flutter mode (SRP)"""
+    from airflow_dags.autonomous_fixing.language_adapters import FlutterAdapter
+
+    adapter = FlutterAdapter({})
+    results = adapter.validate_tools()
+
+    print("Flutter Toolchain Validation:")
+    for result in results:
+        _print_validation_result(result)
+    return 0
+
+
+def _check_all_mode():
+    """Handle --check-all mode (SRP)"""
+    from airflow_dags.autonomous_fixing.language_adapters import (
+        FlutterAdapter,
+        GoAdapter,
+        JavaScriptAdapter,
+        PythonAdapter,
+    )
+
+    adapters = {
+        'flutter': FlutterAdapter({}),
+        'python': PythonAdapter({}),
+        'javascript': JavaScriptAdapter({}),
+        'go': GoAdapter({})
+    }
+
+    validator = ToolValidator(adapters, {})
+    summary = validator.validate_all_tools()
+    return 0 if summary.can_proceed else 1
+
+
+def _create_adapters_from_config(languages: dict) -> dict:
+    """Create language adapters from configuration (SRP, SSOT)"""
+    from airflow_dags.autonomous_fixing.language_adapters import (
+        FlutterAdapter,
+        GoAdapter,
+        JavaScriptAdapter,
+        PythonAdapter,
+    )
+
+    adapters = {}
+    enabled = languages.get('enabled', [])
+
+    if 'flutter' in enabled:
+        adapters['flutter'] = FlutterAdapter(languages.get('flutter', {}))
+    if 'python' in enabled:
+        adapters['python'] = PythonAdapter(languages.get('python', {}))
+    if 'javascript' in enabled:
+        adapters['javascript'] = JavaScriptAdapter(languages.get('javascript', {}))
+    if 'go' in enabled:
+        adapters['go'] = GoAdapter(languages.get('go', {}))
+
+    return adapters
+
+
 def main():
     """Standalone tool validation utility."""
     import sys
@@ -251,73 +331,22 @@ def main():
     # Add parent to path
     sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-    from airflow_dags.autonomous_fixing.language_adapters import (
-        FlutterAdapter,
-        GoAdapter,
-        JavaScriptAdapter,
-        PythonAdapter,
-    )
-
     if len(sys.argv) < 2:
-        print("Usage:")
-        print("  python tool_validator.py <config.yaml>")
-        print("  python tool_validator.py --check-flutter")
-        print("  python tool_validator.py --check-all")
+        _print_usage()
         sys.exit(1)
 
     if sys.argv[1] == '--check-flutter':
-        adapter = FlutterAdapter({})
-        results = adapter.validate_tools()
-
-        print("Flutter Toolchain Validation:")
-        for result in results:
-            status = "✅" if result.available else "❌"
-            print(f"{status} {result.tool_name}")
-            if result.version:
-                print(f"   Version: {result.version}")
-            if result.path:
-                print(f"   Path: {result.path}")
-            if result.error_message:
-                print(f"   Error: {result.error_message}")
-            if result.fix_suggestion:
-                print(f"   Fix: {result.fix_suggestion}")
-        sys.exit(0)
+        sys.exit(_check_flutter_mode())
 
     if sys.argv[1] == '--check-all':
-        adapters = {
-            'flutter': FlutterAdapter({}),
-            'python': PythonAdapter({}),
-            'javascript': JavaScriptAdapter({}),
-            'go': GoAdapter({})
-        }
-
-        validator = ToolValidator(adapters, {})
-        summary = validator.validate_all_tools()
-
-        sys.exit(0 if summary.can_proceed else 1)
+        sys.exit(_check_all_mode())
 
     # Load config and validate
     config_file = sys.argv[1]
     with open(config_file) as f:
         config = yaml.safe_load(f)
 
-    # Create adapters based on config
-    adapters = {}
-    languages = config.get('languages', {})
-
-    if 'flutter' in languages.get('enabled', []):
-        adapters['flutter'] = FlutterAdapter(languages.get('flutter', {}))
-
-    if 'python' in languages.get('enabled', []):
-        adapters['python'] = PythonAdapter(languages.get('python', {}))
-
-    if 'javascript' in languages.get('enabled', []):
-        adapters['javascript'] = JavaScriptAdapter(languages.get('javascript', {}))
-
-    if 'go' in languages.get('enabled', []):
-        adapters['go'] = GoAdapter(languages.get('go', {}))
-
-    # Validate
+    adapters = _create_adapters_from_config(config.get('languages', {}))
     validator = ToolValidator(adapters, config)
     summary = validator.validate_all_tools()
 
