@@ -30,13 +30,19 @@ class HealthScorer:
             config: Configuration dict with priority thresholds
         """
         self.config = config
-        self.priority_config = config.get('priorities', {})
+        self.priority_config = config.get("priorities", {})
 
     def score_static_analysis(self, analysis_result) -> Dict:
         """
         Calculate P1 score from static analysis results.
 
-        Score = (projects_with_no_errors / total_projects)
+        Score = (projects_with_passing_quality / total_projects)
+
+        Delegates quality check to AnalysisResult.success (SRP).
+        This respects the model's compute_quality_check() which considers:
+        - errors
+        - file_size_violations
+        - complexity_violations
 
         Returns: Dict with score, passed_gate, threshold
         """
@@ -44,22 +50,23 @@ class HealthScorer:
 
         total_projects = len(results)
         if total_projects == 0:
-            return {'score': 0.0, 'passed_gate': False, 'threshold': 0.90}
+            return {"score": 0.0, "passed_gate": False, "threshold": 0.90}
 
-        # Count projects with no critical errors
-        projects_with_no_errors = sum(
-            1 for analysis in results.values()
-            if len(analysis.errors) == 0
+        # Count projects with passing quality (SRP: delegate to AnalysisResult.success)
+        projects_with_passing_quality = sum(
+            1
+            for analysis in results.values()
+            if analysis.success  # Trusts compute_quality_check() - includes all KPIs
         )
 
-        score = projects_with_no_errors / total_projects
-        threshold = self.priority_config.get('p1_static', {}).get('success_threshold', 0.90)
+        score = projects_with_passing_quality / total_projects
+        threshold = self.priority_config.get("p1_static", {}).get("success_threshold", 0.90)
 
         return {
-            'score': score,
-            'passed_gate': score >= threshold,
-            'threshold': threshold,
-            'phase': 'p1_static'
+            "score": score,
+            "passed_gate": score >= threshold,
+            "threshold": threshold,
+            "phase": "p1_static",
         }
 
     def score_tests(self, analysis_result) -> Dict:
@@ -77,28 +84,28 @@ class HealthScorer:
 
         for analysis in results.values():
             total_passed += analysis.tests_passed
-            total_tests += (analysis.tests_passed + analysis.tests_failed)
+            total_tests += analysis.tests_passed + analysis.tests_failed
 
-        threshold = self.priority_config.get('p2_tests', {}).get('success_threshold', 0.85)
+        threshold = self.priority_config.get("p2_tests", {}).get("success_threshold", 0.85)
 
         # If no tests exist, treat as CRITICAL FAILURE (0%)
         # Can't verify health without tests - must create them
         if total_tests == 0:
             return {
-                'score': 0.0,  # 0% - no tests means no way to verify health
-                'passed_gate': False,  # FAIL the gate - must create tests
-                'threshold': threshold,
-                'phase': 'p2_tests',
-                'needs_test_creation': True  # Signal to create tests
+                "score": 0.0,  # 0% - no tests means no way to verify health
+                "passed_gate": False,  # FAIL the gate - must create tests
+                "threshold": threshold,
+                "phase": "p2_tests",
+                "needs_test_creation": True,  # Signal to create tests
             }
 
         score = total_passed / total_tests
 
         return {
-            'score': score,
-            'passed_gate': score >= threshold,
-            'threshold': threshold,
-            'phase': 'p2_tests'
+            "score": score,
+            "passed_gate": score >= threshold,
+            "threshold": threshold,
+            "phase": "p2_tests",
         }
 
     def calculate_overall_health(self, p1_score: float, p2_score: float) -> float:
@@ -122,8 +129,8 @@ class HealthScorer:
         Returns: 'minimal', 'selective', or 'comprehensive'
         """
         if p1_score < 0.30:
-            return 'minimal'
+            return "minimal"
         elif p1_score < 0.60:
-            return 'selective'
+            return "selective"
         else:
-            return 'comprehensive'
+            return "comprehensive"
