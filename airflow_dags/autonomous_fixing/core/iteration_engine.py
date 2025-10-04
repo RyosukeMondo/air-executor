@@ -51,6 +51,9 @@ class IterationEngine:
         self.fixer.debug_logger = self.debug_logger
         self.fixer.claude.debug_logger = self.debug_logger
 
+        # Circuit breaker for repeated test creation
+        self.test_creation_attempts = {}  # project_path -> attempt_count
+
     def run_improvement_loop(self, projects_by_language: Dict) -> Dict:
         """
         Run the improvement loop until gates pass or max iterations reached.
@@ -192,6 +195,28 @@ class IterationEngine:
                 if p2_score_data.get('needs_test_creation', False):
                     print("\n⚠️  CRITICAL: No tests found - delegating test creation to claude_wrapper")
 
+                    # Check circuit breaker - prevent infinite test creation loops
+                    for project_key in p2_result.results_by_project.keys():
+                        _, project_path = project_key.split(':', 1)
+                        attempts = self.test_creation_attempts.get(project_path, 0)
+
+                        if attempts >= 2:  # Max 2 test creation attempts per project
+                            print(f"\n❌ ABORT: Project {project_path} has had {attempts} test creation attempts")
+                            print("   This indicates tests are being created but not detected properly.")
+                            print("   Manual investigation required.")
+
+                            self.debug_logger.log_session_end('test_creation_loop_detected')
+                            return {
+                                'success': False,
+                                'reason': 'test_creation_loop',
+                                'iterations_completed': iteration,
+                                'project': project_path,
+                                'attempts': attempts
+                            }
+
+                        # Increment attempt counter
+                        self.test_creation_attempts[project_path] = attempts + 1
+
                     # Create tests using LLM-as-a-judge
                     fix_result = self.fixer.create_tests(p2_result, iteration)
 
@@ -203,7 +228,23 @@ class IterationEngine:
                     )
 
                     if fix_result.success:
-                        print(f"\n✅ Tests created, re-running analysis in next iteration...")
+                        print(f"\n✅ Tests created, re-running test analysis immediately...")
+
+                        # CRITICAL: Re-run test analysis immediately to verify tests work
+                        p2_recheck = self.analyzer.analyze_tests(projects_by_language, strategy)
+                        p2_recheck_score = self.scorer.score_tests(p2_recheck)
+
+                        print(f"   Test validation: {p2_recheck_score['score']:.1%} pass rate")
+
+                        if p2_recheck_score['passed_gate']:
+                            print(f"   ✅ Newly created tests pass! Moving to next phase.")
+                            # Reset circuit breaker on success
+                            for project_key in p2_result.results_by_project.keys():
+                                _, project_path = project_key.split(':', 1)
+                                if project_path in self.test_creation_attempts:
+                                    del self.test_creation_attempts[project_path]
+                        else:
+                            print(f"   ⚠️  Tests created but not all passing - will fix in next iteration")
                     else:
                         print(f"\n⚠️  Test creation failed")
 

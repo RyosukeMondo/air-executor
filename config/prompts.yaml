@@ -321,41 +321,59 @@ tests:
   # Create tests prompt - used when NO tests exist (0/0)
   create_tests:
     template: |
-      This {language} project has NO TESTS.
+      This {language} project has NO TESTS or needs additional test coverage.
 
       Your task:
-      1. Find or install appropriate test framework:
+      1. **First, check if tests already exist**:
+         - Run the test command to see current state
+         - If tests exist and pass, analyze coverage gaps
+         - If no tests exist, proceed with creation
+
+      2. Find or install appropriate test framework:
          - Python: pytest
          - JavaScript/TypeScript: jest
          - Flutter: flutter test
          - Go: go test (built-in)
 
-      2. Analyze the codebase:
+      3. Analyze the codebase for testable code:
          - Identify main modules/components
          - Understand core functionality
          - Find testable functions/classes
+         - **Check for existing tests to avoid duplication**
 
-      3. Create meaningful unit tests:
+      4. Create meaningful unit tests:
          - Create at least 3-5 tests covering main functionality
          - Test happy paths and edge cases
          - Use descriptive test names
          - Follow {language} testing conventions
+         - **Do NOT duplicate existing tests**
 
-      4. Set up test infrastructure:
+      5. Set up test infrastructure if needed:
          - Create test directories (tests/, __tests__/, test/)
          - Add test configuration files if needed
          - Update dependencies if needed
 
-      5. Verify tests work:
-         - Run tests to ensure they pass
-         - Fix any issues with test setup
+      6. **CRITICAL: Verify tests work before committing**:
+         - Run the full test suite
+         - Ensure ALL tests pass (new and existing)
+         - Fix any failures before proceeding
+         - **If tests fail, fix them - do not commit failing tests**
 
-      6. Commit with message: 'test: Add initial test suite'
+      7. Only commit if tests pass:
+         - If this is initial test creation: 'test: Add initial test suite'
+         - If adding to existing tests: 'test: Add tests for [component]'
+         - **Do NOT commit if any tests are failing**
+
+      8. **Report results clearly**:
+         - State how many tests exist total
+         - State pass/fail status
+         - If tests fail, explain what failed
 
       Use LLM-as-a-judge:
       - Analyze code to determine what's testable
       - Create appropriate tests based on code structure
       - Ensure tests actually verify behavior
+      - **Verify tests pass before declaring success**
 
     notes: |
       Longest prompt - test creation is complex and critical.

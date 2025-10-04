@@ -393,20 +393,34 @@ class IssueFixer:
         """
         print(f"\n🧪 Creating tests (iteration {iteration})...")
 
-        # Find projects with 0 tests
+        # Find projects with 0 tests OR low coverage
         projects_needing_tests = []
         for project_key, analysis in analysis_result.results_by_project.items():
             lang_name, project_path = project_key.split(':', 1)
             total_tests = analysis.tests_passed + analysis.tests_failed
 
+            # Check if project needs tests
+            needs_tests = False
+            reason = ""
+
             if total_tests == 0:
+                needs_tests = True
+                reason = "no tests"
+            elif hasattr(analysis, 'coverage_percentage') and analysis.coverage_percentage:
+                # If coverage exists and is below threshold (e.g., 60%)
+                if analysis.coverage_percentage < 60.0:
+                    needs_tests = True
+                    reason = f"low coverage ({analysis.coverage_percentage:.1f}%)"
+
+            if needs_tests:
                 projects_needing_tests.append({
                     'project': project_path,
-                    'language': lang_name
+                    'language': lang_name,
+                    'reason': reason
                 })
 
         if not projects_needing_tests:
-            print("   All projects have tests")
+            print("   All projects have sufficient tests")
             return FixResult(success=False)
 
         print(f"   Found {len(projects_needing_tests)} projects needing tests")
@@ -414,7 +428,9 @@ class IssueFixer:
         # Create tests for each project
         tests_created = 0
         for project_info in projects_needing_tests:
-            print(f"\n   Creating tests for {project_info['project'].split('/')[-1]} ({project_info['language']})")
+            project_name = project_info['project'].split('/')[-1]
+            reason = project_info.get('reason', 'unknown')
+            print(f"\n   Creating tests for {project_name} ({project_info['language']}) - {reason}")
 
             if self._create_tests_for_project(project_info):
                 print(f"      ✓ Tests created successfully")
@@ -465,9 +481,46 @@ class IssueFixer:
                 return False
 
             print(f"      ✅ Verified: {verification['message']}")
+
+            # CRITICAL: Verify tests actually pass after creation
+            print(f"      🔍 Validating created tests...")
+            adapter = self._get_adapter(project_info['language'])
+            if adapter:
+                # Run tests to verify they work
+                test_result = adapter.run_tests(project_info['project'], strategy='minimal')
+
+                if not test_result.success:
+                    print(f"      ⚠️  Warning: Created tests are failing!")
+                    print(f"         Failed: {test_result.tests_failed}, Passed: {test_result.tests_passed}")
+                    print(f"         Consider running fix_failing_tests phase")
+                    # Still return True - tests exist, they just need fixing
+                    return True
+                else:
+                    print(f"      ✅ Tests validated: {test_result.tests_passed} passing")
+                    return True
+
             return True
 
         return False
+
+    def _get_adapter(self, language: str):
+        """Get language adapter instance for running tests."""
+        try:
+            if language == 'python':
+                from ..adapters.languages.python_adapter import PythonAdapter
+                return PythonAdapter({})
+            elif language == 'javascript':
+                from ..adapters.languages.javascript_adapter import JavaScriptAdapter
+                return JavaScriptAdapter({})
+            elif language == 'flutter':
+                from ..adapters.languages.flutter_adapter import FlutterAdapter
+                return FlutterAdapter({})
+            elif language == 'go':
+                from ..adapters.languages.go_adapter import GoAdapter
+                return GoAdapter({})
+        except ImportError:
+            print(f"      ⚠️  Could not import {language} adapter for test validation")
+            return None
 
     def _load_prompts(self) -> Dict:
         """Load prompts from centralized config file."""
