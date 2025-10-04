@@ -74,6 +74,125 @@ class ClaudeClient:
 
         return f"[{timestamp}] {event_type}" if timestamp else event_type
 
+    def _build_command(self, prompt: str, project_path: str, session_id: Optional[str]) -> str:
+        """Build JSON command for wrapper (SRP, SSOT)"""
+        command = {
+            "action": "prompt",
+            "prompt": prompt,
+            "options": {
+                "cwd": project_path,
+                "permission_mode": "bypassPermissions",
+                "exit_on_complete": True
+            }
+        }
+        if session_id:
+            command["options"]["session_id"] = session_id
+        return json.dumps(command) + "\n"
+
+    def _setup_environment(self) -> dict:
+        """Setup environment with Claude CLI in PATH (SRP)"""
+        import os
+        env = os.environ.copy()
+        env["PYTHONUNBUFFERED"] = "1"
+
+        claude_paths = [
+            os.path.expanduser("~/.npm-global/bin"),
+            "/usr/local/bin",
+            os.path.expanduser("~/.local/bin"),
+        ]
+
+        current_path = env.get("PATH", "")
+        for path in claude_paths:
+            if path not in current_path:
+                env["PATH"] = f"{path}:{current_path}"
+                current_path = env["PATH"]
+
+        return env
+
+    def _read_wrapper_events(self, process, debug_mode: bool) -> list:
+        """Read and parse events from wrapper stdout (SRP)"""
+        events = []
+
+        while True:
+            line = process.stdout.readline()
+            if not line:
+                break
+
+            line = line.strip()
+            if not line:
+                continue
+
+            try:
+                event = json.loads(line)
+                events.append(event)
+                event_type = event.get('event')
+
+                if debug_mode:
+                    print(f"[WRAPPER DEBUG] {self._format_event(event)}")
+
+                if event_type in ['shutdown', 'auto_shutdown']:
+                    break
+
+            except json.JSONDecodeError:
+                if debug_mode:
+                    print(f"[WRAPPER DEBUG] Failed to parse JSON: {line[:100]}")
+                continue
+
+        return events
+
+    def _parse_result_from_events(self, events: list, process, stderr: str) -> dict:
+        """Parse final result from events (SRP, KISS)"""
+        # Check for errors first
+        for event in events:
+            if event.get('event') == 'error':
+                return {
+                    'success': False,
+                    'error': event.get('error', 'Unknown error'),
+                    'events': events
+                }
+
+        # Check for completion events
+        for event in events:
+            event_type = event.get('event')
+            if event_type == 'run_completed':
+                return {'success': True, 'outcome': event.get('outcome'), 'events': events}
+            elif event_type == 'run_failed':
+                return {'success': False, 'error': event.get('error', 'Run failed'), 'events': events}
+            elif event_type == 'done':
+                return {'success': True, 'outcome': event.get('outcome'), 'events': events}
+
+        # No completion event - check process exit code
+        if process.returncode == 0:
+            return {'success': True, 'events': events}
+        else:
+            return {
+                'success': False,
+                'error': f'Process exited with code {process.returncode}',
+                'stderr': stderr,
+                'events': events
+            }
+
+    def _log_result(self, prompt: str, project_path: str, prompt_type: str,
+                   result: dict, duration: float):
+        """Log result to both history and debug logger (SRP)"""
+        self.history_logger.log_call(
+            prompt=prompt,
+            project_path=project_path,
+            prompt_type=prompt_type,
+            result=result,
+            duration=duration
+        )
+
+        if self.debug_logger:
+            self.debug_logger.log_wrapper_call(
+                prompt_type=prompt_type,
+                project=project_path,
+                duration=duration,
+                success=result['success'],
+                error=result.get('error'),
+                response=result if self.debug_logger.debug_config.get('log_levels', {}).get('wrapper_responses') else None
+            )
+
     def query(
         self,
         prompt: str,
@@ -95,267 +214,68 @@ class ClaudeClient:
         Returns:
             Dict with result (or error)
         """
-        # Build JSON command
-        command = {
-            "action": "prompt",
-            "prompt": prompt,
-            "options": {
-                "cwd": project_path,
-                "permission_mode": "bypassPermissions",  # Auto-approve for automation
-                "exit_on_complete": True  # Shutdown wrapper after task completes
-            }
-        }
+        command_json = self._build_command(prompt, project_path, session_id)
 
-        if session_id:
-            command["options"]["session_id"] = session_id
-
-        # Convert to JSON string with newline
-        command_json = json.dumps(command) + "\n"
-
-        # Track timing
         start_time = time.time()
-
-        # Enable detailed logging for debugging
         debug_mode = self.debug_logger is not None
+
         if debug_mode:
             print("\n[WRAPPER DEBUG] Starting claude_wrapper")
             print(f"  Wrapper: {self.wrapper_path}")
-            print(f"  Python: {self.python_exec}")
             print(f"  CWD: {project_path}")
             print(f"  Prompt type: {prompt_type}")
-            print(f"  Prompt (first 100 chars): {prompt[:100]}...")
 
         try:
-            # Set up environment with Claude CLI in PATH
-            import os
-            env = os.environ.copy()
-
-            # CRITICAL: Ensure unbuffered Python output
-            env["PYTHONUNBUFFERED"] = "1"
-
-            # Add common locations for Claude CLI to PATH
-            claude_paths = [
-                os.path.expanduser("~/.npm-global/bin"),  # npm global
-                "/usr/local/bin",  # macOS/Linux system
-                os.path.expanduser("~/.local/bin"),  # pip user install
-            ]
-
-            current_path = env.get("PATH", "")
-            for path in claude_paths:
-                if path not in current_path:
-                    env["PATH"] = f"{path}:{current_path}"
-                    current_path = env["PATH"]
+            env = self._setup_environment()
 
             if debug_mode:
                 print(f"[WRAPPER DEBUG] PATH: {env['PATH'][:200]}...")
-                print(f"[WRAPPER DEBUG] PYTHONUNBUFFERED: {env.get('PYTHONUNBUFFERED')}")
 
-            # Run wrapper with JSON on stdin
             process = subprocess.Popen(
                 [self.python_exec, self.wrapper_path],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                bufsize=0,  # Unbuffered for real-time output
+                bufsize=0,
                 cwd=project_path,
-                env=env  # Pass environment with Claude CLI in PATH
+                env=env
             )
 
             if debug_mode:
                 print(f"[WRAPPER DEBUG] Process started (PID: {process.pid})")
-                print("[WRAPPER DEBUG] Sending JSON command...")
 
-            # Send command and keep stdin open to avoid EOF detection
-            # Wrapper needs stdin to stay open while Claude executes
             process.stdin.write(command_json)
             process.stdin.flush()
 
-            if debug_mode:
-                print("[WRAPPER DEBUG] Command sent, reading events...")
+            events = self._read_wrapper_events(process, debug_mode)
 
-            # Read events from stdout as they stream
-            events = []
-            event_types_seen = []
-
-            # Read line by line until shutdown
-            while True:
-                line = process.stdout.readline()
-                if not line:
-                    break  # EOF
-
-                line = line.strip()
-                if not line:
-                    continue
-
-                try:
-                    event = json.loads(line)
-                    events.append(event)
-                    event_type = event.get('event')
-                    event_types_seen.append(event_type)
-
-                    if debug_mode:
-                        print(f"[WRAPPER DEBUG] {self._format_event(event)}")
-
-                    # Stop reading when wrapper shuts down
-                    if event_type in ['shutdown', 'auto_shutdown']:
-                        break
-
-                except json.JSONDecodeError:
-                    if debug_mode:
-                        print(f"[WRAPPER DEBUG] Failed to parse JSON: {line[:100]}")
-                    continue
-
-            # Close stdin and wait for process to finish
             process.stdin.close()
             process.wait(timeout=5)
 
-            # Read any remaining stderr
             stderr = process.stderr.read()
 
             if debug_mode:
                 print(f"[WRAPPER DEBUG] Process completed (exit code: {process.returncode})")
-                print(f"[WRAPPER DEBUG] Events received: {', '.join(event_types_seen)}")
-                print(f"[WRAPPER DEBUG] Stderr length: {len(stderr)} chars")
 
-            # Check for errors in events
-            for event in events:
-                if event.get('event') == 'error':
-                    return {
-                        'success': False,
-                        'error': event.get('error', 'Unknown error'),
-                        'events': events
-                    }
-
-            # Calculate duration
+            result = self._parse_result_from_events(events, process, stderr)
             duration = time.time() - start_time
 
-            # Check for completion (wrapper sends 'run_completed', not 'done')
-            result = None
-            for event in events:
-                event_type = event.get('event')
-                # Check for successful completion
-                if event_type == 'run_completed':
-                    result = {
-                        'success': True,
-                        'outcome': event.get('outcome'),
-                        'events': events
-                    }
-                    break
-                # Check for failures
-                elif event_type == 'run_failed':
-                    result = {
-                        'success': False,
-                        'error': event.get('error', 'Run failed'),
-                        'events': events
-                    }
-                    break
-                # Legacy 'done' event (kept for backward compatibility)
-                elif event_type == 'done':
-                    result = {
-                        'success': True,
-                        'outcome': event.get('outcome'),
-                        'events': events
-                    }
-                    break
-
-            # If no completion event, check process exit
-            if result is None:
-                if process.returncode == 0:
-                    # Wrapper exited cleanly - assume success
-                    result = {
-                        'success': True,
-                        'events': events
-                    }
-                else:
-                    result = {
-                        'success': False,
-                        'error': f'Process exited with code {process.returncode}',
-                        'stderr': stderr,
-                        'events': events
-                    }
-
-            # Log to history (ALWAYS - critical for investigation)
-            self.history_logger.log_call(
-                prompt=prompt,
-                project_path=project_path,
-                prompt_type=prompt_type,
-                result=result,
-                duration=duration
-            )
-
-            # Log wrapper call (optional debug logger)
-            if self.debug_logger:
-                self.debug_logger.log_wrapper_call(
-                    prompt_type=prompt_type,
-                    project=project_path,
-                    duration=duration,
-                    success=result['success'],
-                    error=result.get('error'),
-                    response=result if self.debug_logger.debug_config.get('log_levels', {}).get('wrapper_responses') else None
-                )
+            self._log_result(prompt, project_path, prompt_type, result, duration)
 
             return result
 
         except subprocess.TimeoutExpired:
-            duration = time.time() - start_time
             process.kill()
-
-            result = {
-                'success': False,
-                'error': f'Timeout after {timeout}s',
-                'events': []
-            }
-
-            # Log to history
-            self.history_logger.log_call(
-                prompt=prompt,
-                project_path=project_path,
-                prompt_type=prompt_type,
-                result=result,
-                duration=duration
-            )
-
-            # Log timeout
-            if self.debug_logger:
-                self.debug_logger.log_wrapper_call(
-                    prompt_type=prompt_type,
-                    project=project_path,
-                    duration=duration,
-                    success=False,
-                    error=f'Timeout after {timeout}s'
-                )
-
+            duration = time.time() - start_time
+            result = {'success': False, 'error': f'Timeout after {timeout}s', 'events': []}
+            self._log_result(prompt, project_path, prompt_type, result, duration)
             return result
 
         except Exception as e:
             duration = time.time() - start_time
-
-            result = {
-                'success': False,
-                'error': str(e),
-                'events': []
-            }
-
-            # Log to history
-            self.history_logger.log_call(
-                prompt=prompt,
-                project_path=project_path,
-                prompt_type=prompt_type,
-                result=result,
-                duration=duration
-            )
-
-            # Log exception
-            if self.debug_logger:
-                self.debug_logger.log_wrapper_call(
-                    prompt_type=prompt_type,
-                    project=project_path,
-                    duration=duration,
-                    success=False,
-                    error=str(e)
-                )
-
+            result = {'success': False, 'error': str(e), 'events': []}
+            self._log_result(prompt, project_path, prompt_type, result, duration)
             return result
 
     def query_simple(self, prompt: str, project_path: str, timeout: int = 600) -> bool:
