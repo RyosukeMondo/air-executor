@@ -66,7 +66,7 @@ class IssueFixer:
         self.issue_extractor = IssueExtractor()
 
         # Initialize Claude client (use injected or create default)
-        self.claude = ai_client or self._create_claude_client()
+        self.claude: "IAIClient" = ai_client or self._create_claude_client()
 
         # Initialize analysis delegate
         self.analysis_delegate = AnalysisDelegate(self.config, debug_logger)

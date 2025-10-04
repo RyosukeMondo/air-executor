@@ -8,6 +8,7 @@ No analysis, no fixing, no scoring - just iteration coordination.
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
+from ..domain.interfaces import ISetupTracker
 from .analysis_verifier import AnalysisVerifier
 from .debug_logger import DebugLogger
 from .hook_level_manager import HookLevelManager
@@ -82,15 +83,15 @@ class IterationEngine:
                 "ProjectAnalyzer must be provided. "
                 "IterationEngine cannot create it without language_adapters."
             )
-        self.analyzer = analyzer
+        self.analyzer: "ProjectAnalyzer" = analyzer
 
         # Create defaults for components that don't need extra dependencies
         from .fixer import IssueFixer
         from .scorer import HealthScorer
 
-        self.fixer = fixer or IssueFixer(self.config)
-        self.scorer = scorer or HealthScorer(self.config)
-        self.hook_manager = hook_manager or HookLevelManager()
+        self.fixer: "IssueFixer" = fixer or IssueFixer(self.config)
+        self.scorer: "HealthScorer" = scorer or HealthScorer(self.config)
+        self.hook_manager: HookLevelManager = hook_manager or HookLevelManager()
 
         # Initialize components (SRP: each has one job)
         self.debug_logger = DebugLogger(self.config, project_name)
@@ -98,8 +99,8 @@ class IterationEngine:
         self.verifier = AnalysisVerifier(self.config)
 
         # Setup optimization components
-        self.setup_tracker = SetupTracker(self.config.get("state_manager"))
-        self.validator = PreflightValidator(self.setup_tracker)
+        self.setup_tracker: ISetupTracker = SetupTracker(self.config.get("state_manager"))
+        self.validator: PreflightValidator = PreflightValidator(self.setup_tracker)
 
         # Pass debug logger to fixer for wrapper call logging
         self.fixer.debug_logger = self.debug_logger

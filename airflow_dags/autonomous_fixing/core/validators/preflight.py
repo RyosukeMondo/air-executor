@@ -7,15 +7,16 @@ setup phases can be skipped, preventing redundant AI calls.
 
 import logging
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Optional
 
 import yaml
 
 from ...config.preflight_config import PreflightConfig
 from ...config.state_config import StateConfig
-from ..setup_tracker import SetupTracker
+from ...domain.interfaces import ISetupTracker, IStateRepository
 from ..state_manager import ProjectStateManager
 
 
@@ -42,16 +43,16 @@ class PreflightValidator:
 
     def __init__(
         self,
-        setup_tracker: SetupTracker,
-        config: PreflightConfig | None = None,
-        state_config: StateConfig | None = None,
-        state_manager_factory=None,
+        setup_tracker: ISetupTracker,
+        config: Optional[PreflightConfig] = None,
+        state_config: Optional[StateConfig] = None,
+        state_manager_factory: Optional[Callable[[Path, StateConfig], IStateRepository]] = None,
     ):
         """
         Initialize validator with setup state tracker.
 
         Args:
-            setup_tracker: SetupTracker instance for querying setup completion
+            setup_tracker: ISetupTracker instance for querying setup completion
             config: Optional PreflightConfig. If None, uses default configuration.
             state_config: Optional StateConfig for ProjectStateManager.
                 If None, uses default paths.
@@ -73,11 +74,13 @@ class PreflightValidator:
             >>> validator = PreflightValidator(tracker, state_manager_factory=mock_factory)
         """
         self.logger = logging.getLogger(__name__)
-        self.setup_tracker = setup_tracker
+        self.setup_tracker: ISetupTracker = setup_tracker
         self.config = config or PreflightConfig()
         self.state_config = state_config or StateConfig()
         # Default to ProjectStateManager for backward compatibility
-        self.state_manager_factory = state_manager_factory or ProjectStateManager
+        self.state_manager_factory: Callable[[Path, StateConfig], IStateRepository] = (
+            state_manager_factory or ProjectStateManager
+        )
 
     @contextmanager
     def _measure_validation(
