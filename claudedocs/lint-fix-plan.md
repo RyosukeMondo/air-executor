@@ -434,7 +434,7 @@ Success:
 - Tests pass
 ```
 
-**Status**: [x] COMPLETED (Partial - 3/6 files fixed)
+**Status**: [x] COMPLETED (Partial - 4/6 files fixed)
 
 **Changes Made**:
 - Fixed `multi_language_orchestrator.py` (8→7 attributes):
@@ -455,12 +455,18 @@ Success:
   - Added property accessors for all grouped components
   - Added setter for `debug_logger` to maintain backward compatibility
   - Reduced from 12 → 7 instance attributes while preserving all functionality
-- Pylint R0902: Resolved for `multi_language_orchestrator.py`, `time_gatekeeper.py`, and `iteration_engine.py` ✓
+- Fixed `simple_orchestrator.py` (13→7 attributes):
+  - Created `_CircuitBreakerState` dataclass to group circuit breaker tracking
+  - Grouped `circuit_breaker_threshold`, `require_git_changes`, `iterations_without_progress`, `last_git_diff_hash` into `self._breaker`
+  - Changed `self.claude` to `self._claude` with `@property` accessor for backward compatibility
+  - Removed `self.wrapper_path` and `self.python_exec` - only passed to ClaudeClient constructor
+  - Updated all references to circuit breaker state to use `self._breaker.*`
+  - Reduced from 13 → 7 instance attributes while preserving all functionality
+- Pylint R0902: Resolved for `multi_language_orchestrator.py`, `time_gatekeeper.py`, `iteration_engine.py`, and `simple_orchestrator.py` ✓
 - Ruff linter: All checks passed ✓
 - Tests: All unit and integration tests pass ✓
 
-**Remaining Files** (3 files still need fixing):
-- `simple_orchestrator.py` (13/7) - needs significant refactoring
+**Remaining Files** (2 files still need fixing):
 - `smart_health_monitor.py` (13/7) - needs significant refactoring
 - `fix_orchestrator.py` (13/7) - needs significant refactoring
 
