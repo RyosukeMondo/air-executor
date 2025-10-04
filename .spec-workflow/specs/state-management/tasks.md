@@ -54,7 +54,7 @@
   - _Requirements: All (integration validation)_
   - _Prompt: Implement the task for spec state-management, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Integration Test Engineer | Task: Create integration tests for state migration and portability, testing migration from config/*-cache/ to .ai-state/, copying project to different path and verifying state works, modifying config and verifying invalidation | Restrictions: Must test real file operations, verify migration logged, test cross-directory portability, clean up test state | Success: Migration tested end-to-end, portability validated, invalidation triggered correctly, state works across different project paths | Instructions: First mark in-progress, implement, mark complete_
 
-- [ ] 8. Add E2E test for project-based state in autonomous fixing
+- [x] 8. Add E2E test for project-based state in autonomous fixing
   - File: tests/e2e/test_project_state_e2e.py
   - Run autonomous fixing, verify .ai-state/ created, modify config, verify re-run
   - _Leverage: autonomous_fix.sh, test projects_
