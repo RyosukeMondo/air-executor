@@ -9,6 +9,7 @@ import hashlib
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any, Callable, Optional
 
 from airflow_dags.autonomous_fixing.config.setup_tracker_config import SetupTrackerConfig
 
@@ -36,19 +37,33 @@ class SetupTracker:
     - Orchestrate setup flow (that's IterationEngine's job)
     """
 
-    def __init__(self, config: SetupTrackerConfig | dict | None = None):
+    def __init__(
+        self,
+        config: SetupTrackerConfig | dict | None = None,
+        redis_factory: Optional[Callable[[], Any]] = None,
+    ):
         """
-        Initialize setup tracker with optional configuration.
+        Initialize setup tracker with optional configuration and Redis factory.
 
         Args:
             config: Either SetupTrackerConfig object or dict (backward compatibility).
                    If dict, treated as redis_config.
                    If None, uses default configuration.
+            redis_factory: Optional factory function to create Redis client.
+                          If provided, this takes precedence over config.redis_config.
+                          For testing, can inject mock Redis clients.
 
         Example:
-            >>> # New style (recommended)
+            >>> # Production style
             >>> config = SetupTrackerConfig(state_dir=tmp_path / "state", ttl_days=1)
             >>> tracker = SetupTracker(config=config)
+
+            >>> # Test style with mock Redis
+            >>> mock_redis = Mock()
+            >>> tracker = SetupTracker(
+            ...     config=config,
+            ...     redis_factory=lambda: mock_redis
+            ... )
 
             >>> # Old style (backward compatible)
             >>> tracker = SetupTracker(redis_config={"redis_host": "localhost"})
@@ -65,7 +80,13 @@ class SetupTracker:
         else:
             self.config = config
 
-        self._initialize_redis(self.config.redis_config)
+        # Use factory if provided, otherwise initialize from config
+        if redis_factory:
+            self.redis_client = redis_factory()
+            self.logger.debug("SetupTracker: Using injected Redis client")
+        else:
+            self._initialize_redis(self.config.redis_config)
+
         self.config.state_dir.mkdir(parents=True, exist_ok=True)
 
     def _initialize_redis(self, redis_config: dict | None) -> None:

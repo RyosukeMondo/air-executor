@@ -288,6 +288,106 @@ class TestSetupTrackerRedis:
         assert len(marker_files) == 1
 
 
+class TestSetupTrackerRedisFactory:
+    """Test Redis factory injection pattern for dependency injection."""
+
+    @pytest.fixture
+    def mock_redis(self):
+        """Create mock Redis client."""
+        mock = MagicMock()
+        mock.exists.return_value = 0
+        mock.setex.return_value = True
+        return mock
+
+    def test_redis_factory_injection(self, tmp_path, mock_redis):
+        """Test that redis_factory can inject custom Redis client."""
+        config = SetupTrackerConfig(state_dir=tmp_path, ttl_days=30, redis_config=None)
+        tracker = SetupTracker(config=config, redis_factory=lambda: mock_redis)
+
+        # Verify injected client is used
+        assert tracker.redis_client is mock_redis
+
+    def test_redis_factory_overrides_config(self, tmp_path, mock_redis):
+        """Test that redis_factory takes precedence over config.redis_config."""
+        # Config has Redis settings, but factory should override
+        config = SetupTrackerConfig(
+            state_dir=tmp_path,
+            ttl_days=30,
+            redis_config={"redis_host": "localhost", "redis_port": 6379},
+        )
+        tracker = SetupTracker(config=config, redis_factory=lambda: mock_redis)
+
+        # Factory client should be used, not config-created client
+        assert tracker.redis_client is mock_redis
+
+    def test_redis_factory_with_mark_complete(self, tmp_path, mock_redis):
+        """Test that injected Redis client is used for mark_setup_complete."""
+        config = SetupTrackerConfig(state_dir=tmp_path, ttl_days=30)
+        tracker = SetupTracker(config=config, redis_factory=lambda: mock_redis)
+
+        project = "/test/project"
+        phase = "hooks"
+
+        tracker.mark_setup_complete(project, phase)
+
+        # Verify mock Redis was called
+        assert mock_redis.setex.called
+
+    def test_redis_factory_with_is_complete(self, tmp_path, mock_redis):
+        """Test that injected Redis client is used for is_setup_complete."""
+        config = SetupTrackerConfig(state_dir=tmp_path, ttl_days=30)
+        tracker = SetupTracker(config=config, redis_factory=lambda: mock_redis)
+
+        project = "/test/project"
+        phase = "hooks"
+
+        # Simulate Redis has the key
+        mock_redis.exists.return_value = 1
+
+        result = tracker.is_setup_complete(project, phase)
+
+        assert result is True
+        mock_redis.exists.assert_called_once()
+
+    def test_redis_factory_none_falls_back_to_config(self, tmp_path):
+        """Test that None redis_factory falls back to config initialization."""
+        mock_redis = MagicMock()
+        mock_redis.ping.return_value = True
+
+        with patch(
+            "airflow_dags.autonomous_fixing.core.setup_tracker.redis.Redis", return_value=mock_redis
+        ):
+            config = SetupTrackerConfig(
+                state_dir=tmp_path, redis_config={"redis_host": "localhost", "redis_port": 6379}
+            )
+            tracker = SetupTracker(config=config, redis_factory=None)
+
+            # Should use config-based initialization
+            assert tracker.redis_client is not None
+            mock_redis.ping.assert_called_once()
+
+    def test_redis_factory_mock_error_handling(self, tmp_path):
+        """Test error handling with mock Redis that raises exceptions."""
+        import redis as redis_module
+
+        mock_redis = MagicMock()
+        mock_redis.exists.side_effect = redis_module.RedisError("Connection lost")
+
+        config = SetupTrackerConfig(state_dir=tmp_path, ttl_days=30)
+        tracker = SetupTracker(config=config, redis_factory=lambda: mock_redis)
+
+        project = "/test/project"
+        phase = "hooks"
+
+        # Create filesystem marker as fallback
+        marker_path = tracker._get_marker_path(project, phase)
+        marker_path.write_text(datetime.now().isoformat())
+
+        # Should gracefully fallback to filesystem
+        result = tracker.is_setup_complete(project, phase)
+        assert result is True
+
+
 class TestSetupTrackerEdgeCases:
     """Test edge cases and error handling."""
 
