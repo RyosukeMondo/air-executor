@@ -1,7 +1,7 @@
 """Task domain model and queue management."""
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import List, Optional, Set
@@ -54,12 +54,12 @@ class Task(BaseModel):
     def mark_running(self) -> None:
         """Mark task as running with timestamp."""
         self.status = TaskStatus.RUNNING
-        self.started_at = datetime.utcnow()
+        self.started_at = datetime.now(timezone.utc)
 
     def mark_completed(self) -> None:
         """Mark task as completed with timestamp."""
         self.status = TaskStatus.COMPLETED
-        self.completed_at = datetime.utcnow()
+        self.completed_at = datetime.now(timezone.utc)
 
     def mark_failed(self, error: str) -> None:
         """
@@ -69,7 +69,7 @@ class Task(BaseModel):
             error: Error message describing the failure
         """
         self.status = TaskStatus.FAILED
-        self.completed_at = datetime.utcnow()
+        self.completed_at = datetime.now(timezone.utc)
         self.error = error
 
     def to_dict(self) -> dict:
@@ -121,7 +121,6 @@ class TaskQueue:
 
     def _save(self) -> None:
         """Save tasks to file atomically."""
-        import tempfile
         import os
 
         # Ensure parent directory exists
