@@ -202,7 +202,7 @@ def run_claude_query_sdk(**context):
 
     except subprocess.TimeoutExpired:
         process.kill()
-        raise RuntimeError(f"Claude query timed out after {timeout} seconds")
+        raise RuntimeError(f"Claude query timed out after {config.claude_timeout} seconds")
 
     except Exception as e:
         process.kill()
