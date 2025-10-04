@@ -88,8 +88,18 @@ class ProjectAnalyzer:
                         f"size: {len(analysis.file_size_violations)}, "
                         f"complexity: {len(analysis.complexity_violations)})\n"
                     )
+                except RuntimeError as e:
+                    # Configuration errors (tools not installed) - FAIL FAST
+                    error_msg = str(e).lower()
+                    if any(phrase in error_msg for phrase in ["not installed", "not found", "no module named"]):
+                        print(f"\n❌ CONFIGURATION ERROR: {lang_name.upper()}: {project_name}")
+                        print(f"   {e}\n")
+                        raise  # Re-raise to halt execution
+                    # Other runtime errors - log and continue
+                    print(f"✗ {lang_name.upper()}: {project_name} - Runtime error: {e}\n")
                 except Exception as e:
-                    print(f"✗ {lang_name.upper()}: {project_name} - Error: {e}\n")
+                    # Unexpected errors - log and continue
+                    print(f"✗ {lang_name.upper()}: {project_name} - Unexpected error: {e}\n")
 
         result.execution_time = time.time() - start_time
         print(f"\n⏱️  Completed in {result.execution_time:.1f}s")
@@ -134,8 +144,18 @@ class ProjectAnalyzer:
                     total = analysis.tests_passed + analysis.tests_failed
                     print(f"✓ {lang_name.upper()}: {project_name}")
                     print(f"   Tests: {analysis.tests_passed}/{total} passed\n")
+                except RuntimeError as e:
+                    # Configuration errors (tools not installed) - FAIL FAST
+                    error_msg = str(e).lower()
+                    if any(phrase in error_msg for phrase in ["not installed", "not found", "no module named"]):
+                        print(f"\n❌ CONFIGURATION ERROR: {lang_name.upper()}: {project_name}")
+                        print(f"   {e}\n")
+                        raise  # Re-raise to halt execution
+                    # Other runtime errors - log and continue
+                    print(f"✗ {lang_name.upper()}: {project_name} - Runtime error: {e}\n")
                 except Exception as e:
-                    print(f"✗ {lang_name.upper()}: {project_name} - Error: {e}\n")
+                    # Unexpected errors - log and continue
+                    print(f"✗ {lang_name.upper()}: {project_name} - Unexpected error: {e}\n")
 
         result.execution_time = time.time() - start_time
         print(f"\n⏱️  Completed in {result.execution_time:.1f}s")
