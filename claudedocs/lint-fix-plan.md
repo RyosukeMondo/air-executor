@@ -144,7 +144,16 @@ Success:
 - No data loss in Task construction
 ```
 
-**Status**: [ ]
+**Status**: [x] COMPLETED
+
+**Changes Made**:
+- Fixed `BatchTask` dataclass definition in `issue_grouping.py`
+- Changed `related_issues: list[dict] = None` to `related_issues: list[dict] = field(default_factory=list)`
+- Changed `batch_type: str = None` to `batch_type: str | None = None`
+- Removed unnecessary `__post_init__` method that was handling None default
+- Added `field` import from `dataclasses` module
+- Ruff linter: All checks passed ✓
+- Python syntax check: Passed ✓
 
 ---
 
@@ -1027,7 +1036,7 @@ Key workflows to verify:
 
 ### Phase 1: Critical Import Errors 🔴
 - [x] Task 1.1: Fix Missing Module Imports
-- [ ] Task 1.2: Fix Unexpected Keyword Arguments
+- [x] Task 1.2: Fix Unexpected Keyword Arguments
 
 ### Phase 2: Code Organization & Structure 🟡
 - [ ] Task 2.1: Fix Import Positioning

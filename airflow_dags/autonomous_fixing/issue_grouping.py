@@ -6,7 +6,7 @@ Groups similar issues for batch fixing.
 
 import re
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 
 from airflow_dags.autonomous_fixing.adapters.state.state_manager import generate_task_id
@@ -17,12 +17,8 @@ from airflow_dags.autonomous_fixing.domain.models.tasks import Task
 class BatchTask(Task):
     """Task representing a batch of similar issues"""
 
-    related_issues: list[dict] = None  # List of {file, line, message}
-    batch_type: str = None  # Type of batch (unused_imports, type_errors, etc.)
-
-    def __post_init__(self):
-        if self.related_issues is None:
-            self.related_issues = []
+    related_issues: list[dict] = field(default_factory=list)  # List of {file, line, message}
+    batch_type: str | None = None  # Type of batch (unused_imports, type_errors, etc.)
 
 
 class IssueGrouper:
