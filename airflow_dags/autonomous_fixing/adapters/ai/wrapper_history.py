@@ -233,8 +233,9 @@ class WrapperHistoryLogger:
             print("  " + "-" * 76)
             for line in call.get('prompt', '').split('\n')[:20]:  # First 20 lines
                 print(f"  {line}")
-            if call.get('prompt', '').count('\n') > 20:
-                print(f"  ... ({call.get('prompt', '').count('\n') - 20} more lines)")
+            prompt_newline_count = call.get('prompt', '').count('\n')
+            if prompt_newline_count > 20:
+                print(f"  ... ({prompt_newline_count - 20} more lines)")
             print("  " + "-" * 76)
 
             # Show Claude's response
@@ -245,8 +246,9 @@ class WrapperHistoryLogger:
                 print("  " + "-" * 76)
                 for line in response.split('\n')[:30]:  # First 30 lines
                     print(f"  {line}")
-                if response.count('\n') > 30:
-                    print(f"  ... ({response.count('\n') - 30} more lines)")
+                response_newline_count = response.count('\n')
+                if response_newline_count > 30:
+                    print(f"  ... ({response_newline_count - 30} more lines)")
                 print("  " + "-" * 76)
             else:
                 print(f"\n  ⚠️  No Claude response captured (response length: {response_len})")
