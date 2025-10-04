@@ -1,0 +1,11 @@
+{
+  "prompt": "refactor the codebase according to @docs/refactoring-plan.md. Work through each section methodically. When complete, update the plan with: STATUS: COMPLETE",
+  "completion_file": "docs/refactoring-plan.md",
+  "completion_regex": "STATUS:\\s*COMPLETE",
+  "max_iterations": 25,
+  "project_path": "/path/to/your/project",
+  "wrapper_path": "scripts/claude_wrapper.py",
+  "python_exec": ".venv/bin/python3",
+  "circuit_breaker_threshold": 3,
+  "require_git_changes": true
+}

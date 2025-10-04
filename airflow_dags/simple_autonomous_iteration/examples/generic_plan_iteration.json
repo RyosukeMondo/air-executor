@@ -1,0 +1,11 @@
+{
+  "prompt": "PLAN_DOCUMENT_PLACEHOLDER",
+  "completion_file": "COMPLETION_FILE_PLACEHOLDER",
+  "completion_regex": "- \\[x\\] everything done",
+  "max_iterations": 30,
+  "project_path": "/home/rmondo/repos/air-executor",
+  "wrapper_path": "scripts/claude_wrapper.py",
+  "python_exec": ".venv/bin/python3",
+  "circuit_breaker_threshold": 3,
+  "require_git_changes": true
+}

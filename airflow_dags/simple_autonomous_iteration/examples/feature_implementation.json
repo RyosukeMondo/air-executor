@@ -1,0 +1,11 @@
+{
+  "prompt": "implement the feature described in @docs/new-feature-spec.md. Work through each requirement systematically. Mark complete when finished: - [ ] FEATURE COMPLETE",
+  "completion_file": "docs/new-feature-spec.md",
+  "completion_regex": "- \\[x\\] FEATURE COMPLETE",
+  "max_iterations": 20,
+  "project_path": "/path/to/your/project",
+  "wrapper_path": "scripts/claude_wrapper.py",
+  "python_exec": ".venv/bin/python3",
+  "circuit_breaker_threshold": 3,
+  "require_git_changes": true
+}
