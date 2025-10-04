@@ -1,10 +1,9 @@
 """Job domain model and state management."""
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -66,7 +65,7 @@ class Job(BaseModel):
             raise ValueError(f"Invalid state transition: {self.state} → {new_state}")
 
         self.state = new_state
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now(timezone.utc)
 
     def can_spawn_runner(self) -> bool:
         """
@@ -116,7 +115,6 @@ class Job(BaseModel):
         Raises:
             OSError: If file write fails
         """
-        import tempfile
 
         # Ensure parent directory exists
         path.parent.mkdir(parents=True, exist_ok=True)
