@@ -4,13 +4,14 @@ Tests the complete flow: clean project → cache miss → AI invocation → cach
 cache hit → skip, using real Redis container and filesystem fallback scenarios.
 """
 
-import pytest
 import tempfile
 import time
-import yaml
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch
+
+import pytest
+import yaml
 
 from airflow_dags.autonomous_fixing.core.setup_tracker import SetupTracker
 from airflow_dags.autonomous_fixing.core.validators.preflight import PreflightValidator
@@ -454,8 +455,5 @@ class TestPerformanceIntegration:
         assert "saved 60s + $0.50" in hook_reason
         assert "saved 90s + $0.60" in test_reason
 
-        # Total savings should be 150s + $1.10
-        total_time_saved = 150  # 60 + 90
-        total_cost_saved = 1.10  # 0.50 + 0.60
-
+        # Total savings should be 150s + $1.10 (60 + 90 and 0.50 + 0.60)
         assert can_skip_hooks and can_skip_tests
