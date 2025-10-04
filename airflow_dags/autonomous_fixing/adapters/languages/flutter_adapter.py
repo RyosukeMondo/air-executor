@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import List, Dict
 from .base import LanguageAdapter
 from ...domain.models import AnalysisResult, ToolValidationResult
+from ..error_parser import ErrorParserStrategy
 
 
 class FlutterAdapter(LanguageAdapter):
@@ -79,7 +80,7 @@ class FlutterAdapter(LanguageAdapter):
             result.file_size_violations = self.check_file_sizes(project_path)
 
             # Check complexity
-            result.complexity_violations = self._check_complexity(project_path)
+            result.complexity_violations = self.check_complexity(project_path)
 
             # Quality check delegated to AnalysisResult model (SOLID: Single Responsibility)
             result.success = result.compute_quality_check()
@@ -257,45 +258,12 @@ class FlutterAdapter(LanguageAdapter):
         return result
 
     def parse_errors(self, output: str, phase: str) -> List[Dict]:
-        """Parse Flutter/Dart error messages."""
-        errors = []
-
-        if phase == 'static':
-            # Flutter analyze format:
-            # error • message • file:line:col • error_code
-            pattern = r'(error|warning|info)\s*•\s*(.+?)\s*•\s*(.+?):(\d+):(\d+)\s*•\s*(\w+)?'
-            for match in re.finditer(pattern, output):
-                errors.append({
-                    'severity': match.group(1),
-                    'message': match.group(2).strip(),
-                    'file': match.group(3).strip(),
-                    'line': int(match.group(4)),
-                    'column': int(match.group(5)),
-                    'code': match.group(6) or ''
-                })
-
-        elif phase == 'tests':
-            # Flutter test error format
-            # Test failed. See exception logs above.
-            # or: Expected: <value>, Actual: <value>
-            pattern = r'(.+?):(\d+):\d+\s+(.+)'
-            for match in re.finditer(pattern, output):
-                if 'FAILED' in match.group(0) or 'Expected:' in match.group(0):
-                    errors.append({
-                        'severity': 'error',
-                        'file': match.group(1).strip(),
-                        'line': int(match.group(2)),
-                        'column': 0,
-                        'message': match.group(3).strip(),
-                        'code': 'test_failure'
-                    })
-
-        elif phase == 'e2e':
-            # Integration test errors - similar to unit test format
-            errors = self.parse_errors(output, 'tests')
-
-        return errors
-
+        """Parse Flutter error messages using centralized parser (SOLID: SRP)."""
+        return ErrorParserStrategy.parse(
+            language='flutter',
+            output=output,
+            phase=phase
+        )
     def calculate_complexity(self, file_path: str) -> int:
         """Calculate cyclomatic complexity using simple heuristic."""
         try:
@@ -319,28 +287,12 @@ class FlutterAdapter(LanguageAdapter):
             return 0
 
     def _get_source_files(self, project_path: Path) -> List[Path]:
-        """Get all Dart source files."""
+        """Get all Dart source files using centralized exclusion (SOLID: DRY)."""
         lib_dir = project_path / 'lib'
         if not lib_dir.exists():
             return []
-        return list(lib_dir.rglob('*.dart'))
-
-    def _check_complexity(self, project_path: str) -> List[Dict]:
-        """Check for files with high complexity."""
-        violations = []
-        project = Path(project_path)
-
-        for file_path in self._get_source_files(project):
-            complexity = self.calculate_complexity(str(file_path))
-            if complexity > self.complexity_threshold:
-                violations.append({
-                    'file': str(file_path),
-                    'complexity': complexity,
-                    'threshold': self.complexity_threshold,
-                    'message': f'Complexity {complexity} exceeds threshold {self.complexity_threshold}'
-                })
-
-        return violations
+        source_files = list(lib_dir.rglob('*.dart'))
+        return self._filter_excluded_paths(source_files)
 
     def _extract_test_counts(self, output: str) -> Dict[str, int]:
         """Extract test pass/fail counts from output."""

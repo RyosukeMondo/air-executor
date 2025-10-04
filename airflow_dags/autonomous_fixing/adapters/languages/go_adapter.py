@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import List, Dict
 from .base import LanguageAdapter
 from ...domain.models import AnalysisResult, ToolValidationResult
+from ..error_parser import ErrorParserStrategy
 
 
 class GoAdapter(LanguageAdapter):
@@ -53,7 +54,7 @@ class GoAdapter(LanguageAdapter):
 
             result.errors = errors
             result.file_size_violations = self.check_file_sizes(project_path)
-            result.complexity_violations = self._check_complexity(project_path)
+            result.complexity_violations = self.check_complexity(project_path)
 
             # Quality check delegated to AnalysisResult model (SOLID: Single Responsibility)
             result.success = result.compute_quality_check()
@@ -199,31 +200,12 @@ class GoAdapter(LanguageAdapter):
         return result
 
     def parse_errors(self, output: str, phase: str) -> List[Dict]:
-        """Parse Go error messages."""
-        errors = []
-
-        if phase == 'tests' or phase == 'e2e':
-            # Go test format: --- FAIL: TestName (0.00s)
-            # Also: FAIL	package/path	0.123s
-            pattern = r'--- FAIL:\s+(\w+)'
-            for match in re.finditer(pattern, output):
-                errors.append({
-                    'severity': 'error',
-                    'file': '',
-                    'line': 0,
-                    'column': 0,
-                    'message': f'Test failed: {match.group(1)}',
-                    'code': 'test_failure'
-                })
-
-            # Extract error messages
-            pattern = r'Error:\s+(.+)'
-            for match in re.finditer(pattern, output):
-                if errors:
-                    errors[-1]['message'] += f' - {match.group(1)}'
-
-        return errors
-
+        """Parse Go error messages using centralized parser (SOLID: SRP)."""
+        return ErrorParserStrategy.parse(
+            language='go',
+            output=output,
+            phase=phase
+        )
     def calculate_complexity(self, file_path: str) -> int:
         """Calculate cyclomatic complexity using gocyclo."""
         try:
@@ -337,23 +319,6 @@ class GoAdapter(LanguageAdapter):
             pass
 
         return []
-
-    def _check_complexity(self, project_path: str) -> List[Dict]:
-        """Check for high complexity files."""
-        violations = []
-        project = Path(project_path)
-
-        for file_path in self._get_source_files(project):
-            complexity = self.calculate_complexity(str(file_path))
-            if complexity > self.complexity_threshold:
-                violations.append({
-                    'file': str(file_path),
-                    'complexity': complexity,
-                    'threshold': self.complexity_threshold,
-                    'message': f'Complexity {complexity} exceeds threshold {self.complexity_threshold}'
-                })
-
-        return violations
 
     def _extract_test_counts(self, output: str) -> Dict[str, int]:
         """Extract test pass/fail counts."""

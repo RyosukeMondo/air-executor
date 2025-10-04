@@ -12,6 +12,16 @@ from ...domain.interfaces import ILanguageAdapter
 class LanguageAdapter(ILanguageAdapter, ABC):
     """Base class for language-specific analysis and fixing."""
 
+    # Common exclusion patterns (SSOT - was scattered across adapters)
+    COMMON_EXCLUSIONS = {
+        'node_modules', 'build', 'dist', 'coverage', '.next', 'out',  # JS/TS
+        'venv', '.venv', '__pycache__', '.pytest_cache', '.mypy_cache',  # Python
+        'vendor', 'bin',  # Go
+        '.dart_tool', '.pub-cache',  # Flutter
+        '.git', '.svn', '.hg',  # Version control
+        'target', 'obj',  # Build outputs
+    }
+
     def __init__(self, config: Dict):
         self.config = config
         self.complexity_threshold = config.get('complexity_threshold', 10)
@@ -162,10 +172,75 @@ class LanguageAdapter(ILanguageAdapter, ABC):
 
         return violations
 
+    def check_complexity(self, project_path: str) -> List[Dict]:
+        """
+        Check for high complexity files (SSOT - was duplicated in all adapters).
+
+        Performance optimized:
+        - Samples max 50 files on large projects
+        - Skips files >200KB to avoid hangs
+        - Delegates to language-specific calculate_complexity()
+
+        Returns:
+            List of violations:
+                - file: path to file
+                - complexity: calculated complexity
+                - threshold: max allowed complexity
+                - message: violation message
+        """
+        violations = []
+        project = Path(project_path)
+
+        source_files = self._get_source_files(project)
+
+        # Performance optimization: Sample files if there are too many
+        # Check max 50 files to avoid hanging on large projects
+        if len(source_files) > 50:
+            import random
+            source_files = random.sample(source_files, 50)
+
+        for file_path in source_files:
+            try:
+                # Skip very large files (>5000 lines) - too slow to analyze
+                file_size = file_path.stat().st_size
+                if file_size > 200000:  # ~5000 lines
+                    continue
+
+                complexity = self.calculate_complexity(str(file_path))
+                if complexity > self.complexity_threshold:
+                    violations.append({
+                        'file': str(file_path),
+                        'complexity': complexity,
+                        'threshold': self.complexity_threshold,
+                        'message': f'Complexity {complexity} exceeds threshold {self.complexity_threshold}'
+                    })
+            except Exception:
+                # Skip files that fail analysis
+                continue
+
+        return violations
+
     @abstractmethod
     def _get_source_files(self, project_path: Path) -> List[Path]:
         """Get list of source files for this language."""
         pass
+
+    def _filter_excluded_paths(self, files: List[Path], additional_exclusions: set = None) -> List[Path]:
+        """
+        Filter out excluded paths (SSOT - was duplicated across adapters).
+
+        Args:
+            files: List of file paths to filter
+            additional_exclusions: Language-specific exclusions to add
+
+        Returns:
+            Filtered list with common + language-specific exclusions removed
+        """
+        exclusions = self.COMMON_EXCLUSIONS.copy()
+        if additional_exclusions:
+            exclusions.update(additional_exclusions)
+
+        return [f for f in files if not any(e in f.parts for e in exclusions)]
 
     @abstractmethod
     def validate_tools(self) -> List[ToolValidationResult]:

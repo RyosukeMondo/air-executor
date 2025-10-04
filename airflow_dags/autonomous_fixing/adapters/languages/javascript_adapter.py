@@ -10,6 +10,7 @@ from typing import List, Dict
 from .base import LanguageAdapter
 from ...domain.models import AnalysisResult, ToolValidationResult
 from ..test_result_parser import TestResultParserStrategy
+from ..error_parser import ErrorParserStrategy
 
 
 class JavaScriptAdapter(LanguageAdapter):
@@ -56,7 +57,7 @@ class JavaScriptAdapter(LanguageAdapter):
 
             result.errors = errors
             result.file_size_violations = self.check_file_sizes(project_path)
-            result.complexity_violations = self._check_complexity(project_path)
+            result.complexity_violations = self.check_complexity(project_path)
 
             # Quality check delegated to AnalysisResult model (SOLID: Single Responsibility)
             result.success = result.compute_quality_check()
@@ -235,44 +236,13 @@ class JavaScriptAdapter(LanguageAdapter):
         return result
 
     def parse_errors(self, output: str, phase: str) -> List[Dict]:
-        """Parse JS/TS error messages."""
-        errors = []
-
-        if phase == 'tests':
-            # Jest/Vitest format: FAIL src/file.test.js
-            # or: ● Test suite failed to run
-            pattern = r'FAIL\s+(.+\.(?:test|spec)\.[jt]sx?)'
-            for match in re.finditer(pattern, output):
-                errors.append({
-                    'severity': 'error',
-                    'file': match.group(1),
-                    'line': 0,
-                    'column': 0,
-                    'message': 'Test suite failed',
-                    'code': 'test_failure'
-                })
-
-            # Extract specific test failures
-            pattern = r'●\s+(.+)'
-            for match in re.finditer(pattern, output):
-                if errors:
-                    errors[-1]['message'] += f' - {match.group(1)}'
-
-        elif phase == 'e2e':
-            # Playwright: Error: expect(received).toBe(expected)
-            # Cypress: CypressError: Timed out retrying
-            pattern = r'Error:\s+(.+)'
-            for match in re.finditer(pattern, output):
-                errors.append({
-                    'severity': 'error',
-                    'file': '',
-                    'line': 0,
-                    'column': 0,
-                    'message': match.group(1),
-                    'code': 'e2e_failure'
-                })
-
-        return errors
+        """Parse JS/TS error messages using centralized parser (SOLID: SRP)."""
+        # Use centralized error parser for all phases
+        return ErrorParserStrategy.parse(
+            language='javascript',
+            output=output,
+            phase=phase
+        )
 
     def calculate_complexity(self, file_path: str) -> int:
         """Calculate cyclomatic complexity using complexity-report."""
@@ -322,17 +292,15 @@ class JavaScriptAdapter(LanguageAdapter):
             return 0
 
     def _get_source_files(self, project_path: Path) -> List[Path]:
-        """Get all JS/TS source files."""
+        """Get all JS/TS source files using centralized exclusion (SOLID: DRY)."""
         source_files = []
         for pattern in ['**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx']:
             source_files.extend(project_path.rglob(pattern))
 
-        # Exclude node_modules, build, dist
-        excluded = {'node_modules', 'build', 'dist', 'coverage', '.next', 'out'}
-        return [f for f in source_files if not any(e in f.parts for e in excluded)]
+        return self._filter_excluded_paths(source_files)
 
     def _run_eslint(self, project_path: str) -> List[Dict]:
-        """Run ESLint and parse errors."""
+        """Run ESLint and parse errors using centralized parser."""
         try:
             result = subprocess.run(
                 ['npx', 'eslint', '.', '--format', 'json'],
@@ -342,29 +310,18 @@ class JavaScriptAdapter(LanguageAdapter):
                 timeout=120
             )
 
-            if result.stdout:
-                lint_results = json.loads(result.stdout)
-                errors = []
-                for file_result in lint_results:
-                    for message in file_result.get('messages', []):
-                        if message.get('severity') == 2:  # Error level
-                            errors.append({
-                                'severity': 'error',
-                                'file': file_result.get('filePath', ''),
-                                'line': message.get('line', 0),
-                                'column': message.get('column', 0),
-                                'message': message.get('message', ''),
-                                'code': message.get('ruleId', '')
-                            })
-                return errors
+            # Use centralized error parser (SOLID: Single Responsibility)
+            return ErrorParserStrategy.parse(
+                language='javascript',
+                output=result.stdout,
+                phase='static'
+            )
 
         except Exception:
-            pass
-
-        return []
+            return []
 
     def _run_tsc(self, project_path: str) -> List[Dict]:
-        """Run TypeScript compiler and parse errors."""
+        """Run TypeScript compiler and parse errors using centralized parser."""
         try:
             result = subprocess.run(
                 ['npx', 'tsc', '--noEmit'],
@@ -374,59 +331,15 @@ class JavaScriptAdapter(LanguageAdapter):
                 timeout=120
             )
 
-            errors = []
-            # TSC format: file.ts(line,col): error TS1234: message
-            pattern = r'(.+\.tsx?)\((\d+),(\d+)\):\s*error\s*TS(\d+):\s*(.+)'
-            for match in re.finditer(pattern, result.stdout):
-                errors.append({
-                    'severity': 'error',
-                    'file': match.group(1),
-                    'line': int(match.group(2)),
-                    'column': int(match.group(3)),
-                    'message': match.group(5),
-                    'code': f'TS{match.group(4)}'
-                })
-
-            return errors
+            # Use centralized error parser (SOLID: Single Responsibility)
+            return ErrorParserStrategy.parse(
+                language='typescript',
+                output=result.stdout,
+                phase='static'
+            )
 
         except Exception:
-            pass
-
-        return []
-
-    def _check_complexity(self, project_path: str) -> List[Dict]:
-        """Check for high complexity files (sampling for performance)."""
-        violations = []
-        project = Path(project_path)
-
-        source_files = self._get_source_files(project)
-
-        # Performance optimization: Sample files if there are too many
-        # Check max 50 files to avoid hanging on large projects
-        if len(source_files) > 50:
-            import random
-            source_files = random.sample(source_files, 50)
-
-        for file_path in source_files:
-            try:
-                # Skip very large files (>5000 lines) - too slow to analyze
-                file_size = file_path.stat().st_size
-                if file_size > 200000:  # ~5000 lines
-                    continue
-
-                complexity = self.calculate_complexity(str(file_path))
-                if complexity > self.complexity_threshold:
-                    violations.append({
-                        'file': str(file_path),
-                        'complexity': complexity,
-                        'threshold': self.complexity_threshold,
-                        'message': f'Complexity {complexity} exceeds threshold {self.complexity_threshold}'
-                    })
-            except Exception:
-                # Skip files that fail analysis
-                continue
-
-        return violations
+            return []
 
     def _parse_coverage_json(self, coverage_file: Path) -> Dict:
         """Parse Jest/Vitest coverage JSON."""
