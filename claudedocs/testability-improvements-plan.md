@@ -17,11 +17,12 @@
   - [x] 3.2 ISetupTracker ✅
   - [x] 3.3 IAIClient ✅
   - [x] 3.4 Update All Components ✅
-- [ ] **Phase 4**: In-Process CLI (0/3 complete) - FUTURE WORK
+- [x] **Phase 4**: In-Process CLI (1/3 complete) 🟡 IN PROGRESS
+  - [x] 4.1 Create OrchestratorCLI Wrapper ✅
 - [ ] **Phase 5**: Test Builders (0/4 complete) - FUTURE WORK
 - [ ] **Phase 6**: E2E Test Refactoring (0/5 complete) - FUTURE WORK
 
-**Overall Progress**: 15/27 tasks complete (56%)
+**Overall Progress**: 16/27 tasks complete (59%)
 
 **Note**: **Phases 1-3 are now COMPLETE** ✅. All core testability goals achieved: configuration objects, dependency injection, and interface extraction with in-memory implementations. Phases 4-6 are optional enhancements for further test optimization.
 
@@ -771,10 +772,10 @@ class IterationEngine:
 
 ### Tasks
 
-#### 4.1 Create OrchestratorCLI Wrapper
-- [ ] Create programmatic entry point
-- [ ] Support config from dict/object (not just YAML)
-- [ ] Return structured results (not exit codes)
+#### 4.1 Create OrchestratorCLI Wrapper ✅
+- [x] Create programmatic entry point
+- [x] Support config from dict/object (not just YAML)
+- [x] Return structured results (not exit codes)
 
 **Acceptance Criteria**:
 ```python
@@ -825,9 +826,26 @@ class OrchestratorResult:
     duration_seconds: float
 ```
 
-**Files to create**:
-- `airflow_dags/autonomous_fixing/cli/orchestrator_cli.py`
-- `airflow_dags/autonomous_fixing/domain/models/orchestrator_result.py`
+**Files created**: ✅
+- `airflow_dags/autonomous_fixing/cli/orchestrator_cli.py` - CLI interface implementation
+- `airflow_dags/autonomous_fixing/cli/__init__.py` - Package exports
+- `airflow_dags/autonomous_fixing/domain/models/orchestrator_result.py` - Result model
+- `airflow_dags/autonomous_fixing/domain/models/__init__.py` - Updated exports
+
+**Tests added**: ✅
+- `tests/unit/test_orchestrator_cli.py` (14 tests)
+  - OrchestratorResult creation tests (3 tests)
+  - OrchestratorCLI.run() tests (8 tests)
+  - Result conversion tests (3 tests)
+
+**Implementation notes**: ✅
+- OrchestratorCLI provides static methods for in-process execution
+- Accepts both Path (YAML) and OrchestratorConfig objects
+- Returns structured OrchestratorResult instead of exit codes
+- Measures execution duration automatically
+- Extracts errors, warnings, and metrics from raw dict results
+- All 14 tests passing ✅
+- Backward compatible with existing YAML configs
 
 ---
 
@@ -1257,6 +1275,7 @@ The primary objective has been achieved: **air-executor is now fully testable wi
 - 2025-10-05: Phase 3.1 (IStateRepository interface) - Committed (ebe0ccf)
 - 2025-10-05: Phase 3.2 (ISetupTracker interface) - Committed (1726faa)
 - 2025-10-05: Phase 3.3 (IAIClient interface) - Committed (16e0187)
-- 2025-10-05: Phase 3.4 (Interface type hints) - Ready to commit
+- 2025-10-05: Phase 3.4 (Interface type hints) - Committed (248c2f1)
+- 2025-10-05: Phase 4.1 (OrchestratorCLI wrapper) - Ready to commit
 
 - [ ] everything done (ALL PHASES) - Core objectives complete, remaining phases optional
