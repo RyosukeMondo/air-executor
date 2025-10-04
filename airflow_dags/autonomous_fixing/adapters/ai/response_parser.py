@@ -100,46 +100,71 @@ class ResponseParser:
                 - errors: List[str] (if failure, all error lines)
                 - status: str (if success, "completed")
         """
-        # Check for stderr content first and analyze it
         stderr = response.get('stderr', '')
         generic_error = response.get('error', '')
 
-        if stderr:
-            # Analyze stderr for real errors vs noise
-            real_errors = self._extract_real_errors(stderr)
+        # Try to extract real errors from stderr first
+        stderr_result = self._parse_stderr(stderr, operation_type)
+        if stderr_result:
+            return stderr_result
 
-            if real_errors:
-                # Found real errors in stderr - use these instead of generic error
-                error_message = "\n".join(real_errors[:3])  # First 3 lines
-                return {
-                    "success": False,
-                    "error_message": f"[{operation_type}] {error_message}",
-                    "errors": real_errors
-                }
-            # else: only noise in stderr, continue to check other error sources
+        # Check generic error (only if no stderr)
+        generic_result = self._parse_generic_error(generic_error, stderr, operation_type)
+        if generic_result:
+            return generic_result
 
-        # Check for explicit error in response (after stderr analysis)
-        if generic_error and not stderr:
-            # Only use generic error if no stderr available
-            return {
-                "success": False,
-                "error_message": f"[{operation_type}] {generic_error}",
-                "errors": [generic_error]
-            }
-
-        # No stderr or only noise - check success flag
+        # Check success flag
         if response.get('success'):
             return {"success": True, "status": "completed"}
 
-        # Have generic error but only noise in stderr - use generic error
-        if generic_error:
-            return {
-                "success": False,
-                "error_message": f"[{operation_type}] {generic_error}",
-                "errors": [generic_error]
-            }
+        # Fallback: unknown error
+        return self._create_unknown_error(operation_type)
 
-        # No clear success indicator
+    def _parse_stderr(self, stderr: str, operation_type: str) -> Optional[Dict]:
+        """
+        Parse stderr content for real errors.
+
+        Returns:
+            Error dict if real errors found, None otherwise
+        """
+        if not stderr:
+            return None
+
+        real_errors = self._extract_real_errors(stderr)
+        if not real_errors:
+            return None
+
+        error_message = "\n".join(real_errors[:3])
+        return {
+            "success": False,
+            "error_message": f"[{operation_type}] {error_message}",
+            "errors": real_errors
+        }
+
+    def _parse_generic_error(
+        self, generic_error: str, stderr: str, operation_type: str
+    ) -> Optional[Dict]:
+        """
+        Parse generic error field.
+
+        Returns:
+            Error dict if generic error exists (and no stderr), None otherwise
+        """
+        if not generic_error:
+            return None
+
+        # Only use generic error if no stderr available
+        if stderr:
+            return None
+
+        return {
+            "success": False,
+            "error_message": f"[{operation_type}] {generic_error}",
+            "errors": [generic_error]
+        }
+
+    def _create_unknown_error(self, operation_type: str) -> Dict:
+        """Create error dict for unknown failures."""
         return {
             "success": False,
             "error_message": f"[{operation_type}] Unknown error - no clear success indicator",
