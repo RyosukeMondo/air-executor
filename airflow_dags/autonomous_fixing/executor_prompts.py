@@ -71,11 +71,23 @@ class PromptGenerator:
         return files, files_text
 
     @staticmethod
+    def _is_cleanup_task(task_type: str) -> bool:
+        """Check if task is a cleanup task type."""
+        return task_type.startswith("fix_cleanup_")
+
+    @staticmethod
+    def _is_location_task(task_type: str) -> bool:
+        """Check if task is a location-based task type."""
+        return task_type.startswith("fix_location_")
+
+    @staticmethod
     def _generate_commit_message(task, batch_type: str, files_count: int) -> tuple[str, str]:
         """Generate commit prefix and description based on task type"""
-        if "cleanup" in str(task.type):
+        task_type = str(task.type) if hasattr(task.type, "__str__") else task.type
+
+        if PromptGenerator._is_cleanup_task(task_type):
             return "chore", f"remove all {batch_type}"
-        if "location" in str(task.type):
+        if PromptGenerator._is_location_task(task_type):
             return "fix", batch_type.replace("_", " ")
         return "fix", f"{batch_type} across {files_count} files"
 

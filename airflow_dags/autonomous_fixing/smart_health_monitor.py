@@ -11,11 +11,13 @@ from pathlib import Path
 from typing import Optional
 
 from code_metrics import LightweightCodeMetrics
+from domain.enums import AnalysisStatus
 
 
 @dataclass
 class StaticHealthMetrics:
     """Fast static analysis (no execution)"""
+
     timestamp: str
     project_path: str
 
@@ -43,6 +45,7 @@ class StaticHealthMetrics:
 @dataclass
 class DynamicHealthMetrics:
     """Slow dynamic checks (execution required)"""
+
     # Tests (flutter test - slow)
     total_tests: int
     test_pass_rate: float
@@ -63,6 +66,7 @@ class DynamicHealthMetrics:
 @dataclass
 class SmartHealthMetrics:
     """Combined metrics with execution info"""
+
     static: StaticHealthMetrics
     dynamic: Optional[DynamicHealthMetrics]
 
@@ -72,11 +76,11 @@ class SmartHealthMetrics:
 
     def to_dict(self) -> dict:
         return {
-            'static': self.static.to_dict(),
-            'dynamic': self.dynamic.to_dict() if self.dynamic else None,
-            'overall_health_score': self.overall_health_score,
-            'is_healthy': self.is_healthy,
-            'check_mode': self.check_mode
+            "static": self.static.to_dict(),
+            "dynamic": self.dynamic.to_dict() if self.dynamic else None,
+            "overall_health_score": self.overall_health_score,
+            "is_healthy": self.is_healthy,
+            "check_mode": self.check_mode,
         }
 
 
@@ -88,7 +92,7 @@ class SmartHealthMonitor:
         project_path: str,
         flutter_bin: str = None,
         file_size_threshold: int = 300,
-        static_pass_threshold: float = 0.6
+        static_pass_threshold: float = 0.6,
     ):
         self.project_path = Path(project_path)
         self.flutter_bin = flutter_bin or self._find_flutter()
@@ -104,10 +108,7 @@ class SmartHealthMonitor:
         if flutter:
             return flutter
 
-        locations = [
-            os.path.expanduser("~/flutter/bin/flutter"),
-            "/usr/local/bin/flutter"
-        ]
+        locations = [os.path.expanduser("~/flutter/bin/flutter"), "/usr/local/bin/flutter"]
 
         for location in locations:
             if os.path.exists(location):
@@ -136,13 +137,17 @@ class SmartHealthMonitor:
         dynamic = None
         if run_dynamic:
             if not force_dynamic:
-                print(f"\n✅ Static passed ({static.static_health_score:.0%}) → Running dynamic checks...")
+                print(
+                    f"\n✅ Static passed ({static.static_health_score:.0%}) → Running dynamic checks..."
+                )
             else:
                 print("\n🔨 Force dynamic mode...")
             print("🧪 Dynamic Analysis (slow ~2-5min)...")
             dynamic = self._run_dynamic_checks()
         else:
-            print(f"\n❌ Static failed ({static.static_health_score:.0%}) → Skipping dynamic checks")
+            print(
+                f"\n❌ Static failed ({static.static_health_score:.0%}) → Skipping dynamic checks"
+            )
             print("   (Fix static issues first to save time)")
 
         # Step 3: Calculate overall score
@@ -153,7 +158,7 @@ class SmartHealthMonitor:
             dynamic=dynamic,
             overall_health_score=overall,
             is_healthy=overall >= 0.8,
-            check_mode='full' if dynamic else 'static_only'
+            check_mode="full" if dynamic else "static_only",
         )
 
         self._print_summary(result)
@@ -165,7 +170,7 @@ class SmartHealthMonitor:
 
         analysis_errors = 0
         analysis_warnings = 0
-        analysis_status = 'unknown'
+        analysis_status = "unknown"
 
         try:
             result = subprocess.run(
@@ -173,7 +178,7 @@ class SmartHealthMonitor:
                 cwd=self.project_path,
                 capture_output=True,
                 text=True,
-                timeout=30
+                timeout=30,
             )
 
             for line in result.stdout.splitlines():
@@ -182,7 +187,9 @@ class SmartHealthMonitor:
                 elif " warning •" in line:
                     analysis_warnings += 1
 
-            analysis_status = 'pass' if analysis_errors == 0 else 'fail'
+            analysis_status = (
+                str(AnalysisStatus.PASS) if analysis_errors == 0 else str(AnalysisStatus.FAIL)
+            )
 
         except Exception as e:
             print(f"  ⚠️ Analysis failed: {e}")
@@ -195,17 +202,12 @@ class SmartHealthMonitor:
         analysis_errors, analysis_warnings, analysis_status = self._run_flutter_analyze()
 
         # 2. Code quality (fast ~5s)
-        code_analyzer = LightweightCodeMetrics(
-            str(self.project_path),
-            self.file_size_threshold
-        )
+        code_analyzer = LightweightCodeMetrics(str(self.project_path), self.file_size_threshold)
         code_metrics = code_analyzer.analyze_project()
 
         # 3. Calculate static score
         static_score = self._calculate_static_score(
-            analysis_status,
-            analysis_errors,
-            code_metrics.health_score
+            analysis_status, analysis_errors, code_metrics.health_score
         )
 
         return StaticHealthMetrics(
@@ -221,7 +223,7 @@ class SmartHealthMonitor:
             high_complexity_files=len(code_metrics.high_complexity_files),
             code_quality_score=code_metrics.health_score,
             static_health_score=static_score,
-            passes_static=static_score >= self.static_pass_threshold
+            passes_static=static_score >= self.static_pass_threshold,
         )
 
     def _run_dynamic_checks(self) -> DynamicHealthMetrics:
@@ -234,8 +236,7 @@ class SmartHealthMonitor:
 
         # Calculate dynamic score
         dynamic_score = self._calculate_dynamic_score(
-            test_metrics.overall_pass_rate,
-            test_metrics.coverage.coverage_percent
+            test_metrics.overall_pass_rate, test_metrics.coverage.coverage_percent
         )
 
         return DynamicHealthMetrics(
@@ -245,20 +246,17 @@ class SmartHealthMonitor:
             integration_tests=test_metrics.integration_tests.total,
             e2e_tests=test_metrics.e2e_tests.total,
             coverage_percent=test_metrics.coverage.coverage_percent,
-            dynamic_health_score=dynamic_score
+            dynamic_health_score=dynamic_score,
         )
 
     def _calculate_static_score(
-        self,
-        analysis_status: str,
-        analysis_errors: int,
-        code_quality: float
+        self, analysis_status: str, analysis_errors: int, code_quality: float
     ) -> float:
         """Calculate static health score"""
         score = 0.0
 
         # Analysis: 60% weight
-        if analysis_status == 'pass':
+        if analysis_status == str(AnalysisStatus.PASS):
             score += 0.6
         elif analysis_errors < 100:  # Partial credit for few errors
             score += 0.3
@@ -268,11 +266,7 @@ class SmartHealthMonitor:
 
         return round(score, 2)
 
-    def _calculate_dynamic_score(
-        self,
-        test_pass_rate: float,
-        coverage: float
-    ) -> float:
+    def _calculate_dynamic_score(self, test_pass_rate: float, coverage: float) -> float:
         """Calculate dynamic health score"""
         score = 0.0
 
@@ -285,9 +279,7 @@ class SmartHealthMonitor:
         return round(score, 2)
 
     def _calculate_overall_score(
-        self,
-        static: StaticHealthMetrics,
-        dynamic: Optional[DynamicHealthMetrics]
+        self, static: StaticHealthMetrics, dynamic: Optional[DynamicHealthMetrics]
     ) -> float:
         """Calculate overall health score"""
         if not dynamic:
@@ -295,10 +287,7 @@ class SmartHealthMonitor:
             return static.static_health_score * 0.7  # Penalize for no dynamic
 
         # Weighted average: static 40%, dynamic 60%
-        overall = (
-            static.static_health_score * 0.4 +
-            dynamic.dynamic_health_score * 0.6
-        )
+        overall = static.static_health_score * 0.4 + dynamic.dynamic_health_score * 0.6
 
         return round(overall, 2)
 
@@ -306,7 +295,7 @@ class SmartHealthMonitor:
         """Print static analysis results"""
         print(f"\n⚡ Static Analysis ({static.static_health_score:.0%}):")
 
-        analysis_emoji = "✅" if static.analysis_status == "pass" else "❌"
+        analysis_emoji = "✅" if static.analysis_status == str(AnalysisStatus.PASS) else "❌"
         print(f"  {analysis_emoji} Analysis: {static.analysis_status}")
         if static.analysis_errors > 0:
             print(f"     Errors: {static.analysis_errors}")
@@ -328,7 +317,9 @@ class SmartHealthMonitor:
         test_emoji = "✅" if dynamic.test_pass_rate >= 0.95 else "⚠️"
         print(f"  {test_emoji} Tests: {dynamic.test_pass_rate:.1%} pass rate")
         print(f"     Total: {dynamic.total_tests}")
-        print(f"     Unit: {dynamic.unit_tests}, Integration: {dynamic.integration_tests}, E2E: {dynamic.e2e_tests}")
+        print(
+            f"     Unit: {dynamic.unit_tests}, Integration: {dynamic.integration_tests}, E2E: {dynamic.e2e_tests}"
+        )
 
         if dynamic.coverage_percent > 0:
             cov_emoji = "✅" if dynamic.coverage_percent >= 80 else "⚠️"
@@ -354,7 +345,9 @@ class SmartHealthMonitor:
         if metrics.dynamic:
             self._print_dynamic_analysis(metrics.dynamic)
         else:
-            print(f"\n⏭️ Dynamic checks skipped (static score: {static.static_health_score:.0%} < {self.static_pass_threshold:.0%})")
+            print(
+                f"\n⏭️ Dynamic checks skipped (static score: {static.static_health_score:.0%} < {self.static_pass_threshold:.0%})"
+            )
 
         self._print_overall_health(metrics)
 
@@ -385,6 +378,7 @@ def main():
 
     if output_json:
         import json
+
         print(json.dumps(metrics.to_dict(), indent=2))
 
     sys.exit(0 if metrics.is_healthy else 1)

@@ -14,6 +14,8 @@ from typing import Tuple
 
 import yaml
 
+from ..domain.enums import Phase
+
 
 class ProjectStateManager:
     """
@@ -72,7 +74,7 @@ class ProjectStateManager:
 
     def _build_state_content(self, phase: str, config_hash: str, timestamp: str, data: dict) -> str:
         """Build state file content with metadata and validation markers."""
-        status = "CONFIGURED" if phase == "hooks" else "DISCOVERED"
+        status = "CONFIGURED" if phase == str(Phase.HOOKS) else "DISCOVERED"
         validation_markers = self._get_validation_markers(phase, timestamp)
         invalidation_triggers = self._get_invalidation_triggers(phase)
 
@@ -103,7 +105,7 @@ config_hash: {config_hash}
 
     def _get_validation_markers(self, phase: str, timestamp: str) -> str:
         """Get validation markers for phase."""
-        if phase == "hooks":
+        if phase == str(Phase.HOOKS):
             precommit_config = self.project_path / ".pre-commit-config.yaml"
             git_hook = self.project_path / ".git" / "hooks" / "pre-commit"
             return f"""- Hook file exists: {git_hook.exists()}
@@ -117,7 +119,7 @@ config_hash: {config_hash}
 
     def _get_invalidation_triggers(self, phase: str) -> str:
         """Get invalidation triggers for phase."""
-        if phase == "hooks":
+        if phase == str(Phase.HOOKS):
             return """- .pre-commit-config.yaml modified
 - .git/hooks/pre-commit deleted
 - State age > 30 days"""
@@ -208,9 +210,7 @@ config_hash: {config_hash}
             return None
 
         framework = "husky" if husky_dir.exists() else "pre-commit"
-        self.logger.debug(
-            f"Detected existing {framework} hooks in filesystem, skipping setup"
-        )
+        self.logger.debug(f"Detected existing {framework} hooks in filesystem, skipping setup")
         return (False, f"{framework} hooks already configured")
 
     def _build_success_message(self, phase: str, generated: str) -> Tuple[bool, str]:
@@ -310,7 +310,7 @@ config_hash: {config_hash}
 
     def _check_file_deletions(self, phase):
         """Check if required files have been deleted."""
-        if phase == "hooks":
+        if phase == str(Phase.HOOKS):
             return self._check_hooks_file_deletions()
         return self._check_tests_file_deletions()
 
@@ -335,7 +335,7 @@ config_hash: {config_hash}
 
     def _get_config_file(self, phase):
         """Get config file path for phase."""
-        if phase == "hooks":
+        if phase == str(Phase.HOOKS):
             return self.project_path / ".pre-commit-config.yaml"
         return self.project_path / "package.json"
 
@@ -351,7 +351,7 @@ config_hash: {config_hash}
         """
         hasher = hashlib.sha256()
 
-        if phase == "hooks":
+        if phase == str(Phase.HOOKS):
             # Hash .pre-commit-config.yaml
             config_file = self.project_path / ".pre-commit-config.yaml"
             if config_file.exists():
@@ -423,6 +423,6 @@ config_hash: {config_hash}
     def _get_external_cache_path(self, phase: str) -> Path:
         """Get external cache file path for phase."""
         project_name = self.project_path.name
-        if phase == "hooks":
+        if phase == str(Phase.HOOKS):
             return self.EXTERNAL_HOOK_CACHE_DIR / f"{project_name}-hooks.yaml"
         return self.EXTERNAL_TEST_CACHE_DIR / f"{project_name}-tests.yaml"

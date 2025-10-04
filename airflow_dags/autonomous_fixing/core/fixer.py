@@ -8,6 +8,7 @@ No analysis, no scoring, no iteration logic - just fixing.
 from typing import Dict
 
 from ..adapters.ai.claude_client import ClaudeClient
+from ..domain.enums import IssueType
 from ..domain.models import FixResult
 from .analysis_delegate import AnalysisDelegate
 from .commit_verifier import CommitVerifier
@@ -147,10 +148,10 @@ class IssueFixer:
         before_commit = self.commit_verifier.get_head_commit(issue["project"])
 
         # Build prompt using prompt manager
-        if issue["type"] == "error":
+        if issue["type"] == str(IssueType.ERROR):
             prompt = self.prompt_manager.build_error_prompt(issue)
             prompt_type = "fix_error"
-        elif issue["type"] == "complexity":
+        elif issue["type"] == str(IssueType.COMPLEXITY):
             prompt = self.prompt_manager.build_complexity_prompt(issue)
             prompt_type = "fix_complexity"
         else:

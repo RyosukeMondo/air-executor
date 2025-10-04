@@ -3,10 +3,13 @@
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
+from ..enums import Phase
+
 
 @dataclass
 class ToolValidationResult:
     """Result of tool validation check."""
+
     tool_name: str
     available: bool
     version: Optional[str] = None
@@ -23,6 +26,7 @@ class AnalysisResult:
     Replaces multiple inconsistent result structures.
     Single Source of Truth for analysis data.
     """
+
     language: str
     phase: str  # 'static', 'tests', 'coverage', 'e2e'
     project_path: str
@@ -59,20 +63,20 @@ class AnalysisResult:
         Returns:
             True if quality check passes, False otherwise
         """
-        if self.phase == 'static':
+        if self.phase == str(Phase.STATIC):
             # Static analysis: no errors, size violations, or complexity violations
             return (
-                len(self.errors) == 0 and
-                len(self.file_size_violations) == 0 and
-                len(self.complexity_violations) == 0
+                len(self.errors) == 0
+                and len(self.file_size_violations) == 0
+                and len(self.complexity_violations) == 0
             )
-        elif self.phase == 'tests':
+        elif self.phase == str(Phase.TESTS):
             # Tests: no test failures
             return len(self.test_failures) == 0 and self.tests_failed == 0
-        elif self.phase == 'coverage':
+        elif self.phase == str(Phase.COVERAGE):
             # Coverage: no significant gaps (can be customized)
             return len(self.coverage_gaps) == 0
-        elif self.phase == 'e2e':
+        elif self.phase == str(Phase.E2E):
             # E2E: no runtime errors
             return len(self.runtime_errors) == 0
         else:
@@ -82,24 +86,24 @@ class AnalysisResult:
     def to_dict(self) -> Dict:
         """Convert to dictionary for serialization."""
         return {
-            'language': self.language,
-            'phase': self.phase,
-            'project_path': self.project_path,
-            'errors': self.errors,
-            'complexity_violations': self.complexity_violations,
-            'file_size_violations': self.file_size_violations,
-            'test_failures': self.test_failures,
-            'tests_passed': self.tests_passed,
-            'tests_failed': self.tests_failed,
-            'coverage_gaps': self.coverage_gaps,
-            'coverage_percentage': self.coverage_percentage,
-            'runtime_errors': self.runtime_errors,
-            'execution_time': self.execution_time,
-            'success': self.success,
-            'error_message': self.error_message,
+            "language": self.language,
+            "phase": self.phase,
+            "project_path": self.project_path,
+            "errors": self.errors,
+            "complexity_violations": self.complexity_violations,
+            "file_size_violations": self.file_size_violations,
+            "test_failures": self.test_failures,
+            "tests_passed": self.tests_passed,
+            "tests_failed": self.tests_failed,
+            "coverage_gaps": self.coverage_gaps,
+            "coverage_percentage": self.coverage_percentage,
+            "runtime_errors": self.runtime_errors,
+            "execution_time": self.execution_time,
+            "success": self.success,
+            "error_message": self.error_message,
         }
 
     @staticmethod
-    def from_dict(data: Dict) -> 'AnalysisResult':
+    def from_dict(data: Dict) -> "AnalysisResult":
         """Create from dictionary."""
         return AnalysisResult(**data)
