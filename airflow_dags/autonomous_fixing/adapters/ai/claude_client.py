@@ -227,18 +227,18 @@ class ClaudeClient(IAIClient):
         self, prompt: str, project_path: str, prompt_type: str, result: dict, duration: float
     ):
         """Log result to both history and debug logger (SRP)"""
+        from .wrapper_history import CallContext
+
         self.history_logger.log_call(
-            prompt=prompt,
-            project_path=project_path,
-            prompt_type=prompt_type,
-            result=result,
-            duration=duration,
+            CallContext(prompt=prompt, project_path=project_path, prompt_type=prompt_type),
+            result,
+            duration,
         )
 
         if self.debug_logger:
             self.debug_logger.log_wrapper_call(
-                prompt_type=prompt_type,
-                project=project_path,
+                prompt_type,
+                project_path,
                 duration=duration,
                 success=result["success"],
                 error=result.get("error"),

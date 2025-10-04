@@ -37,6 +37,21 @@ class _CircuitBreakerState:
     last_git_diff_hash: Optional[str] = None
 
 
+@dataclass
+class SimpleOrchestratorConfig:
+    """Configuration for SimpleOrchestrator execution parameters."""
+
+    prompt: str
+    completion_check_file: str
+    completion_regex: str = r"- \[x\] everything done"
+    max_iterations: int = 30
+    project_path: str = "."
+    wrapper_path: str = "scripts/claude_wrapper.py"
+    python_exec: str = ".venv/bin/python3"
+    circuit_breaker_threshold: int = 3
+    require_git_changes: bool = True
+
+
 class SimpleOrchestrator:
     """
     Simple orchestrator for iterative autonomous AI execution.
@@ -47,42 +62,27 @@ class SimpleOrchestrator:
     - Loop until done or max iterations
     """
 
-    def __init__(
-        self,
-        prompt: str,
-        completion_check_file: str,
-        completion_regex: str = r"- \[x\] everything done",
-        max_iterations: int = 30,
-        project_path: str = ".",
-        wrapper_path: str = "scripts/claude_wrapper.py",
-        python_exec: str = ".venv/bin/python3",
-        circuit_breaker_threshold: int = 3,
-        require_git_changes: bool = True,
-    ):
+    def __init__(self, config: SimpleOrchestratorConfig | dict):
         """
         Initialize simple orchestrator.
 
         Args:
-            prompt: Prompt to send to Claude on each iteration
-            completion_check_file: Path to file to check for completion (e.g., markdown file)
-            completion_regex: Regex pattern to match completion condition
-            max_iterations: Maximum number of iterations
-            project_path: Working directory for Claude
-            wrapper_path: Path to claude_wrapper.py
-            python_exec: Python executable to use
-            circuit_breaker_threshold: Stop after N iterations without progress (default: 3)
-            require_git_changes: Require git changes to consider progress (default: True)
+            config: Configuration object (SimpleOrchestratorConfig) or dict for backward compatibility
         """
-        self.prompt = prompt
-        self.completion_check_file = Path(completion_check_file)
-        self.completion_regex = completion_regex
-        self.max_iterations = max_iterations
-        self.project_path = Path(project_path)
+        # Support both config object and dict for backward compatibility
+        if isinstance(config, dict):
+            config = SimpleOrchestratorConfig(**config)
+
+        self.prompt = config.prompt
+        self.completion_check_file = Path(config.completion_check_file)
+        self.completion_regex = config.completion_regex
+        self.max_iterations = config.max_iterations
+        self.project_path = Path(config.project_path)
 
         # Initialize Claude client
         self._claude = ClaudeClient(
-            wrapper_path=wrapper_path,
-            python_exec=python_exec,
+            wrapper_path=config.wrapper_path,
+            python_exec=config.python_exec,
             debug_logger=None,
             config={},
         )
@@ -92,8 +92,8 @@ class SimpleOrchestrator:
 
         # Circuit breaker state tracking
         self._breaker = _CircuitBreakerState(
-            threshold=circuit_breaker_threshold,
-            require_git_changes=require_git_changes,
+            threshold=config.circuit_breaker_threshold,
+            require_git_changes=config.require_git_changes,
         )
 
     @property

@@ -10,11 +10,23 @@ Manages upgrading pre-commit hooks as quality gates pass:
 Philosophy: Only enforce what has been proven to pass.
 """
 
+from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
 
 from ..config.hook_level_config import HookLevelConfig
+
+
+@dataclass
+class PhaseGateResult:
+    """Result of a phase gate evaluation."""
+
+    language: str
+    phase: str
+    gate_passed: bool
+    score: float
+    adapter: any  # Language adapter instance
 
 
 class HookLevelManager:
@@ -292,46 +304,42 @@ class HookLevelManager:
         print("   Quality cannot regress below this level.")
         print(f"   Future commits must pass Level {target_level} checks.")
 
-    def upgrade_after_gate_passed(
-        self, project_path: str, language: str, phase: str, gate_passed: bool, score: float, adapter
-    ) -> bool:
+    def upgrade_after_gate_passed(self, project_path: str, gate_result: PhaseGateResult) -> bool:
         """
         Attempt to upgrade hooks after phase gate passes.
 
         Args:
             project_path: Project directory
-            language: Project language
-            phase: Phase name ('p1', 'p2', 'p3')
-            gate_passed: Whether gate passed
-            score: Phase score (0.0-1.0)
-            adapter: Language adapter for verification
+            gate_result: Phase gate evaluation result
 
         Returns: True if upgrade successful
         """
         # Early returns for invalid states
-        if not gate_passed:
+        if not gate_result.gate_passed:
             return False
 
-        target_level = self._get_target_level_for_phase(phase)
+        target_level = self._get_target_level_for_phase(gate_result.phase)
         if not target_level:
             return False
 
-        current_level = self.get_current_level(project_path, language)
+        current_level = self.get_current_level(project_path, gate_result.language)
         if target_level <= current_level:
             return False
 
         # Perform upgrade sequence
-        self._print_upgrade_header(phase, score, current_level, target_level)
+        self._print_upgrade_header(
+            gate_result.phase, gate_result.score, current_level, target_level
+        )
 
         can_upgrade, reason = self.can_upgrade_to_level(
-            project_path, language, target_level, adapter
+            project_path, gate_result.language, target_level, gate_result.adapter
         )
 
         if not can_upgrade:
             self._print_upgrade_failure(target_level, current_level, reason)
             return False
 
-        success = self.upgrade_to_level(project_path, language, target_level)
+        success = self.upgrade_to_level(project_path, gate_result.language, target_level)
         if success:
             self._print_upgrade_success(target_level)
 

@@ -80,17 +80,19 @@ def run_simple_iteration(**context):
     print("=" * 80)
     print()
 
-    # Create orchestrator
+    # Create orchestrator with dict config (backward compatible)
     orchestrator = SimpleOrchestrator(
-        prompt=prompt,
-        completion_check_file=str(Path(project_path) / completion_file),
-        completion_regex=completion_regex,
-        max_iterations=max_iterations,
-        project_path=project_path,
-        wrapper_path=wrapper_path,
-        python_exec=python_exec,
-        circuit_breaker_threshold=circuit_breaker_threshold,
-        require_git_changes=require_git_changes,
+        {
+            "prompt": prompt,
+            "completion_check_file": str(Path(project_path) / completion_file),
+            "completion_regex": completion_regex,
+            "max_iterations": max_iterations,
+            "project_path": project_path,
+            "wrapper_path": wrapper_path,
+            "python_exec": python_exec,
+            "circuit_breaker_threshold": circuit_breaker_threshold,
+            "require_git_changes": require_git_changes,
+        }
     )
 
     # Run orchestrator

@@ -131,12 +131,13 @@ class DebugLogger:
         self,
         prompt_type: str,
         project: str,
+        *,
         duration: float,
         success: bool,
         error: str | None = None,
         response: dict | None = None,
     ):
-        """Log a claude_wrapper call."""
+        """Log a claude_wrapper call (duration/success/error/response are keyword-only)."""
         if not self.enabled:
             return
 

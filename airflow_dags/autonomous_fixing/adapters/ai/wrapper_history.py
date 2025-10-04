@@ -13,8 +13,26 @@ Enables investigation via: ./scripts/claude_wrapper_history.sh
 """
 
 import json
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+
+
+@dataclass
+class GitContext:
+    """Git commit context for wrapper calls."""
+
+    before: str | None = None
+    after: str | None = None
+
+
+@dataclass
+class CallContext:
+    """Context for a wrapper call."""
+
+    prompt: str
+    project_path: str
+    prompt_type: str
 
 
 class WrapperHistoryLogger:
@@ -39,51 +57,45 @@ class WrapperHistoryLogger:
 
     def log_call(
         self,
-        prompt: str,
-        project_path: str,
-        prompt_type: str,
+        context: CallContext,
         result: dict,
         duration: float,
-        git_before: str | None = None,
-        git_after: str | None = None,
+        git_context: GitContext | None = None,
     ) -> None:
         """
         Log a wrapper call.
 
         Args:
-            prompt: Full prompt text sent to wrapper
-            project_path: Working directory for prompt
-            prompt_type: Type of prompt (fix_error, fix_test, analysis, etc.)
+            context: Call context (prompt, project_path, prompt_type)
             result: Result dict from ClaudeClient.query()
             duration: Execution time in seconds
-            git_before: Git HEAD commit before call (optional)
-            git_after: Git HEAD commit after call (optional)
+            git_context: Git context (before/after commits), optional
         """
+        if git_context is None:
+            git_context = GitContext()
+
         events = result.get("events", [])
-        entry = self._create_log_entry(
-            prompt, project_path, prompt_type, result, duration, git_before, git_after, events
-        )
+        entry = self._create_log_entry(context, result, duration, git_context, events)
         self._write_log_entries(entry)
 
     def _create_log_entry(
         self,
-        prompt: str,
-        project_path: str,
-        prompt_type: str,
+        context: CallContext,
         result: dict,
         duration: float,
-        git_before: str | None,
-        git_after: str | None,
+        git_context: GitContext,
         events: list[dict],
     ) -> dict:
         """Create complete log entry from call parameters."""
         event_summary = self._extract_event_summary(events)
         claude_responses = self._extract_claude_responses(events)
 
-        entry = self._build_base_entry(prompt, project_path, prompt_type, duration)
+        entry = self._build_base_entry(
+            context.prompt, context.project_path, context.prompt_type, duration
+        )
         entry.update(self._build_result_fields(result))
         entry.update(self._build_event_fields(events, event_summary, claude_responses))
-        entry["git"] = self._build_git_fields(git_before, git_after)
+        entry["git"] = self._build_git_fields(git_context.before, git_context.after)
 
         return entry
 

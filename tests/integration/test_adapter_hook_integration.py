@@ -243,9 +243,7 @@ class TestIterationEngineAdapterAccess:
             "debug": {"enabled": False, "log_dir": "/tmp/debug"},
         }
 
-        return IterationEngine(
-            config=config, analyzer=mock_analyzer, fixer=mock_fixer, scorer=mock_scorer
-        )
+        return IterationEngine(config, analyzer=mock_analyzer, fixer=mock_fixer, scorer=mock_scorer)
 
     def test_iteration_engine_accesses_adapters_via_dict(self, iteration_engine):
         """IterationEngine should access adapters via self.analyzer.adapters dict."""

@@ -82,6 +82,8 @@ class ClaudeCodeWrapper:
         self.task_group: Optional[anyio.abc.TaskGroup] = None
         self.last_session_id: Optional[str] = None
         self.monitor = MonitoringTracker()  # Unified monitoring state
+        self.cwd = os.getcwd()  # Capture working directory
+        self.project_name = os.path.basename(self.cwd)  # Extract project name
         self.setup_signal_handlers()
 
     # ---------------------------------------------------------------------
@@ -253,6 +255,8 @@ class ClaudeCodeWrapper:
                 "timestamp": datetime.utcnow().isoformat(),
                 "options": options_dict,
                 "state": self.state,
+                "cwd": self.cwd,
+                "project": self.project_name,
             }
         )
 
@@ -528,6 +532,8 @@ class ClaudeCodeWrapper:
                 "event": "ready",
                 "timestamp": datetime.utcnow().isoformat(),
                 "state": self.state,
+                "cwd": self.cwd,
+                "project": self.project_name,
                 "version": 1,
                 "outcome": "running",
                 "reason": "boot",

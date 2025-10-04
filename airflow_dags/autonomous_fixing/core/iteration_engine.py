@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Optional
 
 from .analysis_verifier import AnalysisVerifier
 from .debug_logger import DebugLogger
-from .hook_level_manager import HookLevelManager
+from .hook_level_manager import HookLevelManager, PhaseGateResult
 from .setup_phase_runner import SetupPhaseRunner
 from .setup_tracker import SetupTracker
 from .time_gatekeeper import TimeGatekeeper
@@ -52,6 +52,7 @@ class IterationEngine:
     def __init__(
         self,
         config: "OrchestratorConfig | dict",
+        *,
         analyzer: Optional["ProjectAnalyzer"] = None,
         fixer: Optional["IssueFixer"] = None,
         scorer: Optional["HealthScorer"] = None,
@@ -239,11 +240,13 @@ class IterationEngine:
                 adapter = self.analyzer.adapters.get(lang_name)
                 self.hook_manager.upgrade_after_gate_passed(
                     project_path,
-                    lang_name,
-                    "p1",
-                    gate_passed=True,
-                    score=p1_score_data["score"],
-                    adapter=adapter,
+                    PhaseGateResult(
+                        language=lang_name,
+                        phase="p1",
+                        gate_passed=True,
+                        score=p1_score_data["score"],
+                        adapter=adapter,
+                    ),
                 )
 
     def _run_test_analysis_phase(self, projects_by_language: dict, p1_score_data: dict) -> tuple:
@@ -401,11 +404,13 @@ class IterationEngine:
                 adapter = self.analyzer.adapters.get(lang_name)
                 self.hook_manager.upgrade_after_gate_passed(
                     project_path,
-                    lang_name,
-                    "p2",
-                    gate_passed=True,
-                    score=p2_score_data["score"],
-                    adapter=adapter,
+                    PhaseGateResult(
+                        language=lang_name,
+                        phase="p2",
+                        gate_passed=True,
+                        score=p2_score_data["score"],
+                        adapter=adapter,
+                    ),
                 )
 
     def _run_setup_phases(self, projects_by_language: dict):

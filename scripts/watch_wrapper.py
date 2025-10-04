@@ -63,6 +63,11 @@ class WrapperMonitor:
         self.last_event_detail = None  # Store detailed view of last event
         self.raw_events: deque = deque(maxlen=max_events)  # Store raw events for navigation
 
+        # Project tracking
+        self.project_name = None
+        self.cwd = None
+        self.filter_cwd = None  # Set from first event
+
         # Event history (recent events)
         self.events: deque = deque(maxlen=max_events)
 
@@ -89,6 +94,17 @@ class WrapperMonitor:
         """Process a single JSON event from the wrapper."""
         event_type = event.get("event")
         timestamp = event.get("timestamp", datetime.now(timezone.utc).isoformat())
+
+        # Extract and set filter_cwd from first event with cwd
+        if self.filter_cwd is None and "cwd" in event:
+            self.filter_cwd = event["cwd"]
+            self.project_name = event.get("project", os.path.basename(self.filter_cwd))
+            self.cwd = self.filter_cwd
+
+        # Filter: Only process events matching our cwd
+        event_cwd = event.get("cwd")
+        if event_cwd and self.filter_cwd and event_cwd != self.filter_cwd:
+            return  # Skip events from different projects
 
         # Store raw event for navigation
         self.raw_events.append(event)
@@ -508,6 +524,10 @@ class WrapperMonitor:
         header_table = Table.grid(padding=1)
         header_table.add_column(style="bold cyan", justify="right", width=14)
         header_table.add_column(style="bold white")
+
+        # Project name at top
+        if self.project_name:
+            header_table.add_row("Project:", f"📁 {self.project_name}")
 
         state_text = Text(self.state.upper(), style=f"bold {self.get_state_color()}")
         header_table.add_row("State:", state_text)

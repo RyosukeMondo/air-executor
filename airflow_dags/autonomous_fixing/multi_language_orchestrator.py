@@ -85,7 +85,7 @@ class MultiLanguageOrchestrator:
         # Create iteration engine with dependency injection
         # Pass config first (new signature), then inject all dependencies
         self.iteration_engine = IterationEngine(
-            config=self.config,
+            self.config,
             analyzer=self.analyzer,
             fixer=self.fixer,
             scorer=self.scorer,
