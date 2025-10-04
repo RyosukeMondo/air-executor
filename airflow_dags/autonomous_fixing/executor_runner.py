@@ -140,7 +140,7 @@ class AirExecutorRunner:
                     event = json.loads(line)
                     if event.get('event') in ['shutdown', 'auto_shutdown', 'run_cancelled']:
                         break
-                except:
+                except (json.JSONDecodeError, AttributeError):
                     pass
 
                 # Timeout check

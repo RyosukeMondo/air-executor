@@ -465,7 +465,7 @@ class JavaScriptAdapter(LanguageAdapter):
                         version=result.stdout.strip(),
                         path=pm_cmd
                     )
-                except:
+                except Exception:
                     continue
 
         return ToolValidationResult(
