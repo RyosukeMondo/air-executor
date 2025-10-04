@@ -159,11 +159,10 @@ class SmartHealthMonitor:
         self._print_summary(result)
         return result
 
-    def _run_static_checks(self) -> StaticHealthMetrics:
-        """Run fast static checks (no execution)"""
+    def _run_flutter_analyze(self) -> tuple[int, int, str]:
+        """Run flutter analyze and return (errors, warnings, status)"""
         import subprocess
 
-        # 1. Flutter analyze (fast ~5s)
         analysis_errors = 0
         analysis_warnings = 0
         analysis_status = 'unknown'
@@ -187,6 +186,13 @@ class SmartHealthMonitor:
 
         except Exception as e:
             print(f"  ⚠️ Analysis failed: {e}")
+
+        return analysis_errors, analysis_warnings, analysis_status
+
+    def _run_static_checks(self) -> StaticHealthMetrics:
+        """Run fast static checks (no execution)"""
+        # 1. Flutter analyze (fast ~5s)
+        analysis_errors, analysis_warnings, analysis_status = self._run_flutter_analyze()
 
         # 2. Code quality (fast ~5s)
         code_analyzer = LightweightCodeMetrics(
@@ -296,15 +302,8 @@ class SmartHealthMonitor:
 
         return round(overall, 2)
 
-    def _print_summary(self, metrics: SmartHealthMetrics):
-        """Print smart health summary"""
-        print("\n" + "=" * 60)
-        print("📊 Smart Health Summary")
-        print("=" * 60)
-
-        static = metrics.static
-
-        # Static results
+    def _print_static_analysis(self, static: StaticHealthMetrics):
+        """Print static analysis results"""
         print(f"\n⚡ Static Analysis ({static.static_health_score:.0%}):")
 
         analysis_emoji = "✅" if static.analysis_status == "pass" else "❌"
@@ -322,28 +321,42 @@ class SmartHealthMonitor:
         if static.max_nesting_depth > 4:
             print(f"     ⚠️ Max nesting: {static.max_nesting_depth} levels")
 
-        # Dynamic results (if available)
-        if metrics.dynamic:
-            dynamic = metrics.dynamic
-            print(f"\n🧪 Dynamic Analysis ({dynamic.dynamic_health_score:.0%}):")
+    def _print_dynamic_analysis(self, dynamic: DynamicHealthMetrics):
+        """Print dynamic analysis results"""
+        print(f"\n🧪 Dynamic Analysis ({dynamic.dynamic_health_score:.0%}):")
 
-            test_emoji = "✅" if dynamic.test_pass_rate >= 0.95 else "⚠️"
-            print(f"  {test_emoji} Tests: {dynamic.test_pass_rate:.1%} pass rate")
-            print(f"     Total: {dynamic.total_tests}")
-            print(f"     Unit: {dynamic.unit_tests}, Integration: {dynamic.integration_tests}, E2E: {dynamic.e2e_tests}")
+        test_emoji = "✅" if dynamic.test_pass_rate >= 0.95 else "⚠️"
+        print(f"  {test_emoji} Tests: {dynamic.test_pass_rate:.1%} pass rate")
+        print(f"     Total: {dynamic.total_tests}")
+        print(f"     Unit: {dynamic.unit_tests}, Integration: {dynamic.integration_tests}, E2E: {dynamic.e2e_tests}")
 
-            if dynamic.coverage_percent > 0:
-                cov_emoji = "✅" if dynamic.coverage_percent >= 80 else "⚠️"
-                print(f"  {cov_emoji} Coverage: {dynamic.coverage_percent:.1f}%")
-        else:
-            print(f"\n⏭️ Dynamic checks skipped (static score: {static.static_health_score:.0%} < {self.static_pass_threshold:.0%})")
+        if dynamic.coverage_percent > 0:
+            cov_emoji = "✅" if dynamic.coverage_percent >= 80 else "⚠️"
+            print(f"  {cov_emoji} Coverage: {dynamic.coverage_percent:.1f}%")
 
-        # Overall
+    def _print_overall_health(self, metrics: SmartHealthMetrics):
+        """Print overall health status"""
         health_emoji = "✅" if metrics.is_healthy else "⚠️"
         print(f"\n{health_emoji} Overall Health: {metrics.overall_health_score:.0%}")
         print(f"   Mode: {metrics.check_mode}")
         print(f"   Status: {'Healthy' if metrics.is_healthy else 'Needs Attention'}")
         print("=" * 60 + "\n")
+
+    def _print_summary(self, metrics: SmartHealthMetrics):
+        """Print smart health summary"""
+        print("\n" + "=" * 60)
+        print("📊 Smart Health Summary")
+        print("=" * 60)
+
+        static = metrics.static
+        self._print_static_analysis(static)
+
+        if metrics.dynamic:
+            self._print_dynamic_analysis(metrics.dynamic)
+        else:
+            print(f"\n⏭️ Dynamic checks skipped (static score: {static.static_health_score:.0%} < {self.static_pass_threshold:.0%})")
+
+        self._print_overall_health(metrics)
 
 
 def main():
