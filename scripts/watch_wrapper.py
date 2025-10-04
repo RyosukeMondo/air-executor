@@ -271,77 +271,77 @@ class WrapperMonitor:
         self.state = new_state
         self.session_id = event.get("last_session_id")
 
-    def _format_event_detail(self, event: Dict[str, Any]) -> str:
-        """Format event details based on known patterns for human-readable display."""
-        event_type = event.get("event", "unknown")
+    def _format_stream_event(self, payload: Dict[str, Any]) -> str:
+        """Format stream event content."""
+        content = payload.get("content", [])
 
-        # Pattern 1: Stream event with payload.content[].text
-        if event_type == "stream":
-            payload = event.get("payload", {})
-            content = payload.get("content", [])
+        # Look for text in content
+        text_items = [
+            item.get("text", "") for item in content if isinstance(item, dict) and "text" in item
+        ]
+        if text_items:
+            combined_text = "\n\n".join(text_items)
+            return f"[bold cyan]Text Content:[/bold cyan]\n{combined_text}"
 
-            # Look for text in content
-            text_items = [
-                item.get("text", "")
-                for item in content
-                if isinstance(item, dict) and "text" in item
-            ]
-            if text_items:
-                combined_text = "\n\n".join(text_items)
-                return f"[bold cyan]Text Content:[/bold cyan]\n{combined_text}"
+        # Look for tool uses in content
+        tool_items = [item for item in content if isinstance(item, dict) and "name" in item]
+        if tool_items:
+            return self._format_tool_uses(tool_items)
 
-            # Look for tool uses in content
-            tool_items = [item for item in content if isinstance(item, dict) and "name" in item]
-            if tool_items:
-                lines = ["[bold cyan]Tool Uses:[/bold cyan]"]
-                for tool in tool_items:
-                    tool_name = tool.get("name", "unknown")
-                    tool_input = tool.get("input", {})
-                    lines.append(f"\n[yellow]{tool_name}[/yellow]:")
-                    for key, value in tool_input.items():
-                        value_str = str(value)
-                        if len(value_str) > 100:
-                            value_str = value_str[:100] + "..."
-                        lines.append(f"  {key}: {value_str}")
-                return "\n".join(lines)
+        return ""
 
-        # Pattern 2: Error events
-        if event_type in ("error", "run_failed"):
-            error_msg = event.get("error", event.get("message", "Unknown error"))
-            details = event.get("details", "")
-            result = f"[bold red]Error:[/bold red]\n{error_msg}"
-            if details:
-                result += f"\n\nDetails:\n{details}"
-            return result
+    def _format_tool_uses(self, tool_items: list) -> str:
+        """Format tool use items for display."""
+        lines = ["[bold cyan]Tool Uses:[/bold cyan]"]
+        for tool in tool_items:
+            tool_name = tool.get("name", "unknown")
+            tool_input = tool.get("input", {})
+            lines.append(f"\n[yellow]{tool_name}[/yellow]:")
+            for key, value in tool_input.items():
+                value_str = str(value)
+                if len(value_str) > 100:
+                    value_str = value_str[:100] + "..."
+                lines.append(f"  {key}: {value_str}")
+        return "\n".join(lines)
 
-        # Pattern 3: Run events
-        if event_type == "run_started":
-            run_id = event.get("run_id", "N/A")
-            prompt_preview = event.get("prompt", "")[:200]
-            return (
-                f"[bold green]Run Started[/bold green]\nID: {run_id}\n\nPrompt: {prompt_preview}..."
-            )
+    def _format_error_event(self, event: Dict[str, Any]) -> str:
+        """Format error event."""
+        error_msg = event.get("error", event.get("message", "Unknown error"))
+        details = event.get("details", "")
+        result = f"[bold red]Error:[/bold red]\n{error_msg}"
+        if details:
+            result += f"\n\nDetails:\n{details}"
+        return result
 
-        if event_type == "run_completed":
-            reason = event.get("reason", "ok")
-            output = event.get("output", "")
-            result = f"[bold green]Run Completed[/bold green]\nReason: {reason}"
-            if output:
-                output_preview = output[:300] + ("..." if len(output) > 300 else "")
-                result += f"\n\nOutput:\n{output_preview}"
-            return result
+    def _format_run_started(self, event: Dict[str, Any]) -> str:
+        """Format run_started event."""
+        run_id = event.get("run_id", "N/A")
+        prompt_preview = event.get("prompt", "")[:200]
+        return f"[bold green]Run Started[/bold green]\nID: {run_id}\n\nPrompt: {prompt_preview}..."
 
-        # Pattern 4: Phase/State events
-        if event_type == "phase_detected":
-            phase = event.get("phase", "Unknown")
-            return f"[bold blue]Phase:[/bold blue] {phase}"
+    def _format_run_completed(self, event: Dict[str, Any]) -> str:
+        """Format run_completed event."""
+        reason = event.get("reason", "ok")
+        output = event.get("output", "")
+        result = f"[bold green]Run Completed[/bold green]\nReason: {reason}"
+        if output:
+            output_preview = output[:300] + ("..." if len(output) > 300 else "")
+            result += f"\n\nOutput:\n{output_preview}"
+        return result
 
-        if event_type == "state":
-            state = event.get("state", "unknown")
-            session_id = event.get("last_session_id", "N/A")
-            return f"[bold blue]State:[/bold blue] {state}\nSession: {session_id}"
+    def _format_phase_event(self, event: Dict[str, Any]) -> str:
+        """Format phase_detected event."""
+        phase = event.get("phase", "Unknown")
+        return f"[bold blue]Phase:[/bold blue] {phase}"
 
-        # Default: Show key fields without JSON dump
+    def _format_state_event(self, event: Dict[str, Any]) -> str:
+        """Format state event."""
+        state = event.get("state", "unknown")
+        session_id = event.get("last_session_id", "N/A")
+        return f"[bold blue]State:[/bold blue] {state}\nSession: {session_id}"
+
+    def _format_default_event(self, event: Dict[str, Any], event_type: str) -> str:
+        """Format default/unknown event."""
         lines = [f"[bold cyan]{event_type}[/bold cyan]"]
         for key, value in event.items():
             if key in ("event", "timestamp"):
@@ -350,8 +350,37 @@ class WrapperMonitor:
             if len(value_str) > 150:
                 value_str = value_str[:150] + "..."
             lines.append(f"{key}: {value_str}")
-
         return "\n".join(lines)
+
+    def _format_event_detail(self, event: Dict[str, Any]) -> str:
+        """Format event details based on known patterns for human-readable display."""
+        event_type = event.get("event", "unknown")
+
+        # Stream events
+        if event_type == "stream":
+            payload = event.get("payload", {})
+            formatted = self._format_stream_event(payload)
+            if formatted:
+                return formatted
+
+        # Error events
+        if event_type in ("error", "run_failed"):
+            return self._format_error_event(event)
+
+        # Run events
+        if event_type == "run_started":
+            return self._format_run_started(event)
+        if event_type == "run_completed":
+            return self._format_run_completed(event)
+
+        # Phase/State events
+        if event_type == "phase_detected":
+            return self._format_phase_event(event)
+        if event_type == "state":
+            return self._format_state_event(event)
+
+        # Default
+        return self._format_default_event(event, event_type)
 
     def add_event(self, timestamp: str, icon: str, message: str) -> None:
         """Add event to recent events list."""
@@ -430,6 +459,92 @@ class WrapperMonitor:
         }
         return state_colors.get(self.state, "white")
 
+    def _build_header_panel(self) -> Panel:
+        """Build the header panel with current state."""
+        header_table = Table.grid(padding=1)
+        header_table.add_column(style="bold cyan", justify="right", width=14)
+        header_table.add_column(style="bold white")
+
+        state_text = Text(self.state.upper(), style=f"bold {self.get_state_color()}")
+        header_table.add_row("State:", state_text)
+        header_table.add_row("Phase:", self.phase)
+        header_table.add_row("Runtime:", self.get_runtime())
+
+        if self.session_id:
+            session_preview = self.session_id[:16] + "..."
+            header_table.add_row("Session:", session_preview)
+
+        if self.active_tools:
+            active = ", ".join([v["name"] for v in self.active_tools.values()])
+            header_table.add_row("Active Tools:", f"🔧 {active}")
+
+        return Panel(
+            header_table,
+            title="🤖 Claude Wrapper Monitor",
+            border_style=self.get_state_color(),
+            box=box.ROUNDED,
+        )
+
+    def _build_stats_panel(self) -> Panel:
+        """Build the statistics panel."""
+        stats_table = Table(show_header=False, box=box.SIMPLE, expand=True)
+        stats_table.add_column("Metric", style="cyan", justify="left")
+        stats_table.add_column("Value", style="white", justify="right")
+
+        stats_table.add_row("Runs", str(self.stats["runs_completed"]))
+        stats_table.add_row("Tool Uses", str(self.stats["tool_uses"]))
+        stats_table.add_row("Text Blocks", str(self.stats["text_blocks"]))
+        stats_table.add_row("Streams", str(self.stats["streams_received"]))
+        stats_table.add_row("Errors", str(self.stats["errors"]))
+
+        if self.tools_used:
+            stats_table.add_row("─" * 12, "─" * 8)
+            stats_table.add_row("[bold]Recent Tools", "")
+            for tool_name, _ in list(self.tools_used)[-5:]:
+                stats_table.add_row(f"  {tool_name}", "")
+
+        return Panel(
+            stats_table,
+            title="📊 Statistics",
+            border_style="green",
+            box=box.ROUNDED,
+        )
+
+    def _build_events_panel(self) -> Panel:
+        """Build the events panel with recent activity."""
+        events_table = Table(show_header=True, box=box.SIMPLE, expand=True)
+        events_table.add_column("", width=2)
+        events_table.add_column("Time", style="dim", width=10)
+        events_table.add_column("Event", overflow="fold")
+
+        if not self.events:
+            events_table.add_row("", "--:--:--", "Waiting for events...")
+        else:
+            events_list = list(reversed(self.events))
+            for idx, (time_str, icon, message) in enumerate(events_list):
+                is_selected = idx == self.cursor_position
+                indicator = "👉" if is_selected and not self.paused else ("⏸️" if is_selected else "")
+                style = "bold yellow" if is_selected else ""
+                events_table.add_row(indicator, time_str, f"{icon} {message}", style=style)
+
+        events_title = "📋 Recent Events" + (" [PAUSED]" if self.paused else "")
+        border_style = "yellow" if self.paused else "blue"
+
+        return Panel(events_table, title=events_title, border_style=border_style, box=box.ROUNDED)
+
+    def _build_detail_panel(self) -> Panel:
+        """Build the event detail panel."""
+        if self.last_event_detail:
+            detail_content = Text.from_markup(self.last_event_detail)
+        else:
+            detail_content = Text("Waiting for events...", style="dim")
+
+        detail_title = f"🔍 Event Detail [Row {self.cursor_position + 1}/{len(self.raw_events)}]"
+        if len(self.raw_events) > 0:
+            detail_title += " | ↑↓:Navigate SPACE:Pause Q:Quit"
+
+        return Panel(detail_content, title=detail_title, border_style="magenta", box=box.ROUNDED)
+
     def build_dashboard(self) -> Layout:
         """Build the live dashboard layout."""
         layout = Layout()
@@ -448,199 +563,120 @@ class WrapperMonitor:
             Layout(name="detail", ratio=2),
         )
 
-        # Header panel with current state
-        header_table = Table.grid(padding=1)
-        header_table.add_column(style="bold cyan", justify="right", width=14)
-        header_table.add_column(style="bold white")
-
-        state_text = Text(self.state.upper(), style=f"bold {self.get_state_color()}")
-        header_table.add_row("State:", state_text)
-        header_table.add_row("Phase:", self.phase)
-        header_table.add_row("Runtime:", self.get_runtime())
-
-        if self.session_id:
-            session_preview = self.session_id[:16] + "..."
-            header_table.add_row("Session:", session_preview)
-
-        if self.active_tools:
-            active = ", ".join([v["name"] for v in self.active_tools.values()])
-            header_table.add_row("Active Tools:", f"🔧 {active}")
-
-        layout["header"].update(
-            Panel(
-                header_table,
-                title="🤖 Claude Wrapper Monitor",
-                border_style=self.get_state_color(),
-                box=box.ROUNDED,
-            )
-        )
-
-        # Statistics panel (moved to top-right)
-        stats_table = Table(show_header=False, box=box.SIMPLE, expand=True)
-        stats_table.add_column("Metric", style="cyan", justify="left")
-        stats_table.add_column("Value", style="white", justify="right")
-
-        stats_table.add_row("Runs", str(self.stats["runs_completed"]))
-        stats_table.add_row("Tool Uses", str(self.stats["tool_uses"]))
-        stats_table.add_row("Text Blocks", str(self.stats["text_blocks"]))
-        stats_table.add_row("Streams", str(self.stats["streams_received"]))
-        stats_table.add_row("Errors", str(self.stats["errors"]))
-
-        # Recent tools
-        if self.tools_used:
-            stats_table.add_row("─" * 12, "─" * 8)
-            stats_table.add_row("[bold]Recent Tools", "")
-            for tool_name, _ in list(self.tools_used)[-5:]:
-                stats_table.add_row(f"  {tool_name}", "")
-
-        layout["stats"].update(
-            Panel(
-                stats_table,
-                title="📊 Statistics",
-                border_style="green",
-                box=box.ROUNDED,
-            )
-        )
-
-        # Events panel with recent activity (highlight selected event)
-        # Display in DESCENDING order (newest first)
-        events_table = Table(show_header=True, box=box.SIMPLE, expand=True)
-        events_table.add_column("", width=2)  # Selection indicator with icon
-        events_table.add_column("Time", style="dim", width=10)
-        events_table.add_column("Event", overflow="fold")
-
-        if not self.events:
-            events_table.add_row("", "--:--:--", "Waiting for events...")
-        else:
-            # Reverse to show newest first (descending order)
-            events_list = list(reversed(self.events))
-
-            for idx, (time_str, icon, message) in enumerate(events_list):
-                # idx 0 = top (newest), cursor_position points to visual row from top
-                is_selected = idx == self.cursor_position
-
-                # Nice indicator icons
-                if is_selected:
-                    indicator = "👉" if not self.paused else "⏸️"
-                else:
-                    indicator = ""
-
-                style = "bold yellow" if is_selected else ""
-                events_table.add_row(indicator, time_str, f"{icon} {message}", style=style)
-
-        events_title = "📋 Recent Events"
-        if self.paused:
-            events_title += " [PAUSED]"
-
-        layout["events"].update(
-            Panel(
-                events_table,
-                title=events_title,
-                border_style="yellow" if self.paused else "blue",
-                box=box.ROUNDED,
-            )
-        )
-
-        # Event Detail panel with formatted view (moved to bottom-right)
-        if self.last_event_detail:
-            detail_content = Text.from_markup(self.last_event_detail)
-        else:
-            detail_content = Text("Waiting for events...", style="dim")
-
-        detail_title = f"🔍 Event Detail [Row {self.cursor_position + 1}/{len(self.raw_events)}]"
-        if len(self.raw_events) > 0:
-            detail_title += " | ↑↓:Navigate SPACE:Pause Q:Quit"
-
-        layout["detail"].update(
-            Panel(
-                detail_content,
-                title=detail_title,
-                border_style="magenta",
-                box=box.ROUNDED,
-            )
-        )
+        layout["header"].update(self._build_header_panel())
+        layout["stats"].update(self._build_stats_panel())
+        layout["events"].update(self._build_events_panel())
+        layout["detail"].update(self._build_detail_panel())
 
         return layout
 
-    def run(self) -> None:
-        """Run the live monitor, reading from stdin."""
-        # Note: Keyboard controls work when connected to /dev/tty
-        # This allows piped stdin (JSON events) + keyboard input simultaneously
-        try:
-            keyboard_fd = open("/dev/tty", "r")
-            has_keyboard = True
-        except (OSError, FileNotFoundError):
-            keyboard_fd = None
-            has_keyboard = False
-
+    def _setup_keyboard(self):
+        """Setup keyboard input from /dev/tty. Returns (fd, has_keyboard, old_settings)."""
         import termios
         import tty
 
-        old_settings = None
-        if has_keyboard:
+        try:
+            keyboard_fd = open("/dev/tty", "r")
+        except (OSError, FileNotFoundError):
+            return None, False, None
+
+        try:
+            old_settings = termios.tcgetattr(keyboard_fd)
+            tty.setcbreak(keyboard_fd.fileno())
+            return keyboard_fd, True, old_settings
+        except Exception:
+            keyboard_fd.close()
+            return None, False, None
+
+    def _restore_keyboard(self, keyboard_fd, old_settings):
+        """Restore keyboard terminal settings."""
+        import termios
+
+        if keyboard_fd and old_settings:
             try:
-                old_settings = termios.tcgetattr(keyboard_fd)
-                tty.setcbreak(keyboard_fd.fileno())
+                termios.tcsetattr(keyboard_fd, termios.TCSADRAIN, old_settings)
             except Exception:
-                has_keyboard = False
+                pass
+        if keyboard_fd:
+            keyboard_fd.close()
+
+    def _handle_keyboard_input(self, keyboard_fd, live):
+        """Handle keyboard input and return True if should quit."""
+        key = keyboard_fd.read(1)
+
+        if key == "q" or key == "Q":
+            return True
+
+        if key == " ":
+            self.toggle_pause()
+            live.update(self.build_dashboard())
+            return False
+
+        if key == "\x1b":  # Escape sequence for arrow keys
+            next1 = keyboard_fd.read(1)
+            next2 = keyboard_fd.read(1)
+            if next1 == "[":
+                if next2 == "A":  # Up arrow
+                    self.navigate_up()
+                    live.update(self.build_dashboard())
+                elif next2 == "B":  # Down arrow
+                    self.navigate_down()
+                    live.update(self.build_dashboard())
+
+        return False
+
+    def _process_stdin_line(self, line, live):
+        """Process a single line from stdin. Returns True if EOF."""
+        if not line:
+            return True
+
+        line = line.strip()
+        if not line:
+            return False
+
+        try:
+            event = json.loads(line)
+            self.process_event(event)
+            live.update(self.build_dashboard())
+        except json.JSONDecodeError:
+            pass
+        except Exception as e:
+            self.stats["errors"] += 1
+            self.add_event(
+                datetime.now(timezone.utc).isoformat(),
+                "⚠️",
+                f"Parse error: {str(e)[:40]}",
+            )
+            live.update(self.build_dashboard())
+
+        return False
+
+    def _run_event_loop(self, live, keyboard_fd, has_keyboard):
+        """Main event loop for processing stdin and keyboard."""
+        while True:
+            # Select on stdin and keyboard
+            if has_keyboard:
+                readable, _, _ = select.select([keyboard_fd, sys.stdin], [], [], 0.05)
+                if keyboard_fd in readable:
+                    if self._handle_keyboard_input(keyboard_fd, live):
+                        break
+            else:
+                readable, _, _ = select.select([sys.stdin], [], [], 0.05)
+
+            # Process stdin events
+            if sys.stdin in readable:
+                line = sys.stdin.readline()
+                if self._process_stdin_line(line, live):
+                    break
+
+    def run(self) -> None:
+        """Run the live monitor, reading from stdin."""
+        keyboard_fd, has_keyboard, old_settings = self._setup_keyboard()
 
         try:
             with Live(self.build_dashboard(), refresh_per_second=4, console=self.console) as live:
                 try:
-                    while True:
-                        # Check for keyboard input (non-blocking)
-                        if has_keyboard:
-                            readable, _, _ = select.select([keyboard_fd, sys.stdin], [], [], 0.05)
-
-                            if keyboard_fd in readable:
-                                key = keyboard_fd.read(1)
-
-                                # Handle keyboard commands
-                                if key == "q" or key == "Q":
-                                    break
-                                elif key == " ":
-                                    self.toggle_pause()
-                                    live.update(self.build_dashboard())
-                                elif key == "\x1b":  # Escape sequence for arrow keys
-                                    next1 = keyboard_fd.read(1)
-                                    next2 = keyboard_fd.read(1)
-                                    if next1 == "[":
-                                        if next2 == "A":  # Up arrow
-                                            self.navigate_up()
-                                            live.update(self.build_dashboard())
-                                        elif next2 == "B":  # Down arrow
-                                            self.navigate_down()
-                                            live.update(self.build_dashboard())
-                        else:
-                            # No keyboard, just wait for stdin
-                            readable, _, _ = select.select([sys.stdin], [], [], 0.05)
-
-                        # Read JSON events from stdin (piped)
-                        if sys.stdin in readable:
-                            line = sys.stdin.readline()
-                            if not line:
-                                break  # EOF
-
-                            line = line.strip()
-                            if not line:
-                                continue
-
-                            try:
-                                event = json.loads(line)
-                                self.process_event(event)
-                                live.update(self.build_dashboard())
-                            except json.JSONDecodeError:
-                                # Skip non-JSON lines
-                                continue
-                            except Exception as e:
-                                self.stats["errors"] += 1
-                                self.add_event(
-                                    datetime.now(timezone.utc).isoformat(),
-                                    "⚠️",
-                                    f"Parse error: {str(e)[:40]}",
-                                )
-                                live.update(self.build_dashboard())
-
+                    self._run_event_loop(live, keyboard_fd, has_keyboard)
                 except KeyboardInterrupt:
                     self.state = "interrupted"
                     self.add_event(
@@ -648,11 +684,7 @@ class WrapperMonitor:
                     )
                     live.update(self.build_dashboard())
         finally:
-            # Restore terminal settings
-            if has_keyboard and old_settings:
-                termios.tcsetattr(keyboard_fd, termios.TCSADRAIN, old_settings)
-            if keyboard_fd:
-                keyboard_fd.close()
+            self._restore_keyboard(keyboard_fd, old_settings)
 
         # Final summary
         self.console.print("\n[bold]Monitor Summary:[/bold]")
