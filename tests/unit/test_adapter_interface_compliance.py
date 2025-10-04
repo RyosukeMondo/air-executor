@@ -118,6 +118,44 @@ class TestAdapterInterfaceCompliance:
             except Exception as e:
                 pytest.fail(f"{adapter_class.__name__} failed to instantiate: {e}")
 
+    def test_adapters_not_abstract(self, adapters):
+        """Adapters must not be abstract - all abstract methods must be implemented."""
+        for adapter_class in adapters:
+            # Check if any abstract methods remain unimplemented
+            abstract_methods = {
+                name
+                for name in dir(adapter_class)
+                if getattr(getattr(adapter_class, name, None), "__isabstractmethod__", False)
+            }
+
+            assert (
+                not abstract_methods
+            ), f"{adapter_class.__name__} has unimplemented abstract methods: {abstract_methods}"
+
+    def test_imported_adapter_matches_file_adapter(self):
+        """Ensure __init__.py imports the correct PythonAdapter from python_adapter.py."""
+        # Import from __init__.py (the way orchestrator does it)
+        from airflow_dags.autonomous_fixing.adapters.languages import PythonAdapter as InitPythonAdapter
+
+        # Import directly from file
+        from airflow_dags.autonomous_fixing.adapters.languages.python_adapter import (
+            PythonAdapter as FilePythonAdapter,
+        )
+
+        # They should be the same class
+        assert (
+            InitPythonAdapter is FilePythonAdapter
+        ), "PythonAdapter from __init__.py doesn't match python_adapter.py - wrong import path!"
+
+        # Both should be instantiable
+        try:
+            adapter1 = InitPythonAdapter({})
+            adapter2 = FilePythonAdapter({})
+            assert isinstance(adapter1, ILanguageAdapter)
+            assert isinstance(adapter2, ILanguageAdapter)
+        except TypeError as e:
+            pytest.fail(f"PythonAdapter cannot be instantiated: {e}")
+
 
 class TestAnalysisResultCompliance:
     """Test that AnalysisResult has required attributes."""

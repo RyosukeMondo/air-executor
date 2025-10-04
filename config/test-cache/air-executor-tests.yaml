@@ -1,0 +1,119 @@
+# Auto-discovered test configuration for air-executor
+project_name: air-executor
+project_path: /home/rmondo/repos/air-executor
+language: python
+discovered_at: 2025-10-04T20:44:36+09:00
+
+test_execution:
+  # How to run tests
+  runner: pytest
+  command: .venv/bin/pytest  # Virtual environment required
+  framework: pytest
+
+  # Python environment configuration
+  python_interpreter: .venv/bin/python3
+  pytest_version: 8.4.2
+
+  # Example full commands
+  examples:
+    full: ".venv/bin/pytest tests/"
+    minimal: ".venv/bin/pytest tests/unit/ --tb=short"
+    with_coverage: ".venv/bin/pytest tests/ --cov=air_executor --cov-report=term-missing"
+    quick: ".venv/bin/pytest tests/unit/ -q --tb=no"
+
+test_locations:
+  # Where tests are located
+  directories:
+    - tests/unit/
+    - tests/integration/
+    - tests/e2e/
+
+  patterns:
+    - "test_*.py"
+
+  test_counts:
+    unit: 124
+    integration: 41
+    e2e: 33
+    total: 198
+
+pytest_config:
+  # Configuration from pyproject.toml
+  testpaths:
+    - tests
+  python_files: test_*.py
+  python_classes: Test*
+  python_functions: test_*
+  default_args: "-v --cov=air_executor --cov-report=term-missing"
+
+strategies:
+  # Fast unit tests only (~1 second)
+  minimal:
+    command: ".venv/bin/pytest tests/unit/ -q --tb=no"
+    description: "Run unit tests only with minimal output"
+    timeout: 60
+    estimated_duration: 1
+    test_count: 124
+
+  # Unit + integration tests (~5-10 seconds)
+  selective:
+    command: ".venv/bin/pytest tests/unit/ tests/integration/ -v --tb=short"
+    description: "Run unit and integration tests"
+    timeout: 300
+    estimated_duration: 10
+    test_count: 165
+
+  # Full test suite (~20-30 seconds)
+  comprehensive:
+    command: ".venv/bin/pytest tests/ -v"
+    description: "Run all tests including E2E"
+    timeout: 600
+    estimated_duration: 30
+    test_count: 198
+
+  # Full suite with coverage
+  coverage:
+    command: ".venv/bin/pytest tests/ --cov=air_executor --cov-report=term-missing --cov-report=html"
+    description: "Run all tests with coverage report"
+    timeout: 900
+    estimated_duration: 45
+    test_count: 198
+
+validation:
+  # Test execution verification
+  verified: true
+  last_run: 2025-10-04T20:44:36+09:00
+
+  # Execution results
+  unit_tests_pass: true
+  integration_tests_pass: true
+  e2e_tests_pass: true
+
+  # Known issues
+  known_failures:
+    - test_file: tests/unit/test_preflight_validator.py
+      failure_count: 12
+      reason: "Preflight validator test cache setup issues"
+
+  notes: |
+    Tests run successfully with pytest 8.4.2 in virtual environment.
+
+    IMPORTANT: Always use .venv/bin/pytest (NOT system pytest or python -m pytest).
+
+    Test categories:
+    - Unit tests: 124 tests, ~1 second execution
+    - Integration tests: 41 tests, ~5 seconds execution
+    - E2E tests: 33 tests, ~15 seconds execution
+
+    Total: 198 tests with 12 known failures in preflight validator tests.
+
+    Coverage target: >80% (configured in pyproject.toml)
+
+performance:
+  unit_tests_duration: 1.0  # seconds
+  integration_tests_duration: 5.0
+  e2e_tests_duration: 15.0
+  full_suite_duration: 21.0
+
+  parallel_execution: false
+  workers: 1

@@ -4,7 +4,7 @@ from .base import LanguageAdapter
 from .flutter_adapter import FlutterAdapter
 from .go_adapter import GoAdapter
 from .javascript_adapter import JavaScriptAdapter
-from .python import PythonAdapter  # NEW: Import from python package
+from .python_adapter import PythonAdapter  # Import from python_adapter.py
 
 __all__ = [
     'LanguageAdapter',
