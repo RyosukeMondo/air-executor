@@ -384,7 +384,10 @@ class HookLevelManager:
     def _format_enforcement_details(self, current_level: int, level_info: dict) -> str:
         """Format enforcement details section (SRP)."""
         if current_level == 0:
-            return "⏭️  No enforcement yet (learning mode)\n   Hooks will be enabled as quality gates pass\n"
+            return (
+                "⏭️  No enforcement yet (learning mode)\n"
+                "   Hooks will be enabled as quality gates pass\n"
+            )
 
         details = "Enforced Checks:\n"
         for check in level_info.get("checks", []):

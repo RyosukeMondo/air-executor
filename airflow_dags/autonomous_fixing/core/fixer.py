@@ -46,7 +46,8 @@ class IssueFixer:
         Args:
             config: OrchestratorConfig or dict with wrapper settings
             debug_logger: Optional DebugLogger instance
-            ai_client: Optional AI client implementing IAIClient. If None, creates default ClaudeClient.
+            ai_client: Optional AI client implementing IAIClient.
+                If None, creates default ClaudeClient.
         """
         # Support both OrchestratorConfig and dict
         if isinstance(config, dict):
@@ -153,7 +154,8 @@ class IssueFixer:
         fixes_applied = 0
         for test_info in failing_tests:
             print(
-                f"\n   Fixing {test_info['failed']} failing tests in {test_info['project'].split('/')[-1]}"
+                f"\n   Fixing {test_info['failed']} failing tests in "
+                f"{test_info['project'].split('/')[-1]}"
             )
 
             if self._fix_failing_tests(test_info):
@@ -328,7 +330,8 @@ class IssueFixer:
                 if not test_result.success:
                     print("      ⚠️  Warning: Created tests are failing!")
                     print(
-                        f"         Failed: {test_result.tests_failed}, Passed: {test_result.tests_passed}"
+                        f"         Failed: {test_result.tests_failed}, "
+                        f"Passed: {test_result.tests_passed}"
                     )
                     print("         Consider running fix_failing_tests phase")
                     # Still return True - tests exist, they just need fixing

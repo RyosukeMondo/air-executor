@@ -185,7 +185,10 @@ class IssueGrouper:
             priority=1,
             phase=tasks[0].phase if tasks else "build",
             file="project-wide",
-            message=f"Fix all issues comprehensively ({len(tasks)} issues, {len(unique_files)} files)",
+            message=(
+                f"Fix all issues comprehensively "
+                f"({len(tasks)} issues, {len(unique_files)} files)"
+            ),
             context="\n".join(context_parts),
             created_at=datetime.now().isoformat(),
             related_issues=related_issues,
@@ -243,7 +246,10 @@ class IssueGrouper:
                 priority=chunk[0].priority if chunk else 5,
                 phase=chunk[0].phase if chunk else "build",
                 file="project-wide",
-                message=f"Clean up ALL {batch_type} ({len(chunk)} issues, {len(unique_files)} files)",
+                message=(
+                    f"Clean up ALL {batch_type} "
+                    f"({len(chunk)} issues, {len(unique_files)} files)"
+                ),
                 context=context_summary,
                 created_at=datetime.now().isoformat(),
                 related_issues=related_issues,
@@ -300,7 +306,10 @@ class IssueGrouper:
                         priority=chunk[0].priority if chunk else 5,
                         phase=chunk[0].phase if chunk else "build",
                         file=directory,
-                        message=f"Fix {batch_type} in {dir_name}/ ({len(chunk)} issues, {len(unique_files)} files)",
+                        message=(
+                            f"Fix {batch_type} in {dir_name}/ "
+                            f"({len(chunk)} issues, {len(unique_files)} files)"
+                        ),
                         context=context_summary,
                         created_at=datetime.now().isoformat(),
                         related_issues=related_issues,

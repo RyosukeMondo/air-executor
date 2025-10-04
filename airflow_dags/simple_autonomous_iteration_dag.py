@@ -6,7 +6,10 @@ Executes a prompt repeatedly until completion condition is met.
 Access at: http://localhost:8080
 Trigger with parameters:
 {
-    "prompt": "resume @claudedocs/testability-improvements-plan.md perform implementation one step at a time. when everything done, check 'everything done' sits at the very last of the md file. - [ ] everything done",
+    "prompt": "resume @claudedocs/testability-improvements-plan.md perform "
+              "implementation one step at a time. when everything done, check "
+              "'everything done' sits at the very last of the md file. - [ ] "
+              "everything done",
     "completion_file": "claudedocs/testability-improvements-plan.md",
     "completion_regex": "- \\[x\\] everything done",
     "max_iterations": 30,
@@ -46,7 +49,12 @@ def run_simple_iteration(**context):
 
     prompt = dag_run_conf.get(
         "prompt",
-        "resume @claudedocs/testability-improvements-plan.md perform implementation one step at a time. when everything done, check 'everything done' sits at the very last of the md file. - [ ] everything done",
+        (
+            "resume @claudedocs/testability-improvements-plan.md perform "
+            "implementation one step at a time. when everything done, check "
+            "'everything done' sits at the very last of the md file. - [ ] "
+            "everything done"
+        ),
     )
     completion_file = dag_run_conf.get(
         "completion_file", "claudedocs/testability-improvements-plan.md"
@@ -141,7 +149,10 @@ with DAG(
 # 3. Click "Trigger DAG w/ config"
 # 4. Enter JSON:
 #    {
-#      "prompt": "resume @claudedocs/testability-improvements-plan.md perform implementation one step at a time. when everything done, check 'everything done' sits at the very last of the md file. - [ ] everything done",
+#      "prompt": "resume @claudedocs/testability-improvements-plan.md perform "
+#                "implementation one step at a time. when everything done, check "
+#                "'everything done' sits at the very last of the md file. - [ ] "
+#                "everything done",
 #      "completion_file": "claudedocs/testability-improvements-plan.md",
 #      "completion_regex": "- \\[x\\] everything done",
 #      "max_iterations": 30,

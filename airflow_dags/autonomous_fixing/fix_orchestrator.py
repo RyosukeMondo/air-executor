@@ -125,9 +125,8 @@ class FixOrchestrator:
 
             # Step 7: Execute batch
             if simulation:
-                print(
-                    f"\n🎭 SIMULATION: Would execute {len(tasks[:self.batch_sizes.get(f'{phase}_fixes', 5)])} tasks"
-                )
+                batch_size = self.batch_sizes.get(f"{phase}_fixes", 5)
+                print(f"\n🎭 SIMULATION: Would execute " f"{len(tasks[:batch_size])} tasks")
                 time.sleep(2)  # Simulate execution time
             else:
                 self._execute_batch(phase)

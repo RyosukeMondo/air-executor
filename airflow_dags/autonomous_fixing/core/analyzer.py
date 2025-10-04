@@ -69,7 +69,8 @@ class ProjectAnalyzer:
                 project_name = project_path.split("/")[-1]
 
                 print(
-                    f"[{project_num}/{total_projects}] Analyzing {lang_name.upper()}: {project_name}..."
+                    f"[{project_num}/{total_projects}] Analyzing "
+                    f"{lang_name.upper()}: {project_name}..."
                 )
 
                 try:
@@ -136,7 +137,8 @@ class ProjectAnalyzer:
                 project_name = project_path.split("/")[-1]
 
                 print(
-                    f"[{project_num}/{total_projects}] Running tests for {lang_name.upper()}: {project_name}..."
+                    f"[{project_num}/{total_projects}] Running tests for "
+                    f"{lang_name.upper()}: {project_name}..."
                 )
 
                 try:

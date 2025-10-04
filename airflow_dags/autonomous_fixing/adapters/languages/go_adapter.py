@@ -440,7 +440,10 @@ class GoAdapter(LanguageAdapter):
                 self._validate_tool(
                     "staticcheck",
                     version_flag="--version",
-                    fix_suggestion="Install staticcheck: go install honnef.co/go/tools/cmd/staticcheck@latest",
+                    fix_suggestion=(
+                        "Install staticcheck: "
+                        "go install honnef.co/go/tools/cmd/staticcheck@latest"
+                    ),
                     optional=True,
                 )
             )

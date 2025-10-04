@@ -171,7 +171,10 @@ class IterationEngine:
     def _process_test_discovery_for_project(
         self, project_path: str, lang_name: str
     ) -> tuple[bool, float, float]:
-        """Process test discovery for a single project. Returns (skipped, time_saved, cost_saved)."""
+        """
+        Process test discovery for a single project.
+        Returns (skipped, time_saved, cost_saved).
+        """
         can_skip, reason = self.validator.can_skip_test_discovery(Path(project_path))
         if can_skip:
             print(f"   ⏭️  {Path(project_path).name}: {reason}")
@@ -257,7 +260,8 @@ class IterationEngine:
     def _handle_p1_gate_failure(self, p1_result, p1_score_data, iteration: int) -> dict:
         """Handle P1 gate failure - fix issues and check timing (SRP)"""
         print(
-            f"\n⚠️  P1 score ({p1_score_data['score']:.1%}) < threshold ({p1_score_data['threshold']:.0%})"
+            f"\n⚠️  P1 score ({p1_score_data['score']:.1%}) < "
+            f"threshold ({p1_score_data['threshold']:.0%})"
         )
 
         max_issues = self.config.get("execution", {}).get("max_issues_per_iteration", 10)
@@ -320,7 +324,8 @@ class IterationEngine:
 
         strategy = self.scorer.determine_test_strategy(p1_score_data["score"])
         print(
-            f"📊 Test strategy: {strategy.upper()} (based on P1 health: {p1_score_data['score']:.1%})"
+            f"📊 Test strategy: {strategy.upper()} "
+            f"(based on P1 health: {p1_score_data['score']:.1%})"
         )
 
         p2_result = self.analyzer.analyze_tests(projects_by_language, strategy)
@@ -395,7 +400,10 @@ class IterationEngine:
     def _fix_p2_issues(
         self, p2_result, p2_score_data, iteration: int, projects_by_language: dict, strategy: str
     ) -> tuple:
-        """Fix P2 issues - either create tests or fix failures. Returns (fix_result, abort_result)."""
+        """
+        Fix P2 issues - either create tests or fix failures.
+        Returns (fix_result, abort_result).
+        """
         if p2_score_data.get("needs_test_creation", False):
             return self._handle_test_creation(p2_result, iteration, projects_by_language, strategy)
 
@@ -444,7 +452,8 @@ class IterationEngine:
     ) -> dict:
         """Handle P2 gate failure - create or fix tests (SRP)"""
         print(
-            f"\n⚠️  P2 score ({p2_score_data['score']:.1%}) < threshold ({p2_score_data['threshold']:.0%})"
+            f"\n⚠️  P2 score ({p2_score_data['score']:.1%}) < "
+            f"threshold ({p2_score_data['threshold']:.0%})"
         )
 
         fix_result, abort_result = self._fix_p2_issues(
@@ -491,7 +500,8 @@ class IterationEngine:
             return None, None, True  # Continue to next iteration
 
         print(
-            f"\n✅ P1 gate PASSED ({p1_score_data['score']:.1%} >= {p1_score_data['threshold']:.0%})"
+            f"\n✅ P1 gate PASSED ({p1_score_data['score']:.1%} >= "
+            f"{p1_score_data['threshold']:.0%})"
         )
         self._upgrade_hooks_after_p1(projects_by_language, p1_score_data)
         return p1_score_data, None, False
@@ -513,7 +523,8 @@ class IterationEngine:
             return None, None, True  # Continue to next iteration
 
         print(
-            f"\n✅ P2 gate PASSED ({p2_score_data['score']:.1%} >= {p2_score_data['threshold']:.0%})"
+            f"\n✅ P2 gate PASSED ({p2_score_data['score']:.1%} >= "
+            f"{p2_score_data['threshold']:.0%})"
         )
         self._upgrade_hooks_after_p2(projects_by_language, p2_score_data)
         return p2_score_data, None, False

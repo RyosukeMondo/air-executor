@@ -137,7 +137,8 @@ class SmartHealthMonitor:
         if run_dynamic:
             if not force_dynamic:
                 print(
-                    f"\n✅ Static passed ({static.static_health_score:.0%}) → Running dynamic checks..."
+                    f"\n✅ Static passed ({static.static_health_score:.0%}) → "
+                    f"Running dynamic checks..."
                 )
             else:
                 print("\n🔨 Force dynamic mode...")
@@ -324,7 +325,8 @@ class SmartHealthMonitor:
         print(f"  {test_emoji} Tests: {dynamic.test_pass_rate:.1%} pass rate")
         print(f"     Total: {dynamic.total_tests}")
         print(
-            f"     Unit: {dynamic.unit_tests}, Integration: {dynamic.integration_tests}, E2E: {dynamic.e2e_tests}"
+            f"     Unit: {dynamic.unit_tests}, Integration: "
+            f"{dynamic.integration_tests}, E2E: {dynamic.e2e_tests}"
         )
 
         if dynamic.coverage_percent > 0:
@@ -352,7 +354,9 @@ class SmartHealthMonitor:
             self._print_dynamic_analysis(metrics.dynamic)
         else:
             print(
-                f"\n⏭️ Dynamic checks skipped (static score: {static.static_health_score:.0%} < {self.static_pass_threshold:.0%})"
+                f"\n⏭️ Dynamic checks skipped (static score: "
+                f"{static.static_health_score:.0%} < "
+                f"{self.static_pass_threshold:.0%})"
             )
 
         self._print_overall_health(metrics)

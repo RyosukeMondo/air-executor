@@ -67,7 +67,9 @@ class PreflightValidator:
             >>> # Custom configuration for tests
             >>> test_config = PreflightConfig.for_testing(tmp_path)
             >>> state_config = StateConfig.for_testing(tmp_path)
-            >>> validator = PreflightValidator(tracker, config=test_config, state_config=state_config)
+            >>> validator = PreflightValidator(
+            ...     tracker, config=test_config, state_config=state_config
+            ... )
 
             >>> # Inject mock state manager for testing
             >>> mock_factory = lambda path, cfg: MockStateManager()
@@ -102,7 +104,8 @@ class PreflightValidator:
         finally:
             elapsed = (time.time() - start_time) * 1000
             self.logger.debug(
-                f"PreflightValidator: {phase.title()} validation for {project_name} ({elapsed:.0f}ms)"
+                f"PreflightValidator: {phase.title()} validation for "
+                f"{project_name} ({elapsed:.0f}ms)"
             )
 
     def _check_setup_state(
@@ -147,7 +150,8 @@ class PreflightValidator:
         if not cache_path.exists():
             elapsed = (time.time() - start_time) * 1000
             self.logger.debug(
-                f"PreflightValidator: {phase.title()} cache missing for {project_name} ({elapsed:.0f}ms)"
+                f"PreflightValidator: {phase.title()} cache missing for "
+                f"{project_name} ({elapsed:.0f}ms)"
             )
             return (False, "cache file missing")
 
@@ -196,7 +200,8 @@ class PreflightValidator:
         if not is_valid:
             elapsed = (time.time() - start_time) * 1000
             self.logger.warning(
-                f"PreflightValidator: Hook cache invalid for {project_name}: {reason} ({elapsed:.0f}ms)"
+                f"PreflightValidator: Hook cache invalid for "
+                f"{project_name}: {reason} ({elapsed:.0f}ms)"
             )
             return (False, f"cache invalid: {reason}")
         return None
@@ -221,14 +226,16 @@ class PreflightValidator:
         if not precommit_config.exists():
             elapsed = (time.time() - start_time) * 1000
             self.logger.debug(
-                f"PreflightValidator: .pre-commit-config.yaml missing for {project_name} ({elapsed:.0f}ms)"
+                f"PreflightValidator: .pre-commit-config.yaml missing for "
+                f"{project_name} ({elapsed:.0f}ms)"
             )
             return (False, ".pre-commit-config.yaml not found")
 
         if not git_hook.exists():
             elapsed = (time.time() - start_time) * 1000
             self.logger.debug(
-                f"PreflightValidator: .git/hooks/pre-commit missing for {project_name} ({elapsed:.0f}ms)"
+                f"PreflightValidator: .git/hooks/pre-commit missing for "
+                f"{project_name} ({elapsed:.0f}ms)"
             )
             return (False, "git hook not installed")
 
@@ -252,7 +259,8 @@ class PreflightValidator:
         if not is_valid:
             elapsed = (time.time() - start_time) * 1000
             self.logger.warning(
-                f"PreflightValidator: Test cache invalid for {project_name}: {reason} ({elapsed:.0f}ms)"
+                f"PreflightValidator: Test cache invalid for "
+                f"{project_name}: {reason} ({elapsed:.0f}ms)"
             )
             return (False, f"cache invalid: {reason}")
         return None
@@ -274,7 +282,8 @@ class PreflightValidator:
         start_time = time.time()
         project_name = project_path.name
 
-        # Check 1: Use injected state manager factory for state validation (checks filesystem + cache)
+        # Check 1: Use injected state manager factory for state validation
+        # (checks filesystem + cache)
         state_manager = self.state_manager_factory(project_path, config=self.state_config)
         should_reconfig, reason = state_manager.should_reconfigure("hooks")
 
@@ -282,7 +291,8 @@ class PreflightValidator:
 
         if should_reconfig:
             self.logger.debug(
-                f"PreflightValidator: Hooks need reconfiguration for {project_name}: {reason} ({elapsed:.0f}ms)"
+                f"PreflightValidator: Hooks need reconfiguration for "
+                f"{project_name}: {reason} ({elapsed:.0f}ms)"
             )
             return (False, reason)
 
@@ -292,7 +302,8 @@ class PreflightValidator:
             pass
 
         self.logger.debug(
-            f"PreflightValidator: Hooks can be skipped for {project_name}: {reason} ({elapsed:.0f}ms)"
+            f"PreflightValidator: Hooks can be skipped for "
+            f"{project_name}: {reason} ({elapsed:.0f}ms)"
         )
         return (True, f"{reason} (saved 60s + $0.50)")
 
@@ -325,12 +336,14 @@ class PreflightValidator:
 
         if should_reconfig:
             self.logger.debug(
-                f"PreflightValidator: Tests need reconfiguration for {project_name}: {reason} ({elapsed:.0f}ms)"
+                f"PreflightValidator: Tests need reconfiguration for "
+                f"{project_name}: {reason} ({elapsed:.0f}ms)"
             )
             return (False, reason)
 
         self.logger.debug(
-            f"PreflightValidator: Tests can be skipped for {project_name}: {reason} ({elapsed:.0f}ms)"
+            f"PreflightValidator: Tests can be skipped for "
+            f"{project_name}: {reason} ({elapsed:.0f}ms)"
         )
         return (True, f"{reason} (saved 90s + $0.60)")
 

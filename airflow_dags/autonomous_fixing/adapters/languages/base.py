@@ -321,7 +321,10 @@ class LanguageAdapter(ILanguageAdapter, ABC):
                             "file": str(file_path),
                             "complexity": complexity,
                             "threshold": self.complexity_threshold,
-                            "message": f"Complexity {complexity} exceeds threshold {self.complexity_threshold}",
+                            "message": (
+                                f"Complexity {complexity} exceeds threshold "
+                                f"{self.complexity_threshold}"
+                            ),
                         }
                     )
             except (FileNotFoundError, PermissionError):

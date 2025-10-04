@@ -81,7 +81,8 @@ class FlutterAdapter(LanguageAdapter):
             result.execution_time = time.time() - start_time
 
             print(
-                f"[DEBUG] Analysis result: errors={len(result.errors)}, success={result.success}, time={result.execution_time:.1f}s"
+                f"[DEBUG] Analysis result: errors={len(result.errors)}, "
+                f"success={result.success}, time={result.execution_time:.1f}s"
             )
 
         except subprocess.TimeoutExpired:
