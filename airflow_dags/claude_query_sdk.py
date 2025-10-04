@@ -26,7 +26,7 @@ def _load_config_and_params(context) -> tuple:
         raise RuntimeError(
             f"Failed to load config: {e}\n"
             f"Create config/air-executor.toml from config/air-executor.example.toml"
-        )
+        ) from e
 
     dag_run_conf = context.get("dag_run").conf or {}
     prompt = dag_run_conf.get("prompt", "hello, how old are you?")
@@ -225,10 +225,10 @@ def run_claude_query_sdk(**context):
 
         return _build_success_result(full_response, events)
 
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as exc:
         process.kill()
-        raise RuntimeError(f"Claude query timed out after {config.claude_timeout} seconds")
+        raise RuntimeError(f"Claude query timed out after {config.claude_timeout} seconds") from exc
 
     except Exception as e:
         process.kill()
-        raise RuntimeError(f"Error running Claude query: {e}")
+        raise RuntimeError(f"Error running Claude query: {e}") from e
