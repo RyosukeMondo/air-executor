@@ -16,6 +16,13 @@ import sys
 sys.path.insert(0, "/home/rmondo/repos/air-executor/src")
 
 from air_executor.config import load_config
+from airflow_dags.autonomous_fixing.domain.exceptions import (
+    ConfigurationError,
+    WrapperExitError,
+    WrapperQueryError,
+    WrapperRuntimeError,
+    WrapperTimeoutError,
+)
 
 
 def _load_config_and_params(context) -> tuple:
@@ -23,7 +30,7 @@ def _load_config_and_params(context) -> tuple:
     try:
         config = load_config()
     except Exception as e:
-        raise RuntimeError(
+        raise ConfigurationError(
             f"Failed to load config: {e}\n"
             f"Create config/air-executor.toml from config/air-executor.example.toml"
         ) from e
@@ -98,7 +105,7 @@ def _handle_event(event: dict, process, prompt: str, config, conversation_text: 
     elif event_type == "run_failed":
         error = event.get("error", "Unknown error")
         print(f"❌ Run failed: {error}")
-        raise RuntimeError(f"Claude query failed: {error}")
+        raise WrapperQueryError(error)
     elif event_type == "shutdown":
         print("✅ Wrapper shutdown")
         return True
@@ -174,7 +181,7 @@ def _validate_process_exit(process, config):
 
     if return_code != 0:
         stderr = process.stderr.read()
-        raise RuntimeError(f"Wrapper exited with code {return_code}: {stderr}")
+        raise WrapperExitError(return_code, stderr)
 
 
 def _push_results_to_xcom(context, full_response: str, events: list):
@@ -227,8 +234,8 @@ def run_claude_query_sdk(**context):
 
     except subprocess.TimeoutExpired as exc:
         process.kill()
-        raise RuntimeError(f"Claude query timed out after {config.claude_timeout} seconds") from exc
+        raise WrapperTimeoutError(config.claude_timeout) from exc
 
     except Exception as e:
         process.kill()
-        raise RuntimeError(f"Error running Claude query: {e}") from e
+        raise WrapperRuntimeError(str(e)) from e

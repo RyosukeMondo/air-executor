@@ -341,7 +341,8 @@ class ClaudeClient(IAIClient):
             self._log_result(prompt, project_path, prompt_type, result, duration)
             return result
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - Catch-all for process errors
+            # Process execution errors (subprocess, IO, etc.) - return failed result
             duration = time.time() - start_time
             result = {"success": False, "error": str(e), "events": []}
             self._log_result(prompt, project_path, prompt_type, result, duration)

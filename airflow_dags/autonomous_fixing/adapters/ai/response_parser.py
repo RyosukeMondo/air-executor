@@ -81,7 +81,8 @@ class ResponseParser:
 
         except yaml.YAMLError as e:
             logger.warning(f"Invalid YAML in {self.config_path}: {e}, using defaults")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - Config loading should not break execution
+            # IO, permission, or other file access errors - use defaults
             logger.warning(f"Failed to load config from {self.config_path}: {e}, using defaults")
 
     def parse(self, response: dict, operation_type: str = "unknown") -> dict:

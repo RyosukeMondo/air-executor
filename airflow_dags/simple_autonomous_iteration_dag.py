@@ -28,6 +28,8 @@ from airflow import DAG
 from airflow.providers.standard.operators.python import PythonOperator
 from simple_autonomous_iteration.simple_orchestrator import SimpleOrchestrator
 
+from airflow_dags.autonomous_fixing.domain.exceptions import OrchestratorFailedError
+
 
 def run_simple_iteration(**context):
     """
@@ -113,7 +115,7 @@ def run_simple_iteration(**context):
     print("=" * 80)
 
     if not result["success"]:
-        raise RuntimeError(f"Orchestrator did not complete: {result['reason']}")
+        raise OrchestratorFailedError(result["reason"])
 
 
 # Default DAG arguments

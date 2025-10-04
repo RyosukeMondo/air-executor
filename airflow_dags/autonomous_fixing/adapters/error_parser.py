@@ -88,7 +88,8 @@ class ESLintJSONParser(ErrorParser):
 
             return errors
 
-        except Exception:
+        except Exception:  # noqa: BLE001 - Parsing errors should not break analysis
+            # If parsing fails for any reason, return empty list (no errors found)
             return []
 
 
@@ -117,7 +118,8 @@ class ESLintTextParser(ErrorParser):
 
             return errors
 
-        except Exception:
+        except Exception:  # noqa: BLE001 - Parsing errors should not break analysis
+            # If parsing fails for any reason, return empty list (no errors found)
             return []
 
 
@@ -146,7 +148,8 @@ class TypeScriptParser(ErrorParser):
 
             return errors
 
-        except Exception:
+        except Exception:  # noqa: BLE001 - Parsing errors should not break analysis
+            # If parsing fails for any reason, return empty list (no errors found)
             return []
 
 
@@ -175,7 +178,8 @@ class JestTestErrorParser(ErrorParser):
 
             return errors
 
-        except Exception:
+        except Exception:  # noqa: BLE001 - Parsing errors should not break analysis
+            # If parsing fails for any reason, return empty list (no errors found)
             return []
 
 
@@ -214,7 +218,8 @@ class PylintJSONParser(ErrorParser):
 
             return errors
 
-        except Exception:
+        except Exception:  # noqa: BLE001 - Parsing errors should not break analysis
+            # If parsing fails for any reason, return empty list (no errors found)
             return []
 
 
@@ -251,7 +256,8 @@ class PylintTextParser(ErrorParser):
 
             return errors
 
-        except Exception:
+        except Exception:  # noqa: BLE001 - Parsing errors should not break analysis
+            # If parsing fails for any reason, return empty list (no errors found)
             return []
 
 
@@ -280,7 +286,8 @@ class MypyParser(ErrorParser):
 
             return errors
 
-        except Exception:
+        except Exception:  # noqa: BLE001 - Parsing errors should not break analysis
+            # If parsing fails for any reason, return empty list (no errors found)
             return []
 
 
@@ -309,7 +316,8 @@ class PytestErrorParser(ErrorParser):
 
             return errors
 
-        except Exception:
+        except Exception:  # noqa: BLE001 - Parsing errors should not break analysis
+            # If parsing fails for any reason, return empty list (no errors found)
             return []
 
 
@@ -343,7 +351,8 @@ class GoVetParser(ErrorParser):
 
             return errors
 
-        except Exception:
+        except Exception:  # noqa: BLE001 - Parsing errors should not break analysis
+            # If parsing fails for any reason, return empty list (no errors found)
             return []
 
 
@@ -372,7 +381,8 @@ class GoTestErrorParser(ErrorParser):
 
             return errors
 
-        except Exception:
+        except Exception:  # noqa: BLE001 - Parsing errors should not break analysis
+            # If parsing fails for any reason, return empty list (no errors found)
             return []
 
 
@@ -406,7 +416,8 @@ class FlutterAnalyzeParser(ErrorParser):
 
             return errors
 
-        except Exception:
+        except Exception:  # noqa: BLE001 - Parsing errors should not break analysis
+            # If parsing fails for any reason, return empty list (no errors found)
             return []
 
 

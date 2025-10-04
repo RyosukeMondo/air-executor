@@ -20,6 +20,7 @@ from airflow import DAG
 from airflow.providers.standard.operators.python import PythonOperator
 from airflow.providers.standard.sensors.python import PythonSensor
 
+from airflow_dags.autonomous_fixing.domain.exceptions import JobFailedError
 from scripts.example_python_usage import AirExecutorClient
 
 
@@ -144,7 +145,7 @@ def get_job_result(**context):
     print("=" * 60)
 
     if state["state"] == "failed":
-        raise Exception(f"Air-Executor job {job_name} failed!")
+        raise JobFailedError(job_name)
 
     return {
         "job_name": job_name,

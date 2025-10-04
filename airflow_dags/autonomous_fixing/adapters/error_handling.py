@@ -71,8 +71,8 @@ def handle_analysis_errors(phase_name: str, tool_name: str = None, install_comma
                 # Other runtime errors - let method handle or propagate
                 raise
 
-            except Exception as e:
-                # Unexpected errors - create failed result
+            except Exception as e:  # noqa: BLE001 - Catch-all for graceful degradation
+                # Unexpected errors - create failed result to prevent complete failure
                 from ...domain.models import AnalysisResult
 
                 result = AnalysisResult(

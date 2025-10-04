@@ -198,8 +198,8 @@ class WrapperHistoryLogger:
         try:
             with open(log_file, "a", encoding="utf-8") as f:
                 f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-        except Exception as e:
-            # Log errors but don't break execution
+        except Exception as e:  # noqa: BLE001 - History logging is non-critical
+            # IO or other errors - log but don't break execution
             print(f"⚠️  Failed to write wrapper history: {e}")
 
     def get_recent_calls(self, limit: int = 10) -> list[dict]:
@@ -226,7 +226,8 @@ class WrapperHistoryLogger:
                 for line in f:
                     if line.strip():
                         calls.append(json.loads(line))
-        except Exception:
+        except Exception:  # noqa: BLE001 - Reading history is non-critical
+            # File not found, JSON parsing errors, etc. - return empty list
             pass
         return calls
 

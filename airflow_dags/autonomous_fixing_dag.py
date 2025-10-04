@@ -26,6 +26,8 @@ sys.path.insert(0, "/home/rmondo/repos/air-executor/src")
 from airflow import DAG
 from airflow.providers.standard.operators.python import PythonOperator
 
+from airflow_dags.autonomous_fixing.domain.exceptions import OrchestratorExitError
+
 
 def run_autonomous_fixing(**context):
     """
@@ -111,7 +113,7 @@ def run_autonomous_fixing(**context):
             config_path.unlink(missing_ok=True)
 
         if process.returncode != 0:
-            raise RuntimeError(f"Orchestrator failed with exit code {process.returncode}")
+            raise OrchestratorExitError(process.returncode)
 
     except Exception:
         process.kill()

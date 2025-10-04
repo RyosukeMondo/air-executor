@@ -18,10 +18,15 @@ echo '{"event":"monitor_ready","timestamp":"'$(date -u +%Y-%m-%dT%H:%M:%S)'Z","m
 
 echo "🔍 Monitoring wrapper execution..."
 echo "   Log file: logs/wrapper-realtime.log"
+echo "   Filtering: $PROJECT_ROOT"
 echo ""
 echo "📋 Waiting for wrapper events..."
 echo "   (Run './scripts/autonomous_fix.sh config/...' in another terminal)"
 echo ""
 
-# Start monitoring (tail -F follows by name and handles file truncation)
-tail -F logs/wrapper-realtime.log | .venv/bin/python3 scripts/watch_wrapper.py
+# Export cwd for watch_wrapper to filter by current project
+export MONITOR_CWD="$PROJECT_ROOT"
+
+# Start monitoring (show last 100 lines for context, then follow new lines)
+# This ensures we catch ready/run_started events even if monitor starts late
+(tail -n 100 logs/wrapper-realtime.log; tail -F logs/wrapper-realtime.log) | .venv/bin/python3 scripts/watch_wrapper.py

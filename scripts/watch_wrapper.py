@@ -46,7 +46,7 @@ except ImportError:
 class WrapperMonitor:
     """Real-time monitor for Claude wrapper execution."""
 
-    def __init__(self, max_events: int = 20):
+    def __init__(self, max_events: int = 20, filter_cwd: str | None = None):
         self.console = Console()
         self.max_events = max_events
 
@@ -63,10 +63,10 @@ class WrapperMonitor:
         self.last_event_detail = None  # Store detailed view of last event
         self.raw_events: deque = deque(maxlen=max_events)  # Store raw events for navigation
 
-        # Project tracking
+        # Project tracking (filter by cwd where monitor is run)
         self.project_name = None
         self.cwd = None
-        self.filter_cwd = None  # Set from first event
+        self.filter_cwd = filter_cwd  # Set from command line or first event
 
         # Event history (recent events)
         self.events: deque = deque(maxlen=max_events)
@@ -95,9 +95,12 @@ class WrapperMonitor:
         event_type = event.get("event")
         timestamp = event.get("timestamp", datetime.now(timezone.utc).isoformat())
 
-        # Extract and set filter_cwd from first event with cwd
+        # Extract and set filter_cwd from first event with cwd (if not already set)
         if self.filter_cwd is None and "cwd" in event:
             self.filter_cwd = event["cwd"]
+
+        # Update project name when we see matching cwd event
+        if "cwd" in event and event["cwd"] == self.filter_cwd and not self.project_name:
             self.project_name = event.get("project", os.path.basename(self.filter_cwd))
             self.cwd = self.filter_cwd
 
@@ -788,6 +791,8 @@ class WrapperMonitor:
 
 def main():
     """Main entry point."""
+    import os
+
     # Check if being run directly from terminal (not piped)
     if sys.stdin.isatty():
         print("\n⚠️  ERROR: Don't run watch_wrapper.py directly!", file=sys.stderr)
@@ -800,7 +805,9 @@ def main():
         )
         sys.exit(1)
 
-    monitor = WrapperMonitor(max_events=20)
+    # Filter by current working directory (set by monitor.sh via env var or use current dir)
+    filter_cwd = os.environ.get("MONITOR_CWD", os.getcwd())
+    monitor = WrapperMonitor(max_events=20, filter_cwd=filter_cwd)
 
     try:
         monitor.run()
