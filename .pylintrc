@@ -1,0 +1,107 @@
+# Pylint Configuration for air-executor
+# Comprehensive metrics for code quality enforcement
+
+[MAIN]
+# Python version for compatibility checks
+py-version=3.11
+
+# Files/directories to ignore
+ignore=CVS,.git,__pycache__,.venv,venv,build,dist
+
+# Use multiple processes for faster checking
+jobs=0
+
+# Load plugins for additional checks
+load-plugins=pylint.extensions.check_elif,
+             pylint.extensions.bad_builtin,
+             pylint.extensions.docparams,
+             pylint.extensions.mccabe,
+             scripts.pylint_one_class_checker
+
+
+[MESSAGES CONTROL]
+# Disable specific checks (align with ruff)
+disable=
+    C0114,  # missing-module-docstring (optional for now)
+    C0115,  # missing-class-docstring (optional for now)
+    C0116,  # missing-function-docstring (optional for now)
+    W0212,  # protected-access (sometimes necessary)
+    R0801,  # duplicate-code (can be noisy)
+
+# Enable specific checks
+enable=
+    useless-suppression,  # Warn about unnecessary pylint disables
+    use-symbolic-message-instead
+
+[BASIC]
+# Naming conventions (snake_case for Python)
+argument-naming-style=snake_case
+attr-naming-style=snake_case
+class-naming-style=PascalCase
+const-naming-style=UPPER_CASE
+function-naming-style=snake_case
+method-naming-style=snake_case
+module-naming-style=snake_case
+variable-naming-style=snake_case
+
+# Bad variable names to reject
+bad-names=foo,bar,baz,toto,tutu,tata
+
+# Good variable names to always accept
+good-names=i,j,k,ex,_,id,pk
+
+[DESIGN]
+# Maximum complexity metrics
+max-args=5                      # Function arguments
+max-attributes=7                # Class attributes
+max-bool-expr=5                 # Boolean expressions in if
+max-branches=12                 # Branches in function
+max-locals=15                   # Local variables
+max-parents=7                   # Class inheritance depth
+max-positional-arguments=5      # Positional arguments
+max-public-methods=20           # Public methods in class
+max-returns=6                   # Return statements
+max-statements=50               # Statements in function
+min-public-methods=0            # Minimum public methods (disabled)
+
+# Nested blocks
+max-nested-blocks=5
+
+[FORMAT]
+# Line length (aligned with black/ruff)
+max-line-length=100
+
+# Maximum lines in a module
+max-module-lines=500
+
+[IMPORTS]
+# Deprecated - use import order checking
+allow-wildcard-with-all=no
+
+[SIMILARITIES]
+# Minimum lines for duplicate code detection
+min-similarity-lines=4
+
+# Ignore comments/docstrings in similarity
+ignore-comments=yes
+ignore-docstrings=yes
+ignore-imports=yes
+
+[REPORTS]
+# Output format
+output-format=colorized
+
+# Include message id in output
+msg-template={path}:{line}:{column}: {msg_id}: {msg} ({symbol})
+
+# Reports
+reports=no
+score=yes
+
+[MISCELLANEOUS]
+# Regular expressions for notes/fixme tags
+notes=FIXME,XXX,TODO
+
+[EXTENSIONS]
+# McCabe complexity (aligned with ruff)
+max-complexity=10

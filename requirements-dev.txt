@@ -10,3 +10,4 @@ black==24.1.1
 ruff==0.1.15
 mypy==1.8.0
 types-pyyaml==6.0.12.12
+pylint==3.3.8  # Comprehensive code analysis and metrics
