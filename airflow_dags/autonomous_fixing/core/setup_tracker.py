@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 from airflow_dags.autonomous_fixing.config.setup_tracker_config import SetupTrackerConfig
+from airflow_dags.autonomous_fixing.domain.interfaces.setup_tracker import ISetupTracker
 
 try:
     import redis
@@ -21,7 +22,7 @@ except ImportError:
     REDIS_AVAILABLE = False
 
 
-class SetupTracker:
+class SetupTracker(ISetupTracker):
     """
     Track setup phase completion persistently across sessions.
 
@@ -325,3 +326,39 @@ class SetupTracker:
             marker_path.chmod(0o600)  # Owner read/write only
         except (OSError, PermissionError) as e:
             self.logger.warning("SetupTracker: Failed to write marker %s: %s", marker_path, e)
+
+    def clear_setup_state(self, project: str, phase: str) -> None:
+        """
+        Clear setup completion state for a specific phase.
+
+        Removes both Redis entry (if Redis is available) and filesystem marker.
+        Useful for testing or when forcing reconfiguration.
+
+        Args:
+            project: Project path or identifier
+            phase: Setup phase name
+
+        Example:
+            >>> tracker.clear_setup_state("/path/to/project", "hooks")
+        """
+        # Clear Redis state if available
+        if self.redis_client:
+            key = self._get_redis_key(project, phase)
+            try:
+                self.redis_client.delete(key)
+                self.logger.debug("SetupTracker: Cleared Redis state for %s:%s", project, phase)
+            except Exception as e:
+                self.logger.warning(
+                    "SetupTracker: Failed to clear Redis state for %s:%s: %s", project, phase, e
+                )
+
+        # Clear filesystem marker
+        marker_path = self._get_marker_path(project, phase)
+        if marker_path.exists():
+            try:
+                marker_path.unlink()
+                self.logger.debug(
+                    "SetupTracker: Cleared filesystem marker for %s:%s", project, phase
+                )
+            except (OSError, PermissionError) as e:
+                self.logger.warning("SetupTracker: Failed to clear marker %s: %s", marker_path, e)

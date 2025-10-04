@@ -12,14 +12,18 @@
 
 - [x] **Phase 1**: Configuration Objects (5/5 complete) ✅
 - [x] **Phase 2**: Dependency Injection (6/6 complete) ✅
-- [x] **Phase 3**: Interface Extraction (1/4 complete - CORE COMPLETE)
+- [x] **Phase 3**: Interface Extraction (2/4 complete)
+  - [x] 3.1 IStateRepository ✅
+  - [x] 3.2 ISetupTracker ✅
+  - [ ] 3.3 IAIClient
+  - [ ] 3.4 Update All Components
 - [ ] **Phase 4**: In-Process CLI (0/3 complete) - FUTURE WORK
 - [ ] **Phase 5**: Test Builders (0/4 complete) - FUTURE WORK
 - [ ] **Phase 6**: E2E Test Refactoring (0/5 complete) - FUTURE WORK
 
-**Overall Progress**: 12/27 tasks complete (44%)
+**Overall Progress**: 13/27 tasks complete (48%)
 
-**Note**: Phases 1-2 are complete and provide the core testability improvements. Phase 3.1 (IStateRepository) provides the most critical interface extraction. Remaining interface extractions and other phases are lower priority and can be done incrementally.
+**Note**: Phases 1-2 are complete. Phase 3 has critical interfaces (IStateRepository, ISetupTracker) complete. Remaining interface extractions and other phases are lower priority and can be done incrementally.
 
 ---
 
@@ -571,12 +575,12 @@ class FilesystemStateRepository(IStateRepository):
 
 ---
 
-#### 3.2 Extract ISetupTracker Interface
-- [ ] Create interface for setup tracking
-- [ ] Implement for Redis and filesystem
-- [ ] Create in-memory implementation for tests
+#### 3.2 Extract ISetupTracker Interface ✅
+- [x] Create interface for setup tracking
+- [x] Implement for Redis and filesystem (SetupTracker already implements both)
+- [x] Create in-memory implementation for tests (MemorySetupTracker)
 
-**Acceptance Criteria**:
+**Acceptance Criteria**: ✅
 ```python
 class ISetupTracker(ABC):
     """Interface for tracking setup completion."""
@@ -606,9 +610,27 @@ class MemorySetupTracker(ISetupTracker):
         return (project_path, phase) in self.completions
 ```
 
-**Files to create**:
-- `airflow_dags/autonomous_fixing/domain/interfaces/setup_tracker.py`
-- `airflow_dags/autonomous_fixing/adapters/tracking/memory_setup_tracker.py`
+**Files created**: ✅
+- `airflow_dags/autonomous_fixing/domain/interfaces/setup_tracker.py` - ISetupTracker interface
+- `airflow_dags/autonomous_fixing/adapters/tracking/memory_setup_tracker.py` - In-memory implementation
+- `airflow_dags/autonomous_fixing/adapters/tracking/__init__.py` - Package exports
+
+**Files modified**: ✅
+- `airflow_dags/autonomous_fixing/core/setup_tracker.py` - Now implements ISetupTracker, added clear_setup_state() method
+- `airflow_dags/autonomous_fixing/domain/interfaces/__init__.py` - Added ISetupTracker export
+
+**Tests added**: ✅
+- `tests/unit/test_setup_tracker_interface.py` (18 tests)
+  - Interface compliance tests (2 tests)
+  - MemorySetupTracker tests (8 tests)
+  - SetupTracker interface compliance (3 tests)
+  - Interface consistency tests (5 tests)
+
+**Implementation notes**: ✅
+- SetupTracker now inherits from ISetupTracker
+- Added clear_setup_state() method that clears both Redis and filesystem markers
+- MemorySetupTracker provides fast in-memory implementation for testing
+- All 213 unit tests passing (195 existing + 18 new) ✅
 
 ---
 
@@ -1143,11 +1165,13 @@ The primary objective has been achieved: **air-executor is now fully testable wi
 - ✅ Phase 1: All configuration objects implemented (5/5)
 - ✅ Phase 2: All dependency injection patterns implemented (6/6)
 - ✅ Phase 3.1: State repository interface extracted with in-memory implementation
-- ✅ 240 tests passing
+- ✅ Phase 3.2: Setup tracker interface extracted with in-memory implementation
+- ✅ 213 unit tests passing (195 → 213, +18 new tests)
 - ✅ Zero breaking changes (full backward compatibility)
 
 **Remaining Work** (Lower Priority):
-- Phases 3.2-3.4: Additional interfaces (ISetupTracker, IAIClient)
+- Phase 3.3: IAIClient interface
+- Phase 3.4: Update all components to use interfaces
 - Phase 4: In-process CLI for faster E2E tests
 - Phase 5: Test builder utilities
 - Phase 6: E2E test refactoring
@@ -1155,7 +1179,8 @@ The primary objective has been achieved: **air-executor is now fully testable wi
 **Recommendation**: Core goals achieved. Remaining phases can be implemented incrementally as needed.
 
 **Recent Commits**:
-- 2025-10-05: Phase 2.4 (Redis factory injection) - Committed in feature/testability-phase3-state-repository
-- 2025-10-05: Phase 3.1 (IStateRepository interface) - Committed in feature/testability-phase3-state-repository
+- 2025-10-05: Phase 2.4 (Redis factory injection) - Committed (ebe0ccf, 4af4b29)
+- 2025-10-05: Phase 3.1 (IStateRepository interface) - Committed (ebe0ccf)
+- 2025-10-05: Phase 3.2 (ISetupTracker interface) - Ready to commit
 
 - [ ] everything done (ALL PHASES) - Core objectives complete, remaining phases optional
