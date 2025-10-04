@@ -87,7 +87,7 @@ class SubprocessRunner:
             # Use psutil for reliable process checking
             try:
                 process = psutil.Process(pid)
-                return process.is_running() and process.status() != psutil.STATUS_ZOMBIE
+                return bool(process.is_running() and process.status() != psutil.STATUS_ZOMBIE)
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 return False
         else:
@@ -153,7 +153,7 @@ class SubprocessRunner:
             try:
                 process = psutil.Process(pid)
                 exit_code = process.wait(timeout=timeout)
-                return exit_code
+                return int(exit_code) if exit_code is not None else None
             except psutil.TimeoutExpired:
                 return None
             except psutil.NoSuchProcess:
