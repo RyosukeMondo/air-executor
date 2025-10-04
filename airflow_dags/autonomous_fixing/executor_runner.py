@@ -52,22 +52,8 @@ class AirExecutorRunner:
         """Execute a single fix task"""
         print(f"\n🚀 Running task: {task.type} ({task.id})")
 
-        # Check if this is a batch task
-        is_batch = BatchTask and isinstance(task, BatchTask)
+        prompt = self._build_prompt(task, session_summary)
 
-        # Build prompt based on task type using PromptGenerator
-        if is_batch:
-            prompt = PromptGenerator.batch_fix_prompt(task, session_summary)
-        elif task.type == "fix_build_error":
-            prompt = PromptGenerator.build_fix_prompt(task, session_summary)
-        elif task.type == "fix_test_failure":
-            prompt = PromptGenerator.test_fix_prompt(task, session_summary)
-        elif task.type == "fix_lint_issue":
-            prompt = PromptGenerator.lint_fix_prompt(task, session_summary)
-        else:
-            prompt = PromptGenerator.generic_fix_prompt(task, session_summary)
-
-        # Execute via air-executor
         start_time = time.time()
         result = self._execute(prompt)
         duration = time.time() - start_time
@@ -84,90 +70,132 @@ class AirExecutorRunner:
         self._print_result(execution_result)
         return execution_result
 
+    def _build_prompt(self, task: Task, session_summary: Optional[Dict]) -> str:
+        """Build prompt based on task type"""
+        is_batch = BatchTask and isinstance(task, BatchTask)
+
+        if is_batch:
+            return PromptGenerator.batch_fix_prompt(task, session_summary)
+        if task.type == "fix_build_error":
+            return PromptGenerator.build_fix_prompt(task, session_summary)
+        if task.type == "fix_test_failure":
+            return PromptGenerator.test_fix_prompt(task, session_summary)
+        if task.type == "fix_lint_issue":
+            return PromptGenerator.lint_fix_prompt(task, session_summary)
+
+        return PromptGenerator.generic_fix_prompt(task, session_summary)
+
     def _execute(self, prompt: str) -> subprocess.CompletedProcess:
         """Execute claude_wrapper.py with prompt via stdin"""
-        import json
         import sys
 
-        # Use same python as current process (venv python)
         python_exe = sys.executable
         cmd = [python_exe, str(self.wrapper_path)]
+        payload = self._build_payload(prompt)
+        env = self._prepare_environment()
 
-        # Build JSON payload for wrapper
-        payload = {
+        try:
+            proc = self._start_process(cmd, env)
+            self._send_payload(proc, payload)
+            stdout_lines = self._read_stdout_stream(proc, cmd)
+            return self._finalize_process(proc, cmd, stdout_lines)
+        except subprocess.TimeoutExpired:
+            return self._handle_timeout(proc, cmd)
+
+    def _build_payload(self, prompt: str) -> dict:
+        """Build JSON payload for wrapper"""
+        return {
             "action": "prompt",
             "prompt": prompt,
             "options": {
                 "cwd": str(self.working_dir),
-                "permission_mode": "bypassPermissions",  # Auto-approve actions
-                "exit_on_complete": True,  # Exit wrapper after completing the task
+                "permission_mode": "bypassPermissions",
+                "exit_on_complete": True,
             },
         }
 
-        # Ensure /usr/local/bin is in PATH for claude CLI
+    def _prepare_environment(self) -> dict:
+        """Ensure /usr/local/bin is in PATH for claude CLI"""
         env = os.environ.copy()
         if "/usr/local/bin" not in env.get("PATH", ""):
             env["PATH"] = f"/usr/local/bin:{env.get('PATH', '')}"
+        return env
+
+    def _start_process(self, cmd: list, env: dict) -> subprocess.Popen:
+        """Start wrapper process"""
+        return subprocess.Popen(
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            cwd=self.wrapper_path.parent,
+            env=env,
+        )
+
+    def _send_payload(self, proc: subprocess.Popen, payload: dict):
+        """Send JSON payload to process stdin"""
+        import json
+
+        proc.stdin.write(json.dumps(payload) + "\n")
+        proc.stdin.flush()
+
+    def _read_stdout_stream(self, proc: subprocess.Popen, cmd: list) -> list:
+        """Read stdout events as they stream"""
+        stdout_lines = []
+        start_time = time.time()
+
+        for line in proc.stdout:
+            stdout_lines.append(line)
+
+            if self._is_completion_event(line):
+                break
+
+            if self._is_timeout_exceeded(start_time):
+                proc.kill()
+                raise subprocess.TimeoutExpired(cmd, self.timeout)
+
+        return stdout_lines
+
+    def _is_completion_event(self, line: str) -> bool:
+        """Check if line indicates completion/shutdown"""
+        import json
 
         try:
-            # Send prompt and keep stdin open by not closing it immediately
-            # Wrapper will exit when task completes due to exit_on_complete=True
-            proc = subprocess.Popen(
-                cmd,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                cwd=self.wrapper_path.parent,
-                env=env,  # Pass updated environment
-            )
+            event = json.loads(line)
+            return event.get("event") in ["shutdown", "auto_shutdown", "run_cancelled"]
+        except (json.JSONDecodeError, AttributeError):
+            return False
 
-            # Send prompt
-            proc.stdin.write(json.dumps(payload) + "\n")
-            proc.stdin.flush()
+    def _is_timeout_exceeded(self, start_time: float) -> bool:
+        """Check if execution timeout exceeded"""
+        return time.time() - start_time > self.timeout
 
-            # Read stdout events as they stream (prevents blocking)
-            stdout_lines = []
-            import time
+    def _finalize_process(
+        self, proc: subprocess.Popen, cmd: list, stdout_lines: list
+    ) -> subprocess.CompletedProcess:
+        """Close stdin, wait for process, collect outputs"""
+        proc.stdin.close()
+        proc.wait(timeout=5)
 
-            start_time = time.time()
+        stdout = "".join(stdout_lines)
+        stderr = proc.stderr.read()
 
-            for line in proc.stdout:
-                stdout_lines.append(line)
+        return subprocess.CompletedProcess(
+            args=cmd, returncode=proc.returncode, stdout=stdout, stderr=stderr
+        )
 
-                # Check for completion/shutdown events
-                try:
-                    event = json.loads(line)
-                    if event.get("event") in ["shutdown", "auto_shutdown", "run_cancelled"]:
-                        break
-                except (json.JSONDecodeError, AttributeError):
-                    pass
-
-                # Timeout check
-                if time.time() - start_time > self.timeout:
-                    proc.kill()
-                    raise subprocess.TimeoutExpired(cmd, self.timeout)
-
-            # Close stdin and wait for process to finish
-            proc.stdin.close()
-            proc.wait(timeout=5)
-
-            # Collect outputs
-            stdout = "".join(stdout_lines)
-            stderr = proc.stderr.read()
-
-            return subprocess.CompletedProcess(
-                args=cmd, returncode=proc.returncode, stdout=stdout, stderr=stderr
-            )
-
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            return subprocess.CompletedProcess(
-                args=cmd,
-                returncode=124,  # timeout exit code
-                stdout="",
-                stderr=f"Execution timeout after {self.timeout}s",
-            )
+    def _handle_timeout(
+        self, proc: subprocess.Popen, cmd: list
+    ) -> subprocess.CompletedProcess:
+        """Handle timeout exception"""
+        proc.kill()
+        return subprocess.CompletedProcess(
+            args=cmd,
+            returncode=124,
+            stdout="",
+            stderr=f"Execution timeout after {self.timeout}s",
+        )
 
     def _print_result(self, result: ExecutionResult):
         """Print execution result"""
