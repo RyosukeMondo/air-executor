@@ -2,6 +2,7 @@
 
 import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
@@ -282,7 +283,7 @@ class FileStore:
         try:
             with open(pid_path, "w") as f:
                 f.write(f"{pid}\n")
-                f.write(f"{datetime.utcnow().isoformat()}\n")
+                f.write(f"{datetime.now(timezone.utc).isoformat()}\n")
                 f.flush()
                 os.fsync(f.fileno())
         except OSError as e:
