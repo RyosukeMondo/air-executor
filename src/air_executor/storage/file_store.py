@@ -2,9 +2,8 @@
 
 import json
 import os
-import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from ..core.job import Job
 from ..core.task import Task
@@ -47,11 +46,12 @@ class FileStore:
 
         try:
             with open(path, "r") as f:
-                return json.load(f)
+                data: Dict[str, Any] = json.load(f)
+                return data
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON in {path}: {e}")
 
-    def write_json(self, path: Path, data: Dict[str, Any]) -> None:
+    def write_json(self, path: Path, data: Union[Dict[str, Any], List[Any]]) -> None:
         """
         Write JSON atomically (write to temp, then rename).
 
@@ -131,7 +131,9 @@ class FileStore:
 
         try:
             data = self.read_json(tasks_path)
-            return [Task(**task_data) for task_data in data]
+            if isinstance(data, list):
+                return [Task(**task_data) for task_data in data]
+            return []
         except Exception as e:
             raise ValueError(f"Failed to read tasks from {tasks_path}: {e}")
 
