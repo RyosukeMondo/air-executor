@@ -74,6 +74,54 @@ class HookLevelManager:
 
         return 0
 
+    def _validate_level_range(self, target_level: int, current_level: int) -> tuple[bool, str]:
+        """Validate target level is in valid range (SRP)"""
+        if target_level < 1 or target_level > 3:
+            return False, f"Invalid target level: {target_level}"
+        if target_level <= current_level:
+            return False, f"Already at level {current_level}"
+        return True, ""
+
+    def _verify_type_check_and_build(self, project_path: str, adapter) -> tuple[bool, str]:
+        """Verify type checking and build succeed (SRP for level 1)"""
+        print("      🔍 Verifying type checking...")
+        result = adapter.run_type_check(project_path)
+        if not result.success or result.errors:
+            return False, f"Type checking failed: {len(result.errors)} errors"
+
+        print("      🔨 Verifying build...")
+        build_result = adapter.run_build(project_path)
+        if not build_result.success:
+            return False, f"Build failed: {build_result.error_message}"
+
+        return True, ""
+
+    def _verify_tests(self, project_path: str, adapter) -> tuple[bool, str]:
+        """Verify tests exist and pass (SRP for level 2)"""
+        print("      🧪 Verifying tests...")
+        test_result = adapter.run_tests(project_path, strategy='minimal')
+        if not test_result.success:
+            return False, f"Tests failed: {test_result.tests_failed} failing"
+        if test_result.tests_passed == 0:
+            return False, "No tests found"
+        return True, ""
+
+    def _verify_coverage_and_linting(self, project_path: str, adapter) -> tuple[bool, str]:
+        """Verify coverage meets threshold and linting passes (SRP for level 3)"""
+        print("      📈 Verifying coverage...")
+        cov_result = adapter.analyze_coverage(project_path)
+        if not hasattr(cov_result, 'coverage_percentage') or not cov_result.coverage_percentage:
+            return False, "Coverage analysis unavailable"
+        if cov_result.coverage_percentage < 60.0:
+            return False, f"Coverage {cov_result.coverage_percentage:.1f}% < 60%"
+
+        print("      🔧 Verifying linting...")
+        lint_result = adapter.static_analysis(project_path)
+        if lint_result.errors and len(lint_result.errors) > 0:
+            return False, f"Linting failed: {len(lint_result.errors)} errors"
+
+        return True, ""
+
     def can_upgrade_to_level(self, project_path: str, language: str,
                             target_level: int, adapter) -> tuple[bool, str]:
         """
@@ -87,52 +135,25 @@ class HookLevelManager:
 
         Returns: (can_upgrade, reason)
         """
-        if target_level < 1 or target_level > 3:
-            return False, f"Invalid target level: {target_level}"
-
         current_level = self.get_current_level(project_path, language)
-        if target_level <= current_level:
-            return False, f"Already at level {current_level}"
-
-        # Verify requirements for target level
-        self.config['levels'][target_level]
+        valid, reason = self._validate_level_range(target_level, current_level)
+        if not valid:
+            return False, reason
 
         if target_level >= 1:
-            # Verify type checking passes
-            print("      🔍 Verifying type checking...")
-            result = adapter.run_type_check(project_path)
-            if not result.success or result.errors:
-                return False, f"Type checking failed: {len(result.errors)} errors"
-
-            # Verify build succeeds
-            print("      🔨 Verifying build...")
-            build_result = adapter.run_build(project_path)
-            if not build_result.success:
-                return False, f"Build failed: {build_result.error_message}"
+            valid, reason = self._verify_type_check_and_build(project_path, adapter)
+            if not valid:
+                return False, reason
 
         if target_level >= 2:
-            # Verify tests exist and pass
-            print("      🧪 Verifying tests...")
-            test_result = adapter.run_tests(project_path, strategy='minimal')
-            if not test_result.success:
-                return False, f"Tests failed: {test_result.tests_failed} failing"
-            if test_result.tests_passed == 0:
-                return False, "No tests found"
+            valid, reason = self._verify_tests(project_path, adapter)
+            if not valid:
+                return False, reason
 
         if target_level >= 3:
-            # Verify coverage meets threshold
-            print("      📈 Verifying coverage...")
-            cov_result = adapter.analyze_coverage(project_path)
-            if not hasattr(cov_result, 'coverage_percentage') or not cov_result.coverage_percentage:
-                return False, "Coverage analysis unavailable"
-            if cov_result.coverage_percentage < 60.0:
-                return False, f"Coverage {cov_result.coverage_percentage:.1f}% < 60%"
-
-            # Verify linting passes
-            print("      🔧 Verifying linting...")
-            lint_result = adapter.static_analysis(project_path)
-            if lint_result.errors and len(lint_result.errors) > 0:
-                return False, f"Linting failed: {len(lint_result.errors)} errors"
+            valid, reason = self._verify_coverage_and_linting(project_path, adapter)
+            if not valid:
+                return False, reason
 
         return True, "All verification checks passed"
 
