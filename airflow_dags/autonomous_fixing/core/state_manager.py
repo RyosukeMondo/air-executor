@@ -198,16 +198,27 @@ config_hash: {config_hash}
         """
         state_file = self.state_dir / f"{phase}_state.md"
 
-        # Check 0: For hooks, detect existing configuration in filesystem
-        existing_config_check = self._check_existing_hooks_config(phase, state_file)
-        if existing_config_check is not None:
-            return existing_config_check
+        # Run all validation checks in sequence
+        checks = [
+            # Check 0: For hooks, detect existing configuration in filesystem
+            lambda: self._check_existing_hooks_config(phase, state_file),
+            # Check 1: Does project state exist?
+            lambda: (self._check_external_cache(phase) if not state_file.exists() else None),
+            # Check 2-6: Validate state file and check for issues
+            lambda: self._run_state_validation_checks(phase, state_file),
+        ]
 
-        # Check 1: Does project state exist?
-        if not state_file.exists():
-            self.logger.debug("Project state missing for %s: %s", phase, state_file)
-            return self._check_external_cache(phase)
+        # Execute checks and return first non-None result
+        for check in checks:
+            result = check()
+            if result is not None:
+                return result
 
+        # This should never be reached due to _run_state_validation_checks always returning
+        return (False, "validation logic error")  # pragma: no cover
+
+    def _run_state_validation_checks(self, phase: str, state_file: Path) -> tuple[bool, str] | None:
+        """Run state file validation checks (staleness, config changes, deletions)."""
         # Check 2: Is state file valid?
         validation_result = self._validate_state_file(state_file)
         if validation_result is None:

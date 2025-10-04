@@ -43,6 +43,9 @@ class ClaudeClient(IAIClient):
         event_type = event.get("event")
         timestamp = event.get("timestamp", "")[-12:-4] if event.get("timestamp") else ""  # HH:MM:SS
 
+        # Build formatted message based on event type
+        formatted_msg = None
+
         # Add content type info for stream events
         if event_type == "stream":
             payload = event.get("payload", {})
@@ -50,39 +53,43 @@ class ClaudeClient(IAIClient):
 
             # System events (init, etc)
             if payload.get("subtype") == "init":
-                return f"[{timestamp}] {event_type} (init)"
-
+                formatted_msg = f"[{timestamp}] {event_type} (init)"
             # Tool use - extract tool names
-            if content and isinstance(content, list):
+            elif content and isinstance(content, list):
                 first_item = content[0]
 
                 # Tool use
                 if "name" in first_item and "input" in first_item:
                     tool_name = first_item.get("name", "unknown")
-                    return f"[{timestamp}] {event_type} (tool: {tool_name})"
-
+                    formatted_msg = f"[{timestamp}] {event_type} (tool: {tool_name})"
                 # Tool result
-                if "tool_use_id" in first_item and "content" in first_item:
+                elif "tool_use_id" in first_item and "content" in first_item:
                     result_preview = str(first_item.get("content", ""))[:30]
-                    return f"[{timestamp}] {event_type} (result: {result_preview}...)"
-
+                    formatted_msg = f"[{timestamp}] {event_type} (result: {result_preview}...)"
                 # Text content
-                if "text" in first_item:
+                elif "text" in first_item:
                     text_preview = first_item.get("text", "")[:40]
-                    return f"[{timestamp}] {event_type} (text: {text_preview}...)"
+                    formatted_msg = f"[{timestamp}] {event_type} (text: {text_preview}...)"
 
-            return f"[{timestamp}] {event_type} (unknown)"
+            # Default for unknown stream content
+            if formatted_msg is None:
+                formatted_msg = f"[{timestamp}] {event_type} (unknown)"
 
         # For completion events, include outcome if available
-        if event_type == "run_completed":
+        elif event_type == "run_completed":
             outcome = event.get("outcome", "")[:50]
-            return (
+            formatted_msg = (
                 f"[{timestamp}] {event_type} ({outcome})"
                 if outcome
                 else f"[{timestamp}] {event_type}"
             )
 
-        return f"[{timestamp}] {event_type}" if timestamp else event_type
+        # Default formatting for other event types
+        return (
+            formatted_msg
+            if formatted_msg
+            else (f"[{timestamp}] {event_type}" if timestamp else event_type)
+        )
 
     def _build_command(self, prompt: str, project_path: str, session_id: str | None) -> str:
         """Build JSON command for wrapper (SRP, SSOT)"""

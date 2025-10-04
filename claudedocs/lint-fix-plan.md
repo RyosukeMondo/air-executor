@@ -623,7 +623,38 @@ Success:
 - Logic unchanged
 ```
 
-**Status**: [ ]
+**Status**: [x] COMPLETED
+
+**Changes Made**:
+- Fixed `claude_client.py::_format_event()` (7→1 return):
+  - Consolidated 7 return statements into single return using `formatted_msg` variable
+  - Changed nested if statements to if/elif chain for better flow
+  - Maintained all formatting logic and readability
+
+- Fixed `state_manager.py::should_reconfigure()` (7→3 returns):
+  - Extracted validation logic into `_run_state_validation_checks()` helper method
+  - Consolidated 7 early returns into structured checks list with loop
+  - Reduced main function to 3 returns (one per check phase + fallback)
+  - Improved readability with clear check sequence
+
+- Fixed `preflight.py::_validate_hook_cache()` (7→1 return):
+  - Consolidated 7 return statements into single return using `result` variable
+  - Changed nested if/elif chain for validation checks
+  - Maintained exception handling and all validation logic
+
+- Fixed `preflight.py::_validate_test_cache()` (7→1 return):
+  - Consolidated 7 return statements into single return using `result` variable
+  - Used `next()` generator expression to find first empty field
+  - Maintained exception handling and all validation logic
+
+**Results**:
+- **PLR0914 (too many locals)**: Not triggered (preview mode check passes)
+- **PLR0911 (too many returns)**: 4 errors → 0 errors ✓ (100% resolved)
+- Ruff linter: All checks passed ✓
+- Code readability maintained
+- No logic changes, only structural improvements
+
+**Note**: PLR0914 rule for too many local variables requires preview mode and showed no violations when tested. The original plan document may have referenced older lint runs or different linter configurations.
 
 ---
 
@@ -1185,7 +1216,7 @@ Key workflows to verify:
 ### Phase 3: Code Complexity & Design 🟡
 - [x] Task 3.1: Reduce Instance Attributes (4/6 files fixed)
 - [x] Task 3.2: Reduce Function Arguments (6 errors → 2 errors, 67% reduction)
-- [ ] Task 3.3: Reduce Local Variables & Return Statements
+- [x] Task 3.3: Reduce Local Variables & Return Statements (4 errors → 0 errors)
 
 ### Phase 4: Exception Handling & Error Management 🟡
 - [ ] Task 4.1: Fix Exception Chain Missing

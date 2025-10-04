@@ -355,15 +355,17 @@ def main():
     args = parser.parse_args()
 
     orchestrator = SimpleOrchestrator(
-        prompt=args.prompt,
-        completion_check_file=args.completion_file,
-        completion_regex=args.completion_regex,
-        max_iterations=args.max_iterations,
-        project_path=args.project_path,
-        wrapper_path=args.wrapper_path,
-        python_exec=args.python_exec,
-        circuit_breaker_threshold=args.circuit_breaker_threshold,
-        require_git_changes=not args.no_git_check,
+        {
+            "prompt": args.prompt,
+            "completion_check_file": args.completion_file,
+            "completion_regex": args.completion_regex,
+            "max_iterations": args.max_iterations,
+            "project_path": args.project_path,
+            "wrapper_path": args.wrapper_path,
+            "python_exec": args.python_exec,
+            "circuit_breaker_threshold": args.circuit_breaker_threshold,
+            "require_git_changes": not args.no_git_check,
+        }
     )
 
     result = orchestrator.run()

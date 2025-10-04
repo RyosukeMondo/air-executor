@@ -366,26 +366,28 @@ class PreflightValidator:
             with open(cache_path, encoding="utf-8") as f:
                 data = yaml.safe_load(f)
 
+            # Validate data structure
             if not isinstance(data, dict):
-                return (False, "cache is not a YAML dict")
-
-            # Check required field: hook_framework.installed
-            hook_framework = data.get("hook_framework", {})
-            if not isinstance(hook_framework, dict):
-                return (False, "hook_framework is not a dict")
-
-            if not hook_framework.get("installed"):
-                return (False, "hook_framework.installed != true")
-
-            return (True, "cache valid and complete")
+                result = (False, "cache is not a YAML dict")
+            else:
+                # Check required field: hook_framework.installed
+                hook_framework = data.get("hook_framework", {})
+                if not isinstance(hook_framework, dict):
+                    result = (False, "hook_framework is not a dict")
+                elif not hook_framework.get("installed"):
+                    result = (False, "hook_framework.installed != true")
+                else:
+                    result = (True, "cache valid and complete")
 
         except yaml.YAMLError as e:
-            return (False, f"YAML parse error: {e}")
+            result = (False, f"YAML parse error: {e}")
         except (PermissionError, OSError) as e:
-            return (False, f"cache file unreadable: {e}")
+            result = (False, f"cache file unreadable: {e}")
         except Exception as e:
             self.logger.error("Unexpected error validating hook cache %s: %s", cache_path, e)
-            return (False, f"unexpected error: {e}")
+            result = (False, f"unexpected error: {e}")
+
+        return result
 
     def _validate_test_cache(self, cache_path: Path) -> tuple[bool, str]:
         """
@@ -406,27 +408,33 @@ class PreflightValidator:
             with open(cache_path, encoding="utf-8") as f:
                 data = yaml.safe_load(f)
 
+            # Validate data structure
             if not isinstance(data, dict):
-                return (False, "cache is not a YAML dict")
+                result = (False, "cache is not a YAML dict")
+            else:
+                # Check required fields
+                required_fields = ["test_framework", "test_command", "test_patterns"]
+                missing_fields = [field for field in required_fields if field not in data]
 
-            # Check required fields
-            required_fields = ["test_framework", "test_command", "test_patterns"]
-            missing_fields = [field for field in required_fields if field not in data]
-
-            if missing_fields:
-                return (False, f"missing fields: {', '.join(missing_fields)}")
-
-            # Validate non-empty values
-            for field in required_fields:
-                if not data[field]:
-                    return (False, f"{field} is empty")
-
-            return (True, "cache valid and complete")
+                if missing_fields:
+                    result = (False, f"missing fields: {', '.join(missing_fields)}")
+                else:
+                    # Validate non-empty values
+                    empty_field = next(
+                        (field for field in required_fields if not data[field]), None
+                    )
+                    result = (
+                        (False, f"{empty_field} is empty")
+                        if empty_field
+                        else (True, "cache valid and complete")
+                    )
 
         except yaml.YAMLError as e:
-            return (False, f"YAML parse error: {e}")
+            result = (False, f"YAML parse error: {e}")
         except (PermissionError, OSError) as e:
-            return (False, f"cache file unreadable: {e}")
+            result = (False, f"cache file unreadable: {e}")
         except Exception as e:
             self.logger.error("Unexpected error validating test cache %s: %s", cache_path, e)
-            return (False, f"unexpected error: {e}")
+            result = (False, f"unexpected error: {e}")
+
+        return result

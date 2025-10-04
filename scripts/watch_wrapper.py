@@ -333,7 +333,12 @@ class WrapperMonitor:
         """Format run_started event."""
         run_id = event.get("run_id", "N/A")
         prompt_preview = event.get("prompt", "")[:200]
-        return f"[bold green]Run Started[/bold green]\nID: {run_id}\n\nPrompt: {prompt_preview}..."
+        result = f"[bold green]Run Started[/bold green]\nID: {run_id}"
+        if "cwd" in event:
+            result += f"\n[dim]Working Directory:[/dim] {event['cwd']}"
+        if prompt_preview:
+            result += f"\n\nPrompt: {prompt_preview}..."
+        return result
 
     def _format_run_completed(self, event: Dict[str, Any]) -> str:
         """Format run_completed event."""
@@ -359,8 +364,15 @@ class WrapperMonitor:
     def _format_default_event(self, event: Dict[str, Any], event_type: str) -> str:
         """Format default/unknown event."""
         lines = [f"[bold cyan]{event_type}[/bold cyan]"]
+
+        # Show cwd/project at top if present
+        if "cwd" in event:
+            lines.append(f"[dim]Working Directory:[/dim] {event['cwd']}")
+        if "project" in event and "cwd" not in event:
+            lines.append(f"[dim]Project:[/dim] {event['project']}")
+
         for key, value in event.items():
-            if key in ("event", "timestamp"):
+            if key in ("event", "timestamp", "cwd", "project"):
                 continue
             value_str = str(value)
             if len(value_str) > 150:

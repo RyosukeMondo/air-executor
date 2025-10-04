@@ -144,39 +144,48 @@ class FixOrchestrator:
         static = smart_metrics.static
         dynamic = smart_metrics.dynamic
 
-        # Static checks must pass
+        # Check all criteria - return False if any fail, True if all pass
+        return (
+            self._check_static_criteria(criteria, static)
+            and self._check_dynamic_criteria(criteria, dynamic)
+            and self._check_stability_criteria(criteria)
+        )
+
+    def _check_static_criteria(self, criteria: dict, static) -> bool:
+        """Check static analysis criteria"""
+        # Build must pass
         if criteria.get("build_passes") and static.analysis_status != "pass":
             return False
+        # Errors must be below threshold
+        return static.analysis_errors <= criteria.get("max_lint_errors", 0)
 
-        # Analysis errors must be below threshold
-        if static.analysis_errors > criteria.get("max_lint_errors", 0):
-            return False
+    def _check_dynamic_criteria(self, criteria: dict, dynamic) -> bool:
+        """Check dynamic test criteria"""
+        if not dynamic or dynamic.total_tests == 0:
+            return True
+        # Test pass rate must meet threshold
+        return dynamic.test_pass_rate >= criteria.get("min_test_pass_rate", 0.95)
 
-        # If we have dynamic metrics, check test criteria
-        if dynamic:
-            # Test pass rate must meet threshold
-            if dynamic.total_tests > 0:
-                if dynamic.test_pass_rate < criteria.get("min_test_pass_rate", 0.95):
-                    return False
-
-        # Check stability (last N runs)
+    def _check_stability_criteria(self, criteria: dict) -> bool:
+        """Check stability across recent runs"""
         stability_runs = criteria.get("stability_runs", 3)
         history = self.state_manager.get_run_history(count=stability_runs)
 
+        # Need enough history
         if len(history) < stability_runs:
             return False
 
-        # All recent runs must be healthy (check static metrics)
-        for run in history:
-            run_metrics = run.get("metrics", {})
-            static_data = run_metrics.get("static", {})
+        # All recent runs must be healthy
+        return all(self._is_run_healthy(run) for run in history)
 
-            if static_data.get("analysis_status") != "pass":
-                return False
-            if static_data.get("analysis_errors", 0) > 0:
-                return False
-
-        return True
+    def _is_run_healthy(self, run: dict) -> bool:
+        """Check if a single run is healthy"""
+        run_metrics = run.get("metrics", {})
+        static_data = run_metrics.get("static", {})
+        return (
+            static_data.get("analysis_status") == "pass"
+            and static_data.get("analysis_errors", 0) == 0
+        )
 
     def _should_stop(self) -> bool:
         """Check circuit breaker conditions"""
