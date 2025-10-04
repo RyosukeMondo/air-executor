@@ -207,7 +207,7 @@ class JavaScriptAdapter(LanguageAdapter):
         try:
             # Check for E2E framework
             package_json = Path(project_path) / "package.json"
-            with open(package_json) as f:
+            with open(package_json, encoding="utf-8") as f:
                 package_data = json.load(f)
 
             deps = {
@@ -321,7 +321,7 @@ class JavaScriptAdapter(LanguageAdapter):
     def _parse_coverage_json(self, coverage_file: Path) -> dict:
         """Parse Jest/Vitest coverage JSON."""
         try:
-            with open(coverage_file) as f:
+            with open(coverage_file, encoding="utf-8") as f:
                 data = json.load(f)
 
             # Calculate overall coverage
@@ -543,7 +543,7 @@ class JavaScriptAdapter(LanguageAdapter):
                 result.execution_time = time.time() - start_time
                 return result
 
-            with open(package_json_path) as f:
+            with open(package_json_path, encoding="utf-8") as f:
                 package_data = json.load(f)
 
             scripts = package_data.get("scripts", {})

@@ -316,7 +316,7 @@ class PythonAdapter(LanguageAdapter):
     def _parse_coverage_json(self, coverage_file: Path) -> dict:
         """Parse coverage.json file."""
         try:
-            with open(coverage_file) as f:
+            with open(coverage_file, encoding="utf-8") as f:
                 data = json.load(f)
 
             # Get overall coverage percentage
@@ -518,7 +518,7 @@ class PythonAdapter(LanguageAdapter):
             for file_path in source_files:
                 try:
                     # Compile to check syntax
-                    with open(file_path) as f:
+                    with open(file_path, encoding="utf-8") as f:
                         compile(f.read(), str(file_path), "exec")
                 except SyntaxError as e:
                     result.success = False

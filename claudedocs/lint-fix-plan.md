@@ -842,7 +842,33 @@ Success:
 - File operations work correctly
 ```
 
-**Status**: [ ]
+**Status**: [x] COMPLETED
+
+**Changes Made**:
+- Fixed `hybrid_control_example.py` (6 instances): All `open()` calls now use `encoding='utf-8'`
+  - Line 91: Reading tasks.json
+  - Line 131: Writing tasks.json
+  - Lines 171, 174: Reading state.json and tasks.json in monitor function
+  - Lines 200, 203: Reading state.json and tasks.json in post-process function
+- Fixed `air_executor_integration.py` (4 instances): All `open()` calls now use `encoding='utf-8'`
+  - Lines 88, 97: Reading state.json and tasks.json in monitor
+  - Lines 118, 121: Reading state.json and tasks.json in result function
+- Fixed `javascript_adapter.py` (4 instances): All `open()` calls now use `encoding='utf-8'`
+  - Line 210: Reading package.json for E2E check
+  - Line 324: Reading coverage.json
+  - Line 546: Reading package.json for build check
+- Fixed `python_adapter.py` (3 instances): All `open()` calls now use `encoding='utf-8'`
+  - Line 319: Reading coverage.json
+  - Line 521: Reading Python source files for syntax check
+- Fixed `go_adapter.py` (2 instances): All `open()` calls now use `encoding='utf-8'`
+  - Line 366: Reading Go coverage file
+- Fixed `flutter_adapter.py` (3 instances): All `open()` calls now use `encoding='utf-8'`
+  - Line 33: Reading pubspec.yaml for project detection
+  - Line 436: Reading lcov.info coverage file
+- Ruff linter: All checks passed ✓
+- All text file operations now have explicit UTF-8 encoding
+
+**Note**: The `autonomous_fixing_dag.py` file already had `encoding='utf-8'` on all `open()` calls (lines 55, 59), so no changes were needed.
 
 ---
 
@@ -1264,7 +1290,7 @@ Key workflows to verify:
 - [x] Task 4.2: Fix Broad Exception Handling (Major improvements - specific exceptions + justifications)
 
 ### Phase 5: Resource Management & Safety 🟡
-- [ ] Task 5.1: Add Encoding to File Operations
+- [x] Task 5.1: Add Encoding to File Operations
 - [ ] Task 5.2: Add subprocess.run Check Parameter
 - [ ] Task 5.3: Fix Resource Allocation
 

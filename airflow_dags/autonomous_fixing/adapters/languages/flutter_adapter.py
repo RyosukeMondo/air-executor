@@ -30,7 +30,7 @@ class FlutterAdapter(LanguageAdapter):
         for pubspec in root.rglob("pubspec.yaml"):
             # Verify it's a Flutter project (has flutter dependency)
             try:
-                with open(pubspec) as f:
+                with open(pubspec, encoding="utf-8") as f:
                     content = f.read()
                     if "flutter:" in content or "flutter_test:" in content:
                         projects.append(str(pubspec.parent))
@@ -433,7 +433,7 @@ class FlutterAdapter(LanguageAdapter):
     def _parse_lcov(self, coverage_file: Path) -> dict:
         """Parse lcov.info coverage file."""
         try:
-            with open(coverage_file) as f:
+            with open(coverage_file, encoding="utf-8") as f:
                 content = f.read()
 
             # Count lines found (LF) and lines hit (LH)

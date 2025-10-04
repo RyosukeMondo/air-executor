@@ -88,7 +88,7 @@ num_chunks = 10  # In reality, could be 100s or 1000s
 print(f'   Found {{num_chunks}} chunks to process')
 
 # Read existing tasks
-with open(tasks_file, 'r') as f:
+with open(tasks_file, 'r', encoding='utf-8') as f:
     tasks = json.load(f)
 
 print(f'🔄 [AIR-EXECUTOR] Dynamically queuing {{num_chunks}} processing tasks...')
@@ -128,7 +128,7 @@ tasks.append({{
 
 # Atomic write
 temp = tasks_file.parent / f'.{{tasks_file.name}}.tmp'
-with open(temp, 'w') as f:
+with open(temp, 'w', encoding='utf-8') as f:
     json.dump(tasks, f, indent=2)
 temp.rename(tasks_file)
 
@@ -168,10 +168,10 @@ def wait_for_air_executor(**context):
         print(f"⏳ [AIRFLOW] Waiting for Air-Executor to start job {job_name}...")
         return False
 
-    with open(state_file) as f:
+    with open(state_file, encoding="utf-8") as f:
         state = json.load(f)
 
-    with open(tasks_file) as f:
+    with open(tasks_file, encoding="utf-8") as f:
         tasks = json.load(f)
 
     total = len(tasks)
@@ -197,10 +197,10 @@ def airflow_post_process(**context):
     state_file = Path(f"/home/rmondo/repos/air-executor/.air-executor/jobs/{job_name}/state.json")
     tasks_file = state_file.parent / "tasks.json"
 
-    with open(state_file) as f:
+    with open(state_file, encoding="utf-8") as f:
         state = json.load(f)
 
-    with open(tasks_file) as f:
+    with open(tasks_file, encoding="utf-8") as f:
         tasks = json.load(f)
 
     print("🎯 [AIRFLOW] Control returned from Air-Executor")

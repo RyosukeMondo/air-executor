@@ -363,7 +363,7 @@ class GoAdapter(LanguageAdapter):
 
     def _read_coverage_lines(self, coverage_file: Path) -> list[str]:
         """Read and prepare coverage file lines."""
-        with open(coverage_file) as f:
+        with open(coverage_file, encoding="utf-8") as f:
             lines = f.readlines()
 
         # Skip mode line if present

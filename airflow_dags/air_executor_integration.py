@@ -85,7 +85,7 @@ def check_job_status(**context):
         print(f"⏳ Waiting for job {job_name} to be picked up by Air-Executor manager...")
         return False
 
-    with open(state_file) as f:
+    with open(state_file, encoding="utf-8") as f:
         state = json.load(f)
 
     current_state = state["state"]
@@ -94,7 +94,7 @@ def check_job_status(**context):
     # Also show task progress
     tasks_file = state_file.parent / "tasks.json"
     if tasks_file.exists():
-        with open(tasks_file) as f:
+        with open(tasks_file, encoding="utf-8") as f:
             tasks = json.load(f)
 
         completed = sum(1 for t in tasks if t["status"] == "completed")
@@ -115,7 +115,7 @@ def get_job_result(**context):
     state_file = Path(f"/home/rmondo/repos/air-executor/.air-executor/jobs/{job_name}/state.json")
     tasks_file = state_file.parent / "tasks.json"
 
-    with open(state_file) as f:
+    with open(state_file, encoding="utf-8") as f:
         state = json.load(f)
 
     with open(tasks_file) as f:
