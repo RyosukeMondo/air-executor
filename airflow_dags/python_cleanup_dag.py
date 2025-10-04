@@ -29,7 +29,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from claude_query_sdk import run_claude_query_sdk
 
 # Pre-defined cleanup prompt for stable, repeatable execution
-PYTHON_CLEANUP_PROMPT = """Find and clean up Python-generated artifacts that shouldn't be tracked by the repository:
+PYTHON_CLEANUP_PROMPT = """
+Find and clean up Python-generated artifacts that shouldn't be tracked:
 
 1. Find all __pycache__ directories, .pyc, .pyo files
 2. Find other Python artifacts (.egg-info, .pytest_cache, .coverage, .tox, etc.)
@@ -50,20 +51,20 @@ def cleanup_python_artifacts(**context):
     Allows working_directory override via DAG params or dag_run.conf.
     """
     # Get params from context (set in UI or CLI)
-    params = context.get('params', {})
-    dag_run_conf = context.get('dag_run').conf or {}
+    params = context.get("params", {})
+    dag_run_conf = context.get("dag_run").conf or {}
 
     # Merge: dag_run.conf takes precedence over params
-    working_directory = dag_run_conf.get('working_directory') or params.get('working_directory')
+    working_directory = dag_run_conf.get("working_directory") or params.get("working_directory")
 
     # Build config with cleanup prompt
     config = {
-        'prompt': PYTHON_CLEANUP_PROMPT,
-        'working_directory': working_directory,
+        "prompt": PYTHON_CLEANUP_PROMPT,
+        "working_directory": working_directory,
     }
 
     # Update context with merged config
-    context['dag_run'].conf = config
+    context["dag_run"].conf = config
 
     # Delegate to the reusable function (SSOT)
     return run_claude_query_sdk(**context)
@@ -71,36 +72,35 @@ def cleanup_python_artifacts(**context):
 
 # DAG definition
 default_args = {
-    'owner': 'airflow',
-    'depends_on_past': False,
-    'start_date': datetime(2025, 10, 2),
-    'email_on_failure': False,
-    'email_on_retry': False,
-    'retries': 1,
-    'retry_delay': timedelta(minutes=1),
+    "owner": "airflow",
+    "depends_on_past": False,
+    "start_date": datetime(2025, 10, 2),
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 1,
+    "retry_delay": timedelta(minutes=1),
 }
 
 with DAG(
-    'python_cleanup',
+    "python_cleanup",
     default_args=default_args,
-    description='Clean up Python artifacts (__pycache__, .pyc, etc.) from repository',
+    description="Clean up Python artifacts (__pycache__, .pyc, etc.) from repository",
     schedule=None,  # Manual trigger only
     catchup=False,
-    tags=['python', 'cleanup', 'maintenance'],
+    tags=["python", "cleanup", "maintenance"],
     params={
-        'working_directory': Param(
-            default='/home/rmondo/repos/air-executor',
-            type='string',
-            title='Working Directory',
-            description='Repository path to clean. Defaults to air-executor project root.',
+        "working_directory": Param(
+            default="/home/rmondo/repos/air-executor",
+            type="string",
+            title="Working Directory",
+            description="Repository path to clean. Defaults to air-executor project root.",
             minLength=1,
-            section='Repository Configuration',
+            section="Repository Configuration",
         ),
     },
 ) as dag:
-
     cleanup_task = PythonOperator(
-        task_id='cleanup_python_artifacts',
+        task_id="cleanup_python_artifacts",
         python_callable=cleanup_python_artifacts,
         doc_md="""
         ### Python Artifacts Cleanup
@@ -137,4 +137,3 @@ with DAG(
     )
 
     cleanup_task
-

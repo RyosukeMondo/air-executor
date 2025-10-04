@@ -59,20 +59,20 @@ def commit_and_push(**context):
     Allows working_directory override via DAG params or dag_run.conf.
     """
     # Get params from context (set in UI or CLI)
-    params = context.get('params', {})
-    dag_run_conf = context.get('dag_run').conf or {}
+    params = context.get("params", {})
+    dag_run_conf = context.get("dag_run").conf or {}
 
     # Merge: dag_run.conf takes precedence over params
-    working_directory = dag_run_conf.get('working_directory') or params.get('working_directory')
+    working_directory = dag_run_conf.get("working_directory") or params.get("working_directory")
 
     # Build config with commit/push prompt
     config = {
-        'prompt': GIT_COMMIT_PUSH_PROMPT,
-        'working_directory': working_directory,
+        "prompt": GIT_COMMIT_PUSH_PROMPT,
+        "working_directory": working_directory,
     }
 
     # Update context with merged config
-    context['dag_run'].conf = config
+    context["dag_run"].conf = config
 
     # Delegate to the reusable function (SSOT)
     return run_claude_query_sdk(**context)
@@ -80,36 +80,39 @@ def commit_and_push(**context):
 
 # DAG definition
 default_args = {
-    'owner': 'airflow',
-    'depends_on_past': False,
-    'start_date': datetime(2025, 10, 2),
-    'email_on_failure': False,
-    'email_on_retry': False,
-    'retries': 1,
-    'retry_delay': timedelta(minutes=1),
+    "owner": "airflow",
+    "depends_on_past": False,
+    "start_date": datetime(2025, 10, 2),
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 1,
+    "retry_delay": timedelta(minutes=1),
 }
 
-with DAG(
-    'commit_and_push',
-    default_args=default_args,
-    description='Intelligently commit and push changes to git repository',
-    schedule=None,  # Manual trigger only
-    catchup=False,
-    tags=['git', 'commit', 'push', 'automation'],
-    params={
-        'working_directory': Param(
-            default='/home/rmondo/repos/air-executor',
-            type='string',
-            title='Working Directory',
-            description='Repository path to commit and push. Defaults to air-executor project root.',
-            minLength=1,
-            section='Repository Configuration',
-        ),
-    },
-) as dag:
-
+with (
+    DAG(
+        "commit_and_push",
+        default_args=default_args,
+        description="Intelligently commit and push changes to git repository",
+        schedule=None,  # Manual trigger only
+        catchup=False,
+        tags=["git", "commit", "push", "automation"],
+        params={
+            "working_directory": Param(
+                default="/home/rmondo/repos/air-executor",
+                type="string",
+                title="Working Directory",
+                description=(
+                    "Repository path to commit and push. " "Defaults to air-executor project root."
+                ),
+                minLength=1,
+                section="Repository Configuration",
+            ),
+        },
+    ) as dag
+):
     commit_push_task = PythonOperator(
-        task_id='commit_and_push',
+        task_id="commit_and_push",
         python_callable=commit_and_push,
         doc_md="""
         ### Git Commit and Push Automation
