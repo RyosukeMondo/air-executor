@@ -9,20 +9,20 @@ from pathlib import Path
 # Add project to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from airflow_dags.autonomous_fixing.adapters.languages.python import PythonAdapter
+from airflow_dags.autonomous_fixing.adapters.languages.python_adapter import PythonAdapter
 
 
 def main():
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("PYTHON ADAPTER - REAL USAGE TEST")
-    print("="*80)
+    print("=" * 80)
 
     # Create adapter with simple config
     config = {
-        'linters': ['pylint'],
-        'test_framework': 'pytest',
-        'complexity_threshold': 15,
-        'max_file_lines': 500
+        "linters": ["pylint"],
+        "test_framework": "pytest",
+        "complexity_threshold": 15,
+        "max_file_lines": 500,
     }
 
     adapter = PythonAdapter(config)
@@ -32,7 +32,7 @@ def main():
     # Test 1: Detect projects
     print(f"\n{'='*80}")
     print("TEST 1: Detect Python Projects")
-    print("="*80)
+    print("=" * 80)
 
     project_root = str(Path(__file__).parent)
     projects = adapter.detect_projects(project_root)
@@ -46,7 +46,7 @@ def main():
     # Test 2: Validate tools
     print(f"\n{'='*80}")
     print("TEST 2: Validate Python Toolchain")
-    print("="*80)
+    print("=" * 80)
 
     validation_results = adapter.validate_tools()
 
@@ -63,7 +63,7 @@ def main():
     # Test 3: Static analysis on this project
     print(f"\n{'='*80}")
     print("TEST 3: Static Analysis (Limited Scope)")
-    print("="*80)
+    print("=" * 80)
 
     if projects:
         test_project = projects[0]
@@ -83,11 +83,13 @@ def main():
         if result.errors:
             print("\n   First 3 errors:")
             for i, error in enumerate(result.errors[:3], 1):
-                print(f"      {i}. {error.get('file', '?')}:{error.get('line', '?')} - {error.get('message', '')[:80]}")
+                print(
+                    f"      {i}. {error.get('file', '?')}:{error.get('line', '?')} - {error.get('message', '')[:80]}"
+                )
 
     print(f"\n{'='*80}")
     print("✅ ALL REAL USAGE TESTS PASSED")
-    print("="*80)
+    print("=" * 80)
 
     return 0
 
