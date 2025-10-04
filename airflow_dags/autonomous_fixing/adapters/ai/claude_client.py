@@ -9,6 +9,7 @@ import subprocess
 import time
 from typing import Dict, Optional
 
+from .response_parser import ResponseParser
 from .wrapper_history import WrapperHistoryLogger
 
 
@@ -30,6 +31,9 @@ class ClaudeClient:
 
         # Initialize history logger
         self.history_logger = WrapperHistoryLogger()
+
+        # Initialize response parser
+        self.response_parser = ResponseParser()
 
     @staticmethod
     def _format_event(event: Dict) -> str:
@@ -140,9 +144,28 @@ class ClaudeClient:
 
         return events
 
-    def _parse_result_from_events(self, events: list, process, stderr: str) -> dict:
-        """Parse final result from events (SRP, KISS)"""
-        # Check for errors first
+    def _parse_result_from_events(self, events: list, process, stderr: str, operation_type: str = "unknown") -> dict:
+        """Parse final result from events with intelligent error detection (SRP, KISS)"""
+        # Build initial result from events or process exit code
+        initial_result = self._build_initial_result(events, process, stderr)
+
+        # Add stderr to result for parser analysis
+        if stderr:
+            initial_result['stderr'] = stderr
+
+        # Use ResponseParser for intelligent error detection
+        parsed_result = self.response_parser.parse(initial_result, operation_type)
+
+        # Preserve events and outcome in final result
+        parsed_result['events'] = events
+        if 'outcome' in initial_result:
+            parsed_result['outcome'] = initial_result['outcome']
+
+        return parsed_result
+
+    def _build_initial_result(self, events: list, process, stderr: str) -> dict:
+        """Build initial result dict from events or process exit code."""
+        # Check for error events first
         for event in events:
             if event.get('event') == 'error':
                 return {
@@ -161,7 +184,7 @@ class ClaudeClient:
             elif event_type == 'done':
                 return {'success': True, 'outcome': event.get('outcome'), 'events': events}
 
-        # No completion event - check process exit code
+        # No events - use process exit code
         if process.returncode == 0:
             return {'success': True, 'events': events}
         else:
@@ -258,7 +281,7 @@ class ClaudeClient:
             if debug_mode:
                 print(f"[WRAPPER DEBUG] Process completed (exit code: {process.returncode})")
 
-            result = self._parse_result_from_events(events, process, stderr)
+            result = self._parse_result_from_events(events, process, stderr, prompt_type)
             duration = time.time() - start_time
 
             self._log_result(prompt, project_path, prompt_type, result, duration)

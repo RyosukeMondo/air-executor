@@ -1,0 +1,52 @@
+# Error Pattern Configuration
+#
+# Defines patterns for filtering stderr noise vs real errors.
+# Patterns are checked using substring matching (not regex) for efficiency.
+#
+# Pattern Types:
+#   - noise_patterns: Benign warnings/notices to ignore
+#   - error_indicators: Strings indicating real errors
+#
+# Usage:
+#   - Add new noise patterns as you encounter false failures
+#   - Patterns are case-sensitive substring matches
+#   - Changes apply on next orchestrator run (no restart needed)
+
+# Noise patterns - benign warnings to filter out
+noise_patterns:
+  # Node.js deprecation warnings
+  - "punycode"
+  - "DeprecationWarning"
+  - "ExperimentalWarning"
+
+  # Common informational messages
+  - "Skipping files"
+  - "Note:"
+  - "INFO:"
+  - "Debug:"
+
+  # Build tool notices
+  - "webpack compiled"
+  - "Compiled successfully"
+  - "warnings in"
+
+  # Test framework informational output
+  - "PASS"
+  - "Tests passed"
+
+# Error indicators - strings that signal real failures
+error_indicators:
+  - "Error:"
+  - "error:"
+  - "ERROR:"
+  - "FAILED:"
+  - "failed:"
+  - "Failed:"
+  - "Exception"
+  - "Traceback"
+  - "Fatal:"
+  - "FATAL:"
+  - "AssertionError"
+  - "SyntaxError"
+  - "TypeError"
+  - "ReferenceError"
