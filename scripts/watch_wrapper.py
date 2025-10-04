@@ -352,16 +352,45 @@ class WrapperMonitor:
             lines.append(f"{key}: {value_str}")
         return "\n".join(lines)
 
+    def _format_stream_as_bare(self, event: Dict[str, Any]) -> str:
+        """Format stream event like a bare event - extract content from payload.content."""
+        lines = ["[bold cyan]stream[/bold cyan]"]
+
+        # Show top-level fields (like run_id)
+        for key, value in event.items():
+            if key in ("event", "timestamp", "payload"):
+                continue
+            value_str = str(value)
+            if len(value_str) > 150:
+                value_str = value_str[:150] + "..."
+            lines.append(f"{key}: {value_str}")
+
+        # Extract and show content from payload.content (same level as other fields)
+        payload = event.get("payload", {})
+        content_items = payload.get("content", [])
+
+        if content_items:
+            # Get first content item
+            item = content_items[0] if isinstance(content_items, list) else content_items
+
+            if isinstance(item, dict):
+                # Show all fields from content item (text, content, tool_use_id, etc.)
+                for key, value in item.items():
+                    value_str = str(value)
+                    # Truncate long values
+                    if len(value_str) > 300:
+                        value_str = value_str[:300] + "..."
+                    lines.append(f"{key}: {value_str}")
+
+        return "\n".join(lines)
+
     def _format_event_detail(self, event: Dict[str, Any]) -> str:
         """Format event details based on known patterns for human-readable display."""
         event_type = event.get("event", "unknown")
 
-        # Stream events
+        # Stream events - treat content same as bare events
         if event_type == "stream":
-            payload = event.get("payload", {})
-            formatted = self._format_stream_event(payload)
-            if formatted:
-                return formatted
+            return self._format_stream_as_bare(event)
 
         # Error events
         if event_type in ("error", "run_failed"):
@@ -426,7 +455,22 @@ class WrapperMonitor:
         try:
             # Reverse list to show newest first, then index by cursor position
             selected_event = events_list[-(self.cursor_position + 1)]
-            self.last_event_detail = self._format_event_detail(selected_event)
+
+            # Get the formatted message from events list
+            formatted_message = None
+            if self.events and self.cursor_position < len(self.events):
+                events_reversed = list(reversed(self.events))
+                time_str, icon, message = events_reversed[self.cursor_position]
+                formatted_message = f"{icon} {message}"
+
+            # Format detail with message at top
+            detail = self._format_event_detail(selected_event)
+            if formatted_message:
+                self.last_event_detail = (
+                    f"[bold yellow]{formatted_message}[/bold yellow]\n\n{detail}"
+                )
+            else:
+                self.last_event_detail = detail
         except (IndexError, TypeError):
             self.last_event_detail = None
 
@@ -523,7 +567,9 @@ class WrapperMonitor:
             events_list = list(reversed(self.events))
             for idx, (time_str, icon, message) in enumerate(events_list):
                 is_selected = idx == self.cursor_position
-                indicator = "👉" if is_selected and not self.paused else ("⏸️" if is_selected else "")
+                indicator = (
+                    "👉" if is_selected and not self.paused else ("⏸️" if is_selected else "")
+                )
                 style = "bold yellow" if is_selected else ""
                 events_table.add_row(indicator, time_str, f"{icon} {message}", style=style)
 
