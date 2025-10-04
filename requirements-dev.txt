@@ -13,3 +13,6 @@ types-pyyaml==6.0.12.12
 pylint==3.3.8  # Comprehensive code analysis and metrics
 types-PyYAML
 flake8
+
+# Development tools
+rich>=13.0.0  # Real-time console UI for wrapper monitoring

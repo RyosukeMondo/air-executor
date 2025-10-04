@@ -24,7 +24,7 @@ from typing import Any, Dict, Optional
 import anyio
 
 try:
-    from claude_code_sdk import ProcessError, ClaudeCodeOptions, query
+    from claude_code_sdk import ClaudeCodeOptions, ProcessError, query
 except ImportError as import_error:  # pragma: no cover - handled at runtime
     ProcessError = None  # type: ignore[assignment]
     ClaudeCodeOptions = None  # type: ignore[assignment]
@@ -49,9 +49,7 @@ class ClaudeCodeWrapper:
 
     def __init__(self) -> None:
         if CLAUDE_IMPORT_ERROR:
-            raise RuntimeError(
-                "claude_code_sdk is not available: " f"{CLAUDE_IMPORT_ERROR}"
-            )
+            raise RuntimeError("claude_code_sdk is not available: " f"{CLAUDE_IMPORT_ERROR}")
 
         self.shutdown_requested = False
         self.state = "idle"
@@ -61,6 +59,10 @@ class ClaudeCodeWrapper:
         self._options_signature = inspect.signature(ClaudeCodeOptions)  # type: ignore[arg-type]
         self.last_session_id: Optional[str] = None
         self.setup_signal_handlers()
+
+        # Enhanced tracking for real-time visualization
+        self.tool_stats = {"total": 0, "completed": 0, "active": None}
+        self.current_phase = None
 
     # ---------------------------------------------------------------------
     # Signal handling
@@ -104,11 +106,7 @@ class ClaudeCodeWrapper:
         if hasattr(obj, "model_dump"):
             return obj.model_dump()  # type: ignore[misc]
         if hasattr(obj, "__dict__"):
-            return {
-                key: value
-                for key, value in vars(obj).items()
-                if not key.startswith("_")
-            }
+            return {key: value for key, value in vars(obj).items() if not key.startswith("_")}
         return str(obj)
 
     # ---------------------------------------------------------------------
@@ -127,9 +125,7 @@ class ClaudeCodeWrapper:
         # Backwards compatibility for legacy permission modes
         legacy_permission_mode = filtered.get("permission_mode")
         if legacy_permission_mode == "acceptAll":
-            logger.warning(
-                "permission_mode 'acceptAll' is deprecated; using 'bypassPermissions'"
-            )
+            logger.warning("permission_mode 'acceptAll' is deprecated; using 'bypassPermissions'")
             filtered["permission_mode"] = "bypassPermissions"
 
         # Persist session reuse when requested via "resume_session"
@@ -297,22 +293,37 @@ class ClaudeCodeWrapper:
         }
         if self.current_run:
             status_payload["active_run"] = {
-                key: value
-                for key, value in self.current_run.items()
-                if key not in {"cancel_scope"}
+                key: value for key, value in self.current_run.items() if key not in {"cancel_scope"}
             }
         self.output_json(status_payload)
 
     # ---------------------------------------------------------------------
     # Claude Code execution
     # ---------------------------------------------------------------------
-    async def _run_query(
+    async def _run_query(  # noqa: C901
         self,
         run_context: Dict[str, Any],
         prompt: str,
         options: ClaudeCodeOptions,
     ) -> None:
         cancel_scope: Optional[anyio.CancelScope] = None
+
+        # Detect and emit phase information
+        detected_phase = self._detect_phase(prompt)
+        if detected_phase:
+            self.current_phase = detected_phase
+            run_context["phase"] = detected_phase
+            self.output_json(
+                {
+                    "event": "phase_detected",
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "run_id": run_context["id"],
+                    "phase": detected_phase,
+                }
+            )
+
+        # Reset tool stats for this run
+        self.tool_stats = {"total": 0, "completed": 0, "active": None}
 
         try:
             with anyio.CancelScope() as scope:
@@ -329,6 +340,35 @@ class ClaudeCodeWrapper:
                             "payload": serialised,
                         }
                     )
+
+                    # Detect and emit tool events
+                    tool_event = self._detect_tool_event(serialised)
+                    if tool_event:
+                        if tool_event["event_type"] == "tool_started":
+                            self.tool_stats["total"] += 1
+                            self.tool_stats["active"] = tool_event["tool"]
+                            self.output_json(
+                                {
+                                    "event": "tool_started",
+                                    "timestamp": datetime.utcnow().isoformat(),
+                                    "run_id": run_context["id"],
+                                    "tool": tool_event["tool"],
+                                    "progress": f"{self.tool_stats['completed']}/{self.tool_stats['total']}",
+                                }
+                            )
+                        elif tool_event["event_type"] == "tool_completed":
+                            self.tool_stats["completed"] += 1
+                            completed_tool = self.tool_stats["active"]
+                            self.tool_stats["active"] = None
+                            self.output_json(
+                                {
+                                    "event": "tool_completed",
+                                    "timestamp": datetime.utcnow().isoformat(),
+                                    "run_id": run_context["id"],
+                                    "tool": completed_tool,
+                                    "progress": f"{self.tool_stats['completed']}/{self.tool_stats['total']}",
+                                }
+                            )
 
                     # Capture session id when available
                     session_id = self._extract_session_id(serialised)
@@ -411,7 +451,9 @@ class ClaudeCodeWrapper:
                         logger.info("exit_on_complete=true; initiating graceful shutdown")
                         self.shutdown_requested = True
                         try:
-                            if self.task_group is not None and hasattr(self.task_group, "cancel_scope"):
+                            if self.task_group is not None and hasattr(
+                                self.task_group, "cancel_scope"
+                            ):
                                 self.task_group.cancel_scope.cancel()
                                 logger.info("cancelled task_group via cancel_scope")
                         except Exception:
@@ -519,7 +561,9 @@ class ClaudeCodeWrapper:
                 # Allow finally: to run and run() to emit shutdown
                 return
         finally:
-            logger.info("finalising run id=%s; cancelling scope and resetting state", run_context.get("id"))
+            logger.info(
+                "finalising run id=%s; cancelling scope and resetting state", run_context.get("id")
+            )
             if cancel_scope is not None:
                 cancel_scope.cancel()  # ensure scope exits cleanly if still active
 
@@ -599,6 +643,45 @@ class ClaudeCodeWrapper:
         metadata = serialised_message.get("metadata")
         if isinstance(metadata, dict) and isinstance(metadata.get("session_id"), str):
             return metadata["session_id"]
+
+        return None
+
+    @staticmethod
+    def _detect_phase(prompt: str) -> Optional[str]:
+        """Detect execution phase from prompt content."""
+        prompt_lower = prompt.lower()
+        if "discover" in prompt_lower and "test" in prompt_lower:
+            return "P1: Test Discovery"
+        elif "fix_error" in prompt_lower or "linting" in prompt_lower or "type" in prompt_lower:
+            return "P1: Static Analysis"
+        elif "fix_test" in prompt_lower or "test failure" in prompt_lower:
+            return "P2: Test Fixing"
+        elif "coverage" in prompt_lower:
+            return "P3: Coverage"
+        elif "e2e" in prompt_lower or "integration" in prompt_lower:
+            return "P4: E2E Tests"
+        return None
+
+    def _detect_tool_event(self, serialised: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Detect tool execution events from stream messages."""
+        msg_type = serialised.get("message_type", "")
+
+        # Tool started
+        if msg_type == "ToolUseBlock" or "tool" in serialised.get("type", ""):
+            tool_name = serialised.get("name") or serialised.get("tool_name")
+            if tool_name:
+                return {
+                    "event_type": "tool_started",
+                    "tool": tool_name,
+                    "details": serialised.get("input", {}),
+                }
+
+        # Tool completed (result received)
+        if msg_type == "ToolResultBlock" or "result" in serialised.get("type", ""):
+            return {
+                "event_type": "tool_completed",
+                "tool": self.tool_stats.get("active"),
+            }
 
         return None
 
