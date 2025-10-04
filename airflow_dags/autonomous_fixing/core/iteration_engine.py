@@ -348,35 +348,31 @@ class IterationEngine:
 
         return fix_result, None
 
-    def _handle_p2_gate_failure(
+    def _fix_p2_issues(
         self, p2_result, p2_score_data, iteration: int, projects_by_language: Dict, strategy: str
-    ) -> dict:
-        """Handle P2 gate failure - create or fix tests (SRP)"""
-        print(
-            f"\n⚠️  P2 score ({p2_score_data['score']:.1%}) < threshold ({p2_score_data['threshold']:.0%})"
+    ) -> tuple:
+        """Fix P2 issues - either create tests or fix failures. Returns (fix_result, abort_result)."""
+        if p2_score_data.get("needs_test_creation", False):
+            return self._handle_test_creation(p2_result, iteration, projects_by_language, strategy)
+
+        fix_result = self.fixer.fix_test_failures(p2_result, iteration)
+        self.debug_logger.log_fix_result(
+            fix_type="test_failure",
+            target="p2_tests",
+            success=fix_result.success,
+            duration=p2_result.execution_time,
+            details={"fixes_applied": getattr(fix_result, "fixes_applied", 0)},
         )
 
-        if p2_score_data.get("needs_test_creation", False):
-            fix_result, abort_result = self._handle_test_creation(
-                p2_result, iteration, projects_by_language, strategy
-            )
-            if abort_result:
-                return abort_result
+        if fix_result.success:
+            print("\n✅ Fixes applied, re-running analysis in next iteration...")
         else:
-            fix_result = self.fixer.fix_test_failures(p2_result, iteration)
-            self.debug_logger.log_fix_result(
-                fix_type="test_failure",
-                target="p2_tests",
-                success=fix_result.success,
-                duration=p2_result.execution_time,
-                details={"fixes_applied": getattr(fix_result, "fixes_applied", 0)},
-            )
+            print("\n⚠️  No fixes could be applied")
 
-            if fix_result.success:
-                print("\n✅ Fixes applied, re-running analysis in next iteration...")
-            else:
-                print("\n⚠️  No fixes could be applied")
+        return fix_result, None
 
+    def _check_timing_abort(self, iteration: int, fix_result) -> dict:
+        """Check if timing should abort iteration. Returns abort_result or None."""
         timing_result = self.time_gate.end_iteration(iteration)
         self.debug_logger.log_iteration_end(
             iteration=iteration,
@@ -399,6 +395,22 @@ class IterationEngine:
         self.time_gate.wait_if_needed(timing_result)
         return None
 
+    def _handle_p2_gate_failure(
+        self, p2_result, p2_score_data, iteration: int, projects_by_language: Dict, strategy: str
+    ) -> dict:
+        """Handle P2 gate failure - create or fix tests (SRP)"""
+        print(
+            f"\n⚠️  P2 score ({p2_score_data['score']:.1%}) < threshold ({p2_score_data['threshold']:.0%})"
+        )
+
+        fix_result, abort_result = self._fix_p2_issues(
+            p2_result, p2_score_data, iteration, projects_by_language, strategy
+        )
+        if abort_result:
+            return abort_result
+
+        return self._check_timing_abort(iteration, fix_result)
+
     def _upgrade_hooks_after_p2(self, projects_by_language: Dict, p2_score_data: dict):
         """Upgrade hooks to level 2 after P2 gate passes (SRP)"""
         for lang_name, project_list in projects_by_language.items():
@@ -412,6 +424,108 @@ class IterationEngine:
                     score=p2_score_data["score"],
                     adapter=adapter,
                 )
+
+    def _run_setup_phases(self, projects_by_language: Dict):
+        """Run all setup phases and print summary."""
+        hooks_stats = self._run_hook_setup_phase(projects_by_language)
+        tests_stats = self._run_test_discovery_phase(projects_by_language)
+        total_projects = sum(len(project_list) for project_list in projects_by_language.values())
+        self._print_setup_summary(hooks_stats, tests_stats, total_projects)
+
+    def _process_p1_gate(self, projects_by_language: Dict, iteration: int) -> tuple:
+        """Process P1 gate. Returns (p1_score_data, abort_result, should_continue)."""
+        p1_result, p1_score_data, valid = self._run_static_analysis_phase(
+            projects_by_language, iteration
+        )
+        if not valid:
+            return None, {"success": False, "reason": "analysis_verification_failed"}, False
+
+        if not p1_score_data["passed_gate"]:
+            abort_result = self._handle_p1_gate_failure(p1_result, p1_score_data, iteration)
+            if abort_result:
+                return None, abort_result, False
+            return None, None, True  # Continue to next iteration
+
+        print(
+            f"\n✅ P1 gate PASSED ({p1_score_data['score']:.1%} >= {p1_score_data['threshold']:.0%})"
+        )
+        self._upgrade_hooks_after_p1(projects_by_language, p1_score_data)
+        return p1_score_data, None, False
+
+    def _process_p2_gate(
+        self, projects_by_language: Dict, p1_score_data: dict, iteration: int
+    ) -> tuple:
+        """Process P2 gate. Returns (p2_score_data, abort_result, should_continue)."""
+        p2_result, p2_score_data, strategy = self._run_test_analysis_phase(
+            projects_by_language, p1_score_data
+        )
+
+        if not p2_score_data["passed_gate"]:
+            abort_result = self._handle_p2_gate_failure(
+                p2_result, p2_score_data, iteration, projects_by_language, strategy
+            )
+            if abort_result:
+                return None, abort_result, False
+            return None, None, True  # Continue to next iteration
+
+        print(
+            f"\n✅ P2 gate PASSED ({p2_score_data['score']:.1%} >= {p2_score_data['threshold']:.0%})"
+        )
+        self._upgrade_hooks_after_p2(projects_by_language, p2_score_data)
+        return p2_score_data, None, False
+
+    def _build_success_result(
+        self, iteration: int, p1_score_data: dict, p2_score_data: dict
+    ) -> Dict:
+        """Build success result dictionary."""
+        timing_result = self.time_gate.end_iteration(iteration)
+        self.debug_logger.log_iteration_end(
+            iteration=iteration, phase="success", duration=timing_result["duration"], success=True
+        )
+        self.debug_logger.log_session_end("all_gates_passed")
+
+        return {
+            "success": True,
+            "iterations_completed": iteration,
+            "p1_score": p1_score_data["score"],
+            "p2_score": p2_score_data["score"],
+            "overall_health": self.scorer.calculate_overall_health(
+                p1_score_data["score"], p2_score_data["score"]
+            ),
+            "timing_summary": self.time_gate.get_timing_summary(),
+            "metrics": self.debug_logger.get_metrics(),
+        }
+
+    def _run_single_iteration(self, projects_by_language: Dict, iteration: int) -> Dict:
+        """Run a single iteration. Returns result dict if done, None to continue."""
+        print(f"\n{'='*80}")
+        print(f"🔁 ITERATION {iteration}/{self.max_iterations}")
+        print(f"{'='*80}")
+
+        self.time_gate.start_iteration(iteration)
+        self.debug_logger.log_iteration_start(iteration, "p1_analysis")
+
+        # Process P1 gate
+        p1_score_data, abort_result, should_continue = self._process_p1_gate(
+            projects_by_language, iteration
+        )
+        if abort_result:
+            return abort_result
+        if should_continue:
+            return None
+
+        # Process P2 gate
+        p2_score_data, abort_result, should_continue = self._process_p2_gate(
+            projects_by_language, p1_score_data, iteration
+        )
+        if abort_result:
+            return abort_result
+        if should_continue:
+            return None
+
+        # Both gates passed!
+        print(f"\n🎉 All priority gates passed in iteration {iteration}!")
+        return self._build_success_result(iteration, p1_score_data, p2_score_data)
 
     def run_improvement_loop(self, projects_by_language: Dict) -> Dict:
         """
@@ -428,95 +542,16 @@ class IterationEngine:
 
         Returns: Dict with final results and iteration stats
         """
-        # Run setup phases
-        hooks_stats = self._run_hook_setup_phase(projects_by_language)
-        tests_stats = self._run_test_discovery_phase(projects_by_language)
-
-        total_projects = sum(len(project_list) for project_list in projects_by_language.values())
-        self._print_setup_summary(hooks_stats, tests_stats, total_projects)
-
+        self._run_setup_phases(projects_by_language)
         print(f"\n🔄 Starting improvement iterations (max: {self.max_iterations})")
 
         for iteration in range(1, self.max_iterations + 1):
-            print(f"\n{'='*80}")
-            print(f"🔁 ITERATION {iteration}/{self.max_iterations}")
-            print(f"{'='*80}")
-
-            self.time_gate.start_iteration(iteration)
-            self.debug_logger.log_iteration_start(iteration, "p1_analysis")
-
-            # Run P1 static analysis
-            p1_result, p1_score_data, valid = self._run_static_analysis_phase(
-                projects_by_language, iteration
-            )
-            if not valid:
-                return {"success": False, "reason": "analysis_verification_failed"}
-
-            # Check P1 gate
-            if not p1_score_data["passed_gate"]:
-                abort_result = self._handle_p1_gate_failure(p1_result, p1_score_data, iteration)
-                if abort_result:
-                    return abort_result
-                continue  # Re-run analysis in next iteration
-
-            # P1 gate passed!
-            print(
-                f"\n✅ P1 gate PASSED ({p1_score_data['score']:.1%} >= {p1_score_data['threshold']:.0%})"
-            )
-
-            self._upgrade_hooks_after_p1(projects_by_language, p1_score_data)
-
-            # Run P2 test analysis
-            p2_result, p2_score_data, strategy = self._run_test_analysis_phase(
-                projects_by_language, p1_score_data
-            )
-
-            # Check P2 gate
-            if not p2_score_data["passed_gate"]:
-                abort_result = self._handle_p2_gate_failure(
-                    p2_result, p2_score_data, iteration, projects_by_language, strategy
-                )
-                if abort_result:
-                    return abort_result
-                continue  # Re-run analysis in next iteration
-
-            # Both gates passed!
-            print(
-                f"\n✅ P2 gate PASSED ({p2_score_data['score']:.1%} >= {p2_score_data['threshold']:.0%})"
-            )
-
-            self._upgrade_hooks_after_p2(projects_by_language, p2_score_data)
-
-            print(f"\n🎉 All priority gates passed in iteration {iteration}!")
-
-            # End iteration timing
-            timing_result = self.time_gate.end_iteration(iteration)
-            self.debug_logger.log_iteration_end(
-                iteration=iteration,
-                phase="success",
-                duration=timing_result["duration"],
-                success=True,
-            )
-
-            # Log session end with success
-            self.debug_logger.log_session_end("all_gates_passed")
-
-            return {
-                "success": True,
-                "iterations_completed": iteration,
-                "p1_score": p1_score_data["score"],
-                "p2_score": p2_score_data["score"],
-                "overall_health": self.scorer.calculate_overall_health(
-                    p1_score_data["score"], p2_score_data["score"]
-                ),
-                "timing_summary": self.time_gate.get_timing_summary(),
-                "metrics": self.debug_logger.get_metrics(),
-            }
+            result = self._run_single_iteration(projects_by_language, iteration)
+            if result:
+                return result
 
         # Max iterations reached without passing gates
         print(f"\n⚠️  Reached maximum iterations ({self.max_iterations}) without passing all gates")
-
-        # Log session end with max iterations
         self.debug_logger.log_session_end("max_iterations_reached")
 
         return {
