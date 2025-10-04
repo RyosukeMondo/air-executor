@@ -14,6 +14,103 @@ import sys
 from pathlib import Path
 
 
+def _send_prompt_command(process):
+    """Send a prompt command to the wrapper process."""
+    command = {
+        "action": "prompt",
+        "prompt": "Say 'Hello from Airflow test!' and nothing else",
+        "options": {
+            "exit_on_complete": True,
+            "permission_mode": "bypassPermissions",
+        }
+    }
+    process.stdin.write(json.dumps(command) + "\n")
+    process.stdin.flush()
+
+
+def _extract_stream_text(payload, conversation):
+    """Extract and collect text from stream event payload."""
+    # Extract text content from content array
+    content = payload.get("content", [])
+    if isinstance(content, list):
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                text = item.get("text", "")
+                if text:
+                    conversation.append(text)
+                    print(f"💬 {text}")
+
+    # Extract direct text field
+    if payload.get("text"):
+        text = payload["text"]
+        conversation.append(text)
+        print(f"💬 {text}")
+
+
+def _handle_event(event, process, conversation):
+    """Handle a single event from the wrapper. Returns True if should break loop."""
+    event_type = event.get("event")
+    print(f"📨 {event_type}")
+
+    if event_type == "ready":
+        print("✅ Wrapper ready! Sending prompt...")
+        _send_prompt_command(process)
+        return False
+
+    if event_type == "stream":
+        _extract_stream_text(event.get("payload", {}), conversation)
+        return False
+
+    if event_type == "run_completed":
+        print("✅ Run completed!")
+        return False
+
+    if event_type == "run_failed":
+        error = event.get("error", "Unknown")
+        print(f"❌ Failed: {error}")
+        return True
+
+    if event_type == "shutdown":
+        print("✅ Shutdown")
+        return True
+
+    return False
+
+
+def _process_wrapper_output(process, conversation):
+    """Process output from wrapper and collect conversation."""
+    for line in process.stdout:
+        if not line.strip():
+            continue
+
+        try:
+            event = json.loads(line)
+            should_break = _handle_event(event, process, conversation)
+            if should_break:
+                break
+        except json.JSONDecodeError:
+            print(f"⚠️  Non-JSON: {line.strip()}")
+
+
+def _check_result(process, conversation):
+    """Check process result and print output."""
+    return_code = process.wait(timeout=60)
+
+    print("\n" + "="*60)
+    if return_code == 0:
+        print("✅ TEST PASSED")
+        print("="*60)
+        print("Response:")
+        print("\n".join(conversation))
+        print("="*60)
+        return True
+
+    stderr = process.stderr.read()
+    print(f"❌ TEST FAILED (exit code: {return_code})")
+    print(f"stderr: {stderr}")
+    return False
+
+
 def test_claude_wrapper():
     """Test the claude_wrapper.py with a simple prompt."""
     project_root = Path(__file__).parent.parent
@@ -40,79 +137,8 @@ def test_claude_wrapper():
     conversation = []
 
     try:
-        for line in process.stdout:
-            if not line.strip():
-                continue
-
-            try:
-                event = json.loads(line)
-                event_type = event.get("event")
-
-                print(f"📨 {event_type}")
-
-                if event_type == "ready":
-                    print("✅ Wrapper ready! Sending prompt...")
-
-                    command = {
-                        "action": "prompt",
-                        "prompt": "Say 'Hello from Airflow test!' and nothing else",
-                        "options": {
-                            "exit_on_complete": True,
-                            "permission_mode": "bypassPermissions",
-                        }
-                    }
-
-                    process.stdin.write(json.dumps(command) + "\n")
-                    process.stdin.flush()
-
-                elif event_type == "stream":
-                    payload = event.get("payload", {})
-
-                    # Extract text content
-                    content = payload.get("content", [])
-                    if isinstance(content, list):
-                        for item in content:
-                            if isinstance(item, dict) and item.get("type") == "text":
-                                text = item.get("text", "")
-                                if text:
-                                    conversation.append(text)
-                                    print(f"💬 {text}")
-
-                    if payload.get("text"):
-                        text = payload["text"]
-                        conversation.append(text)
-                        print(f"💬 {text}")
-
-                elif event_type == "run_completed":
-                    print("✅ Run completed!")
-
-                elif event_type == "run_failed":
-                    error = event.get("error", "Unknown")
-                    print(f"❌ Failed: {error}")
-                    return False
-
-                elif event_type == "shutdown":
-                    print("✅ Shutdown")
-                    break
-
-            except json.JSONDecodeError:
-                print(f"⚠️  Non-JSON: {line.strip()}")
-
-        return_code = process.wait(timeout=60)
-
-        print("\n" + "="*60)
-        if return_code == 0:
-            print("✅ TEST PASSED")
-            print("="*60)
-            print("Response:")
-            print("\n".join(conversation))
-            print("="*60)
-            return True
-        else:
-            stderr = process.stderr.read()
-            print(f"❌ TEST FAILED (exit code: {return_code})")
-            print(f"stderr: {stderr}")
-            return False
+        _process_wrapper_output(process, conversation)
+        return _check_result(process, conversation)
 
     except subprocess.TimeoutExpired:
         process.kill()
