@@ -22,7 +22,11 @@ def test_domain_models():
     print("="*60)
 
     from airflow_dags.autonomous_fixing.domain.models import (
-        Task, AnalysisResult, HealthMetrics, StaticMetrics, DynamicMetrics, FixResult
+        AnalysisResult,
+        FixResult,
+        HealthMetrics,
+        StaticMetrics,
+        Task,
     )
 
     # Test Task
@@ -86,27 +90,24 @@ def test_python_adapter_components():
     print("TEST 2: Python Adapter Sub-Components")
     print("="*60)
 
-    from airflow_dags.autonomous_fixing.adapters.languages.python import (
-        PythonAdapter
-    )
     from airflow_dags.autonomous_fixing.adapters.languages.python.detector import (
-        PythonProjectDetector
+        PythonProjectDetector,
     )
     from airflow_dags.autonomous_fixing.adapters.languages.python.static_analyzer import (
-        PythonStaticAnalyzer
+        PythonStaticAnalyzer,
     )
     from airflow_dags.autonomous_fixing.adapters.languages.python.test_runner import (
-        PythonTestRunner
+        PythonTestRunner,
     )
     from airflow_dags.autonomous_fixing.adapters.languages.python.tool_validator import (
-        PythonToolValidator
+        PythonToolValidator,
     )
 
     print("\n✓ All components imported successfully")
 
     # Test Detector
     detector = PythonProjectDetector()
-    print(f"✓ PythonProjectDetector created")
+    print("✓ PythonProjectDetector created")
     print(f"  Project markers: {detector.project_markers}")
 
     # Test if we can detect this project
@@ -121,17 +122,17 @@ def test_python_adapter_components():
         'linters': ['pylint']  # Just pylint for testing
     }
     analyzer = PythonStaticAnalyzer(config)
-    print(f"✓ PythonStaticAnalyzer created")
+    print("✓ PythonStaticAnalyzer created")
     print(f"  Complexity threshold: {analyzer.complexity_threshold}")
     print(f"  Max file lines: {analyzer.max_file_lines}")
 
     # Test TestRunner
-    test_runner = PythonTestRunner(config)
-    print(f"✓ PythonTestRunner created")
+    _ = PythonTestRunner(config)
+    print("✓ PythonTestRunner created")
 
     # Test ToolValidator
-    validator = PythonToolValidator(config)
-    print(f"✓ PythonToolValidator created")
+    _ = PythonToolValidator(config)
+    print("✓ PythonToolValidator created")
 
     print("\n✅ Python Adapter Sub-Components: ALL TESTS PASSED")
     return True
@@ -143,9 +144,7 @@ def test_python_adapter_integration():
     print("TEST 3: PythonAdapter Integration")
     print("="*60)
 
-    from airflow_dags.autonomous_fixing.adapters.languages.python import (
-        PythonAdapter
-    )
+    from airflow_dags.autonomous_fixing.adapters.languages.python import PythonAdapter
 
     config = {
         'complexity_threshold': 10,
@@ -155,22 +154,22 @@ def test_python_adapter_integration():
     }
 
     adapter = PythonAdapter(config)
-    print(f"✓ PythonAdapter created")
+    print("✓ PythonAdapter created")
     print(f"  Language: {adapter.language_name}")
     print(f"  Project markers: {adapter.project_markers}")
 
     # Test that sub-components are initialized
     assert adapter.detector is not None
-    print(f"✓ Detector initialized")
+    print("✓ Detector initialized")
 
     assert adapter.static_analyzer is not None
-    print(f"✓ StaticAnalyzer initialized")
+    print("✓ StaticAnalyzer initialized")
 
     assert adapter.test_runner is not None
-    print(f"✓ TestRunner initialized")
+    print("✓ TestRunner initialized")
 
     assert adapter.tool_validator is not None
-    print(f"✓ ToolValidator initialized")
+    print("✓ ToolValidator initialized")
 
     # Test delegation works
     test_path = str(Path(__file__).parent)
@@ -195,27 +194,23 @@ def test_interface_implementations():
     print("TEST 4: Interface Implementations")
     print("="*60)
 
+    from airflow_dags.autonomous_fixing.adapters.languages.python import PythonAdapter
     from airflow_dags.autonomous_fixing.domain.interfaces import (
-        ILanguageAdapter, IStateStore, ITaskRepository
-    )
-    from airflow_dags.autonomous_fixing.adapters.languages.python import (
-        PythonAdapter
+        ILanguageAdapter,
     )
 
     # Try to import StateManager (may fail if Redis not installed)
     try:
         from airflow_dags.autonomous_fixing.adapters.state.state_manager import (
-            StateManager
+            StateManager,  # noqa: F401
         )
-        state_manager_available = True
     except ImportError as e:
         print(f"⚠️  StateManager import skipped (Redis not installed): {e}")
-        state_manager_available = False
 
     # Test PythonAdapter implements ILanguageAdapter
     adapter = PythonAdapter({})
     assert isinstance(adapter, ILanguageAdapter)
-    print(f"✓ PythonAdapter implements ILanguageAdapter")
+    print("✓ PythonAdapter implements ILanguageAdapter")
 
     # Test required methods exist
     required_methods = [
@@ -231,9 +226,9 @@ def test_interface_implementations():
 
     # Test StateManager implements interfaces
     # (Skip Redis connection for now)
-    print(f"\n✓ StateManager class exists and implements:")
-    print(f"  ✓ IStateStore")
-    print(f"  ✓ ITaskRepository")
+    print("\n✓ StateManager class exists and implements:")
+    print("  ✓ IStateStore")
+    print("  ✓ ITaskRepository")
 
     print("\n✅ Interface Implementations: ALL TESTS PASSED")
     return True
@@ -275,13 +270,13 @@ def test_backward_compatibility():
     old_restored = Task.from_dict(old_dict)
     assert old_restored.id == old_style_task.id
     assert old_restored.phase == "build"
-    print(f"✓ Old-style Task serialization works")
+    print("✓ Old-style Task serialization works")
 
     new_dict = new_style_task.to_dict()
     new_restored = Task.from_dict(new_dict)
     assert new_restored.id == new_style_task.id
     assert new_restored.language == "python"
-    print(f"✓ New-style Task serialization works")
+    print("✓ New-style Task serialization works")
 
     # Test mixed fields
     mixed_task = Task(
