@@ -151,20 +151,20 @@ class Config:
     def scripts_dir(self) -> Path:
         """Scripts directory (absolute path)."""
         root = self.project_root
-        scripts = self._config["project"]["scripts_dir"]
+        scripts = str(self._config["project"]["scripts_dir"])
         return root / scripts
 
     @property
     def wrapper_path(self) -> Path:
         """Claude wrapper script path (absolute path)."""
-        wrapper = self._config["claude"]["wrapper_script"]
+        wrapper = str(self._config["claude"]["wrapper_script"])
         return self.scripts_dir / wrapper
 
     @property
     def venv_python(self) -> Path:
         """Python executable in venv (absolute path)."""
         root = self.project_root
-        venv = self._config["project"]["venv_python"]
+        venv = str(self._config["project"]["venv_python"])
         return root / venv
 
     # === Airflow Paths ===
@@ -178,21 +178,21 @@ class Config:
     def airflow_dags(self) -> Path:
         """Airflow DAGs folder (absolute path)."""
         home = self.airflow_home
-        dags = self._config["airflow"]["dags_folder"]
+        dags = str(self._config["airflow"]["dags_folder"])
         return home / dags
 
     @property
     def airflow_logs(self) -> Path:
         """Airflow logs folder (absolute path)."""
         home = self.airflow_home
-        logs = self._config["airflow"]["logs_folder"]
+        logs = str(self._config["airflow"]["logs_folder"])
         return home / logs
 
     @property
     def airflow_scripts(self) -> Path:
         """Airflow scripts folder (absolute path)."""
         home = self.airflow_home
-        scripts = self._config["airflow"]["scripts_folder"]
+        scripts = str(self._config["airflow"]["scripts_folder"])
         return home / scripts
 
     # === Claude Settings ===
@@ -200,24 +200,24 @@ class Config:
     @property
     def claude_timeout(self) -> int:
         """Claude query timeout in seconds."""
-        return self._config["claude"]["timeout_seconds"]
+        return int(self._config["claude"]["timeout_seconds"])
 
     @property
     def claude_permission_mode(self) -> str:
         """Claude permission mode."""
-        return self._config["claude"]["permission_mode"]
+        return str(self._config["claude"]["permission_mode"])
 
     @property
     def claude_default_options(self) -> Dict[str, Any]:
         """Claude default options."""
-        return self._config["claude"]["default_options"]
+        return dict(self._config["claude"]["default_options"])
 
     # === Development Settings ===
 
     @property
     def debug(self) -> bool:
         """Debug mode enabled."""
-        return self._config.get("development", {}).get("debug", False)
+        return bool(self._config.get("development", {}).get("debug", False))
 
     # === Validation ===
 
@@ -296,5 +296,5 @@ def get_config() -> Config:
         Config instance
     """
     if not hasattr(get_config, "_cached_config"):
-        get_config._cached_config = load_config()
-    return get_config._cached_config
+        get_config._cached_config = load_config()  # type: ignore[attr-defined]
+    return get_config._cached_config  # type: ignore[attr-defined, no-any-return]
