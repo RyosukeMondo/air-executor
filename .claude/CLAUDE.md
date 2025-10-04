@@ -180,6 +180,45 @@ Run unit tests first, then integration, then E2E.
 
 ---
 
+## Git Commit Policy
+
+**CRITICAL**: Never use `--no-verify` to bypass pre-commit hooks.
+
+### Pre-commit Hook Failures
+
+When pre-commit hooks fail, you MUST:
+
+1. **Fix the issues** - Address linting, formatting, complexity warnings
+2. **Refactor if needed** - Break down complex functions (C901 warnings)
+3. **Run tests** - Ensure quality gates pass
+4. **Commit properly** - Only commit when all checks pass
+
+### Handling Complexity Warnings (C901)
+
+If ruff reports complexity > 10:
+- Extract helper methods to reduce complexity
+- Apply SRP (Single Responsibility Principle)
+- Break down large if/else chains
+- Simplify nested logic
+
+**Examples**:
+```python
+# ❌ Wrong: Bypass hooks
+git commit --no-verify -m "..."
+
+# ✅ Right: Fix complexity, then commit
+# 1. Refactor complex function
+# 2. Run: .venv/bin/python3 -m ruff check <file>
+# 3. Fix all warnings
+# 4. git commit -m "..."
+```
+
+### Acceptable Exceptions
+
+**NONE**. Pre-commit hooks exist for code quality. Always fix, never bypass.
+
+---
+
 ## Progressive Hook Enforcement
 
 Hooks upgrade based on quality gates:
