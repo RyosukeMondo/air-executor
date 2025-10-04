@@ -128,47 +128,95 @@ class RunnerSpawner:
         Raises:
             OSError: If spawn fails
         """
-        from ..core.task import TaskQueue
+        fresh_job = self._reload_job_state(job.name)
+        task = self._get_next_task(fresh_job)
 
-        # Reload fresh job state to avoid race conditions with stale objects
-        try:
-            fresh_job = self.store.read_job_state(job.name)
-        except Exception as e:
-            raise OSError(f"Failed to reload job state for {job.name}: {e}")
-
-        # Load task queue
-        task_queue = TaskQueue(fresh_job.name, self.store.jobs_path / fresh_job.name / "tasks.json")
-
-        # Get first pending task
-        pending_tasks = task_queue.get_pending()
-        if not pending_tasks:
+        if task is None:
             return  # No work to do
 
-        task = pending_tasks[0]
+        self._execute_spawn(fresh_job, task)
 
+    def _reload_job_state(self, job_name: str) -> Job:
+        """
+        Reload fresh job state to avoid race conditions.
+
+        Args:
+            job_name: Name of job to reload
+
+        Returns:
+            Fresh job instance
+
+        Raises:
+            OSError: If reload fails
+        """
         try:
-            # Transition to WORKING FIRST to prevent race conditions
-            # This marks the job as busy before spawning takes time
-            fresh_job.transition_to(JobState.WORKING)
-            self.store.write_job_state(fresh_job)
-
-            # Now spawn runner
-            pid = self.runner.spawn(fresh_job, task)
-
-            # Create PID file after successful spawn
-            self._create_pid_file(fresh_job, pid)
-
-            print(f"Spawned runner (PID {pid}) for job {fresh_job.name}, task {task.id}")
-
+            return self.store.read_job_state(job_name)
         except Exception as e:
-            # Clean up on failure - reset job state back to WAITING
-            try:
-                fresh_job.transition_to(JobState.WAITING)
-                self.store.write_job_state(fresh_job)
-            except Exception:
-                pass  # Ignore state transition errors during cleanup
-            self.store.remove_pid_file(fresh_job.name)
-            raise OSError(f"Failed to spawn runner for job {fresh_job.name}: {e}")
+            raise OSError(f"Failed to reload job state for {job_name}: {e}")
+
+    def _get_next_task(self, job: Job):
+        """
+        Get next pending task for job.
+
+        Args:
+            job: Job to get task for
+
+        Returns:
+            Next pending task or None if no tasks
+        """
+        from ..core.task import TaskQueue
+
+        task_queue = TaskQueue(job.name, self.store.jobs_path / job.name / "tasks.json")
+        pending_tasks = task_queue.get_pending()
+
+        if not pending_tasks:
+            return None
+
+        return pending_tasks[0]
+
+    def _execute_spawn(self, job: Job, task) -> None:
+        """
+        Execute runner spawn with state management.
+
+        Args:
+            job: Job to spawn runner for
+            task: Task to execute
+
+        Raises:
+            OSError: If spawn fails
+        """
+        try:
+            self._transition_to_working(job)
+            pid = self.runner.spawn(job, task)
+            self._create_pid_file(job, pid)
+            print(f"Spawned runner (PID {pid}) for job {job.name}, task {task.id}")
+        except Exception as e:
+            self._cleanup_failed_spawn(job)
+            raise OSError(f"Failed to spawn runner for job {job.name}: {e}")
+
+    def _transition_to_working(self, job: Job) -> None:
+        """
+        Transition job to WORKING state.
+
+        Args:
+            job: Job to transition
+        """
+        job.transition_to(JobState.WORKING)
+        self.store.write_job_state(job)
+
+    def _cleanup_failed_spawn(self, job: Job) -> None:
+        """
+        Clean up after failed spawn attempt.
+
+        Args:
+            job: Job to clean up
+        """
+        try:
+            job.transition_to(JobState.WAITING)
+            self.store.write_job_state(job)
+        except Exception:
+            pass  # Ignore state transition errors during cleanup
+        self.store.remove_pid_file(job.name)
 
     def _create_pid_file(self, job: Job, pid: int) -> None:
         """
