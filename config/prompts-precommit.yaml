@@ -185,11 +185,12 @@ setup:
          - Document what hooks are installed and why
 
       **CRITICAL RULES:**
-      - ❌ NEVER add `--no-verify` to git commands
-      - ❌ NEVER disable or skip hooks in configuration
+      - ❌ NEVER disable or skip hooks in configuration permanently
       - ❌ NEVER lower quality thresholds to make commits pass
       - ✅ ALWAYS fix the code to meet the standards
       - ✅ ALWAYS keep hooks enabled and enforced
+      - ⚠️  --no-verify is ALLOWED during P1/P2 iterative fixing (avoids circular dependencies)
+      - ✅ Final P1/P2 gates validate quality even if individual commits bypass hooks
 
       **Output format (YAML):**
       ```yaml
@@ -293,12 +294,13 @@ static_issues:
          - If hooks pass, commit succeeds
 
       **CRITICAL RULES:**
-      - ❌ NEVER use `git commit --no-verify` to bypass hooks
-      - ❌ NEVER disable hooks in configuration
+      - ❌ NEVER disable hooks in configuration permanently
       - ❌ NEVER lower quality thresholds
       - ✅ ALWAYS fix the code to meet standards
+      - ⚠️  --no-verify is ALLOWED during iterative P1/P2 fixing (see prompts.yaml)
+      - ✅ Quality gates validate final results even if individual commits bypass hooks
 
-      The pre-commit hooks are your quality contract - respect them.
+      The pre-commit hooks enforce quality, but iterative fixing requires --no-verify to avoid circular dependencies.
 
 tests:
   # Tests are enforced by pre-commit, but creation still needed

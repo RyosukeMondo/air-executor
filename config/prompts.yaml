@@ -326,7 +326,7 @@ setup:
 # =============================================================================
 
 static_issues:
-  # Error fixing prompt - respects pre-commit hooks if they exist
+  # Error fixing prompt - uses --no-verify during P1 iterations
   error:
     template: |
       Fix {language} errors in the project, prioritizing {file}.
@@ -334,33 +334,38 @@ static_issues:
       Target error: {message}
 
       Process:
-      1. **Check for pre-commit hooks:**
-         - Look for .husky/, .pre-commit-config.yaml, or .git/hooks/pre-commit
-         - If hooks exist, they will enforce quality automatically
+      1. Check if the error still exists
+      2. If already fixed, find and fix other similar errors in the project
+      3. If error exists, fix it following best practices
+      4. Verify fixes work (run linter/type-checker manually if needed)
 
-      2. Check if the error still exists
-      3. If already fixed, find and fix other similar errors in the project
-      4. If error exists, fix it following best practices
+      5. **IMPORTANT**: Create a git commit when done
+         - Use: `git add . && git commit --no-verify -m "fix: Fix linting errors"`
+         - The --no-verify flag is REQUIRED during P1 error fixing
 
-      5. **Verify fixes:**
-         - If pre-commit hooks exist: try a test commit (hooks will validate)
-         - If no hooks: run linter/type-checker manually
-
-      6. **Create a git commit** when done with fixes
+      **Why --no-verify during P1 error fixing?**
+      Pre-commit hooks that check linting/errors create a circular dependency:
+      - Hooks check ALL files for errors
+      - This blocks commits during iterative error fixing
+      - --no-verify allows incremental progress
+      - Final validation occurs after ALL P1 issues are fixed (P1 gate)
 
       Requirements:
       - Preserve existing functionality
       - Follow {language} best practices
       - Keep changes minimal and focused
-      - **If pre-commit hooks block commit: fix the issues, don't bypass hooks**
-      - **NEVER use --no-verify flag**
 
-      Git commit format: `git add . && git commit -m "fix: Fix linting errors"`
+      **Git Commit Required**:
+      - Run `git add .` to stage changes
+      - Run `git commit --no-verify -m "fix: Fix linting errors"`
+      - Commit is REQUIRED for fix to be counted as successful
+      - The --no-verify flag is EXPLICITLY ALLOWED during P1 fixing
 
     notes: |
       Flexible prompt - Claude can adapt if specific error already fixed.
       Encourages fixing similar errors rather than failing.
       Always requires commit for verification.
+      UPDATED: Now uses --no-verify to match P2 approach, avoiding hook circularity.
 
   # Complexity reduction prompt - used for cyclomatic complexity violations
   complexity:
@@ -373,12 +378,29 @@ static_issues:
       - Apply Single Responsibility Principle
       - Maintain all existing functionality
       - Add tests if not already present
-      - **Create a git commit when done**: `git add . && git commit -m "refactor: Reduce complexity in {file}"`
+
+      **IMPORTANT**: Create a git commit when done
+      - Use: `git add . && git commit --no-verify -m "refactor: Reduce complexity in {file}"`
+      - The --no-verify flag is REQUIRED during P1 complexity fixing
+
+      **Why --no-verify during complexity fixing?**
+      Pre-commit hooks that check complexity create a circular dependency:
+      - Hooks check complexity (ruff C901) on ALL files
+      - This blocks commits during iterative complexity refactoring
+      - --no-verify allows incremental progress
+      - Final validation occurs after ALL complexity issues are fixed (P1 gate)
+
+      **Git Commit Required**:
+      - Run `git add .` to stage changes
+      - Run `git commit --no-verify -m "refactor: Reduce complexity in {file}"`
+      - Commit is REQUIRED for fix to be counted as successful
+      - The --no-verify flag is EXPLICITLY ALLOWED during P1 complexity fixing
 
     notes: |
       Complexity refactoring is riskier - emphasize maintaining functionality.
       Suggest specific techniques (extract, early return, SRP).
       Git commit is mandatory for verification.
+      UPDATED: Now uses --no-verify to match P2 approach, avoiding hook circularity.
 
 # =============================================================================
 # P2: Test Fixing Prompts
