@@ -1,5 +1,6 @@
 """Domain interfaces for dependency inversion."""
 
+from .ai_client import IAIClient
 from .code_fixer import ICodeFixer
 from .health_monitor import IHealthMonitor
 from .issue_discoverer import IIssueDiscoverer
@@ -9,6 +10,7 @@ from .state_repository import IStateRepository
 from .state_store import IStateStore, ITaskRepository
 
 __all__ = [
+    "IAIClient",
     "ICodeFixer",
     "IHealthMonitor",
     "IIssueDiscoverer",

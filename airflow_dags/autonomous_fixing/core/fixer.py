@@ -5,7 +5,7 @@ Clean, focused module that ONLY handles calling claude_wrapper to fix issues.
 No analysis, no scoring, no iteration logic - just fixing.
 """
 
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Optional
 
 from ..adapters.ai.claude_client import ClaudeClient
 from ..domain.enums import IssueType
@@ -17,6 +17,7 @@ from .prompt_manager import PromptManager
 
 if TYPE_CHECKING:
     from ..config.orchestrator_config import OrchestratorConfig
+    from ..domain.interfaces import IAIClient
 
 
 class IssueFixer:
@@ -39,13 +40,13 @@ class IssueFixer:
         self,
         config: "OrchestratorConfig | dict",
         debug_logger=None,
-        ai_client: Optional[Any] = None,
+        ai_client: Optional["IAIClient"] = None,
     ):
         """
         Args:
             config: OrchestratorConfig or dict with wrapper settings
             debug_logger: Optional DebugLogger instance
-            ai_client: Optional AI client (ClaudeClient). If None, creates default ClaudeClient.
+            ai_client: Optional AI client implementing IAIClient. If None, creates default ClaudeClient.
         """
         # Support both OrchestratorConfig and dict
         if isinstance(config, dict):

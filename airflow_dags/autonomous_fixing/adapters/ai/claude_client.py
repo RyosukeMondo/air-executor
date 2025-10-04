@@ -8,11 +8,12 @@ import json
 import subprocess
 import time
 
+from ...domain.interfaces.ai_client import IAIClient
 from .response_parser import ResponseParser
 from .wrapper_history import WrapperHistoryLogger
 
 
-class ClaudeClient:
+class ClaudeClient(IAIClient):
     """Simple client for claude_wrapper JSON protocol."""
 
     def __init__(self, wrapper_path: str, python_exec: str, debug_logger=None, config: dict = None):

@@ -12,18 +12,18 @@
 
 - [x] **Phase 1**: Configuration Objects (5/5 complete) ✅
 - [x] **Phase 2**: Dependency Injection (6/6 complete) ✅
-- [x] **Phase 3**: Interface Extraction (2/4 complete)
+- [x] **Phase 3**: Interface Extraction (3/4 complete)
   - [x] 3.1 IStateRepository ✅
   - [x] 3.2 ISetupTracker ✅
-  - [ ] 3.3 IAIClient
+  - [x] 3.3 IAIClient ✅
   - [ ] 3.4 Update All Components
 - [ ] **Phase 4**: In-Process CLI (0/3 complete) - FUTURE WORK
 - [ ] **Phase 5**: Test Builders (0/4 complete) - FUTURE WORK
 - [ ] **Phase 6**: E2E Test Refactoring (0/5 complete) - FUTURE WORK
 
-**Overall Progress**: 13/27 tasks complete (48%)
+**Overall Progress**: 14/27 tasks complete (52%)
 
-**Note**: Phases 1-2 are complete. Phase 3 has critical interfaces (IStateRepository, ISetupTracker) complete. Remaining interface extractions and other phases are lower priority and can be done incrementally.
+**Note**: Phases 1-2 are complete. Phase 3 has all critical interfaces (IStateRepository, ISetupTracker, IAIClient) complete. Only Phase 3.4 (updating all components to use interface type hints) remains. Phases 4-6 are lower priority and can be done incrementally.
 
 ---
 
@@ -634,37 +634,44 @@ class MemorySetupTracker(ISetupTracker):
 
 ---
 
-#### 3.3 Extract IAIClient Interface
-- [ ] Create interface for AI interactions
-- [ ] Implement for Anthropic
-- [ ] Create mock AI client for tests
+#### 3.3 Extract IAIClient Interface ✅
+- [x] Create interface for AI interactions
+- [x] Implement for ClaudeClient (Anthropic)
+- [x] Create mock AI client for tests
 
-**Acceptance Criteria**:
+**Acceptance Criteria**: ✅
 ```python
 class IAIClient(ABC):
     """Interface for AI language model interactions."""
 
     @abstractmethod
-    def generate_fix(
+    def query(
         self,
-        issue: Dict[str, Any],
-        context: str,
-        system_prompt: str
-    ) -> str:
-        """Generate code fix for issue."""
+        prompt: str,
+        project_path: str,
+        timeout: int = 600,
+        session_id: str | None = None,
+        prompt_type: str = "generic",
+    ) -> dict[str, Any]:
+        """Send prompt to AI model."""
+        pass
+
+    @abstractmethod
+    def query_simple(self, prompt: str, project_path: str, timeout: int = 600) -> bool:
+        """Simplified query that returns True/False."""
         pass
 
 class MockAIClient(IAIClient):
     """Deterministic AI client for tests."""
 
-    def __init__(self, responses: Dict[str, str] = None):
+    def __init__(self, responses: dict[str, str] = None):
         self.responses = responses or {}
         self.calls = []
 
-    def generate_fix(self, issue, context, system_prompt):
-        self.calls.append((issue, context, system_prompt))
-        issue_key = issue.get('message', 'default')
-        return self.responses.get(issue_key, "# Fixed code")
+    def query(self, prompt, project_path, timeout=600, session_id=None, prompt_type="generic"):
+        self.calls.append({...})
+        response = self._find_response(prompt)
+        return {"success": True, "outcome": response, "events": [...]}
 
 # Test usage:
 mock_ai = MockAIClient(responses={
@@ -674,10 +681,28 @@ mock_ai = MockAIClient(responses={
 fixer = IssueFixer(config, ai_client=mock_ai)
 ```
 
-**Files to create**:
-- `airflow_dags/autonomous_fixing/domain/interfaces/ai_client.py`
-- `airflow_dags/autonomous_fixing/adapters/ai/anthropic_client.py`
-- `airflow_dags/autonomous_fixing/adapters/ai/mock_ai_client.py`
+**Files created**: ✅
+- `airflow_dags/autonomous_fixing/domain/interfaces/ai_client.py` - Interface definition
+- `airflow_dags/autonomous_fixing/adapters/ai/mock_ai_client.py` - In-memory mock implementation
+
+**Files modified**: ✅
+- `airflow_dags/autonomous_fixing/adapters/ai/claude_client.py` - Now implements IAIClient
+- `airflow_dags/autonomous_fixing/core/fixer.py` - Now uses IAIClient type hints
+- `airflow_dags/autonomous_fixing/domain/interfaces/__init__.py` - Added IAIClient export
+
+**Tests added**: ✅
+- `tests/unit/test_ai_client_interface.py` (19 tests)
+  - Interface compliance tests (3 tests)
+  - MockAIClient tests (11 tests)
+  - ClaudeClient interface compliance (2 tests)
+  - Interface consistency tests (3 tests)
+
+**Implementation notes**: ✅
+- ClaudeClient now inherits from IAIClient
+- MockAIClient provides deterministic responses for testing
+- Both implementations pass interface compliance tests
+- IssueFixer accepts IAIClient interface, defaults to ClaudeClient
+- All 232 unit tests passing (213 → 232, +19 new tests) ✅
 
 ---
 
@@ -1166,12 +1191,12 @@ The primary objective has been achieved: **air-executor is now fully testable wi
 - ✅ Phase 2: All dependency injection patterns implemented (6/6)
 - ✅ Phase 3.1: State repository interface extracted with in-memory implementation
 - ✅ Phase 3.2: Setup tracker interface extracted with in-memory implementation
-- ✅ 213 unit tests passing (195 → 213, +18 new tests)
+- ✅ Phase 3.3: AI client interface extracted with mock implementation
+- ✅ 232 unit tests passing (213 → 232, +19 new tests)
 - ✅ Zero breaking changes (full backward compatibility)
 
 **Remaining Work** (Lower Priority):
-- Phase 3.3: IAIClient interface
-- Phase 3.4: Update all components to use interfaces
+- Phase 3.4: Update all components to use interface type hints
 - Phase 4: In-process CLI for faster E2E tests
 - Phase 5: Test builder utilities
 - Phase 6: E2E test refactoring
@@ -1181,6 +1206,7 @@ The primary objective has been achieved: **air-executor is now fully testable wi
 **Recent Commits**:
 - 2025-10-05: Phase 2.4 (Redis factory injection) - Committed (ebe0ccf, 4af4b29)
 - 2025-10-05: Phase 3.1 (IStateRepository interface) - Committed (ebe0ccf)
-- 2025-10-05: Phase 3.2 (ISetupTracker interface) - Ready to commit
+- 2025-10-05: Phase 3.2 (ISetupTracker interface) - Committed (1726faa)
+- 2025-10-05: Phase 3.3 (IAIClient interface) - Ready to commit
 
 - [ ] everything done (ALL PHASES) - Core objectives complete, remaining phases optional
