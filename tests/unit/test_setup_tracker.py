@@ -1,11 +1,10 @@
 """Unit tests for SetupTracker."""
 
-import pytest
-import tempfile
 import time
 from datetime import datetime, timedelta
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from airflow_dags.autonomous_fixing.core.setup_tracker import SetupTracker
 
@@ -321,7 +320,7 @@ class TestSetupTrackerEdgeCases:
         assert not state_dir.exists()
 
         with patch.object(SetupTracker, 'STATE_DIR', state_dir):
-            tracker = SetupTracker(redis_config=None)
+            _ = SetupTracker(redis_config=None)
 
             # State directory should be created
             assert state_dir.exists()
