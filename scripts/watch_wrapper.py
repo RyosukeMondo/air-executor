@@ -23,6 +23,7 @@ ADVANCED USAGE (piping from other sources):
 """
 
 import json
+import select
 import sys
 from collections import deque
 from datetime import datetime, timezone
@@ -59,9 +60,15 @@ class WrapperMonitor:
         self.tool_progress = "0/0"
         self.session_id = None
         self.last_text_content = None
+        self.last_event_detail = None  # Store detailed view of last event
+        self.raw_events: deque = deque(maxlen=max_events)  # Store raw events for navigation
 
         # Event history (recent events)
         self.events: deque = deque(maxlen=max_events)
+
+        # Interactive navigation state
+        self.cursor_position = 0  # Visual position from top (0 = top row)
+        self.paused = False  # Pause auto-scrolling
 
         # Tool tracking
         self.tools_used = deque(maxlen=10)
@@ -82,6 +89,12 @@ class WrapperMonitor:
         """Process a single JSON event from the wrapper."""
         event_type = event.get("event")
         timestamp = event.get("timestamp", datetime.now(timezone.utc).isoformat())
+
+        # Store raw event for navigation
+        self.raw_events.append(event)
+
+        # Update detail view based on cursor position (cursor stays at same visual position)
+        self._update_selected_detail()
 
         # Dispatch to specific event handlers
         handlers = {
@@ -258,6 +271,88 @@ class WrapperMonitor:
         self.state = new_state
         self.session_id = event.get("last_session_id")
 
+    def _format_event_detail(self, event: Dict[str, Any]) -> str:
+        """Format event details based on known patterns for human-readable display."""
+        event_type = event.get("event", "unknown")
+
+        # Pattern 1: Stream event with payload.content[].text
+        if event_type == "stream":
+            payload = event.get("payload", {})
+            content = payload.get("content", [])
+
+            # Look for text in content
+            text_items = [
+                item.get("text", "")
+                for item in content
+                if isinstance(item, dict) and "text" in item
+            ]
+            if text_items:
+                combined_text = "\n\n".join(text_items)
+                return f"[bold cyan]Text Content:[/bold cyan]\n{combined_text}"
+
+            # Look for tool uses in content
+            tool_items = [item for item in content if isinstance(item, dict) and "name" in item]
+            if tool_items:
+                lines = ["[bold cyan]Tool Uses:[/bold cyan]"]
+                for tool in tool_items:
+                    tool_name = tool.get("name", "unknown")
+                    tool_input = tool.get("input", {})
+                    lines.append(f"\n[yellow]{tool_name}[/yellow]:")
+                    for key, value in tool_input.items():
+                        value_str = str(value)
+                        if len(value_str) > 100:
+                            value_str = value_str[:100] + "..."
+                        lines.append(f"  {key}: {value_str}")
+                return "\n".join(lines)
+
+        # Pattern 2: Error events
+        if event_type in ("error", "run_failed"):
+            error_msg = event.get("error", event.get("message", "Unknown error"))
+            details = event.get("details", "")
+            result = f"[bold red]Error:[/bold red]\n{error_msg}"
+            if details:
+                result += f"\n\nDetails:\n{details}"
+            return result
+
+        # Pattern 3: Run events
+        if event_type == "run_started":
+            run_id = event.get("run_id", "N/A")
+            prompt_preview = event.get("prompt", "")[:200]
+            return (
+                f"[bold green]Run Started[/bold green]\nID: {run_id}\n\nPrompt: {prompt_preview}..."
+            )
+
+        if event_type == "run_completed":
+            reason = event.get("reason", "ok")
+            output = event.get("output", "")
+            result = f"[bold green]Run Completed[/bold green]\nReason: {reason}"
+            if output:
+                output_preview = output[:300] + ("..." if len(output) > 300 else "")
+                result += f"\n\nOutput:\n{output_preview}"
+            return result
+
+        # Pattern 4: Phase/State events
+        if event_type == "phase_detected":
+            phase = event.get("phase", "Unknown")
+            return f"[bold blue]Phase:[/bold blue] {phase}"
+
+        if event_type == "state":
+            state = event.get("state", "unknown")
+            session_id = event.get("last_session_id", "N/A")
+            return f"[bold blue]State:[/bold blue] {state}\nSession: {session_id}"
+
+        # Default: Show key fields without JSON dump
+        lines = [f"[bold cyan]{event_type}[/bold cyan]"]
+        for key, value in event.items():
+            if key in ("event", "timestamp"):
+                continue
+            value_str = str(value)
+            if len(value_str) > 150:
+                value_str = value_str[:150] + "..."
+            lines.append(f"{key}: {value_str}")
+
+        return "\n".join(lines)
+
     def add_event(self, timestamp: str, icon: str, message: str) -> None:
         """Add event to recent events list."""
         try:
@@ -267,6 +362,44 @@ class WrapperMonitor:
             time_str = timestamp[:8] if len(timestamp) >= 8 else timestamp
 
         self.events.append((time_str, icon, message))
+
+    def navigate_up(self) -> None:
+        """Navigate cursor up (visually up in list, to newer events)."""
+        if self.cursor_position > 0:
+            self.cursor_position -= 1
+            self._update_selected_detail()
+
+    def navigate_down(self) -> None:
+        """Navigate cursor down (visually down in list, to older events)."""
+        max_position = min(len(self.events) - 1, self.max_events - 1)
+        if self.cursor_position < max_position:
+            self.cursor_position += 1
+            self._update_selected_detail()
+
+    def toggle_pause(self) -> None:
+        """Toggle pause state for auto-scrolling."""
+        self.paused = not self.paused
+
+    def _update_selected_detail(self) -> None:
+        """Update detail panel based on cursor position (visual position from top)."""
+        if not self.raw_events:
+            self.last_event_detail = None
+            return
+
+        # Events displayed in descending order (newest first)
+        # Cursor position 0 = top (newest), higher = older
+        events_list = list(self.raw_events)
+
+        # Ensure cursor is within bounds
+        if self.cursor_position >= len(events_list):
+            self.cursor_position = max(0, len(events_list) - 1)
+
+        try:
+            # Reverse list to show newest first, then index by cursor position
+            selected_event = events_list[-(self.cursor_position + 1)]
+            self.last_event_detail = self._format_event_detail(selected_event)
+        except (IndexError, TypeError):
+            self.last_event_detail = None
 
     def get_runtime(self) -> str:
         """Calculate current runtime."""
@@ -301,13 +434,18 @@ class WrapperMonitor:
         """Build the live dashboard layout."""
         layout = Layout()
         layout.split_column(
-            Layout(name="header", size=8),
-            Layout(name="main", size=None),
+            Layout(name="top", size=8),
+            Layout(name="bottom", size=None),
         )
 
-        layout["main"].split_row(
-            Layout(name="events", ratio=2),
+        layout["top"].split_row(
+            Layout(name="header", ratio=3),
             Layout(name="stats", ratio=1),
+        )
+
+        layout["bottom"].split_row(
+            Layout(name="events", ratio=2),
+            Layout(name="detail", ratio=2),
         )
 
         # Header panel with current state
@@ -337,27 +475,7 @@ class WrapperMonitor:
             )
         )
 
-        # Events panel with recent activity
-        events_table = Table(show_header=True, box=box.SIMPLE, expand=True)
-        events_table.add_column("Time", style="dim", width=10)
-        events_table.add_column("Event", overflow="fold")
-
-        if not self.events:
-            events_table.add_row("--:--:--", "Waiting for events...")
-        else:
-            for time_str, icon, message in self.events:
-                events_table.add_row(time_str, f"{icon} {message}")
-
-        layout["events"].update(
-            Panel(
-                events_table,
-                title="📋 Recent Events",
-                border_style="blue",
-                box=box.ROUNDED,
-            )
-        )
-
-        # Statistics panel
+        # Statistics panel (moved to top-right)
         stats_table = Table(show_header=False, box=box.SIMPLE, expand=True)
         stats_table.add_column("Metric", style="cyan", justify="left")
         stats_table.add_column("Value", style="white", justify="right")
@@ -384,39 +502,157 @@ class WrapperMonitor:
             )
         )
 
+        # Events panel with recent activity (highlight selected event)
+        # Display in DESCENDING order (newest first)
+        events_table = Table(show_header=True, box=box.SIMPLE, expand=True)
+        events_table.add_column("", width=2)  # Selection indicator with icon
+        events_table.add_column("Time", style="dim", width=10)
+        events_table.add_column("Event", overflow="fold")
+
+        if not self.events:
+            events_table.add_row("", "--:--:--", "Waiting for events...")
+        else:
+            # Reverse to show newest first (descending order)
+            events_list = list(reversed(self.events))
+
+            for idx, (time_str, icon, message) in enumerate(events_list):
+                # idx 0 = top (newest), cursor_position points to visual row from top
+                is_selected = idx == self.cursor_position
+
+                # Nice indicator icons
+                if is_selected:
+                    indicator = "👉" if not self.paused else "⏸️"
+                else:
+                    indicator = ""
+
+                style = "bold yellow" if is_selected else ""
+                events_table.add_row(indicator, time_str, f"{icon} {message}", style=style)
+
+        events_title = "📋 Recent Events"
+        if self.paused:
+            events_title += " [PAUSED]"
+
+        layout["events"].update(
+            Panel(
+                events_table,
+                title=events_title,
+                border_style="yellow" if self.paused else "blue",
+                box=box.ROUNDED,
+            )
+        )
+
+        # Event Detail panel with formatted view (moved to bottom-right)
+        if self.last_event_detail:
+            detail_content = Text.from_markup(self.last_event_detail)
+        else:
+            detail_content = Text("Waiting for events...", style="dim")
+
+        detail_title = f"🔍 Event Detail [Row {self.cursor_position + 1}/{len(self.raw_events)}]"
+        if len(self.raw_events) > 0:
+            detail_title += " | ↑↓:Navigate SPACE:Pause Q:Quit"
+
+        layout["detail"].update(
+            Panel(
+                detail_content,
+                title=detail_title,
+                border_style="magenta",
+                box=box.ROUNDED,
+            )
+        )
+
         return layout
 
     def run(self) -> None:
         """Run the live monitor, reading from stdin."""
-        with Live(self.build_dashboard(), refresh_per_second=4, console=self.console) as live:
+        # Note: Keyboard controls work when connected to /dev/tty
+        # This allows piped stdin (JSON events) + keyboard input simultaneously
+        try:
+            keyboard_fd = open("/dev/tty", "r")
+            has_keyboard = True
+        except (OSError, FileNotFoundError):
+            keyboard_fd = None
+            has_keyboard = False
+
+        import termios
+        import tty
+
+        old_settings = None
+        if has_keyboard:
             try:
-                for line in sys.stdin:
-                    line = line.strip()
-                    if not line:
-                        continue
+                old_settings = termios.tcgetattr(keyboard_fd)
+                tty.setcbreak(keyboard_fd.fileno())
+            except Exception:
+                has_keyboard = False
 
-                    try:
-                        event = json.loads(line)
-                        self.process_event(event)
-                        live.update(self.build_dashboard())
-                    except json.JSONDecodeError:
-                        # Skip non-JSON lines (e.g., debug output)
-                        continue
-                    except Exception as e:
-                        self.stats["errors"] += 1
-                        self.add_event(
-                            datetime.now(timezone.utc).isoformat(),
-                            "⚠️",
-                            f"Parse error: {str(e)[:40]}",
-                        )
-                        live.update(self.build_dashboard())
+        try:
+            with Live(self.build_dashboard(), refresh_per_second=4, console=self.console) as live:
+                try:
+                    while True:
+                        # Check for keyboard input (non-blocking)
+                        if has_keyboard:
+                            readable, _, _ = select.select([keyboard_fd, sys.stdin], [], [], 0.05)
 
-            except KeyboardInterrupt:
-                self.state = "interrupted"
-                self.add_event(
-                    datetime.now(timezone.utc).isoformat(), "⏹️", "Monitor stopped by user"
-                )
-                live.update(self.build_dashboard())
+                            if keyboard_fd in readable:
+                                key = keyboard_fd.read(1)
+
+                                # Handle keyboard commands
+                                if key == "q" or key == "Q":
+                                    break
+                                elif key == " ":
+                                    self.toggle_pause()
+                                    live.update(self.build_dashboard())
+                                elif key == "\x1b":  # Escape sequence for arrow keys
+                                    next1 = keyboard_fd.read(1)
+                                    next2 = keyboard_fd.read(1)
+                                    if next1 == "[":
+                                        if next2 == "A":  # Up arrow
+                                            self.navigate_up()
+                                            live.update(self.build_dashboard())
+                                        elif next2 == "B":  # Down arrow
+                                            self.navigate_down()
+                                            live.update(self.build_dashboard())
+                        else:
+                            # No keyboard, just wait for stdin
+                            readable, _, _ = select.select([sys.stdin], [], [], 0.05)
+
+                        # Read JSON events from stdin (piped)
+                        if sys.stdin in readable:
+                            line = sys.stdin.readline()
+                            if not line:
+                                break  # EOF
+
+                            line = line.strip()
+                            if not line:
+                                continue
+
+                            try:
+                                event = json.loads(line)
+                                self.process_event(event)
+                                live.update(self.build_dashboard())
+                            except json.JSONDecodeError:
+                                # Skip non-JSON lines
+                                continue
+                            except Exception as e:
+                                self.stats["errors"] += 1
+                                self.add_event(
+                                    datetime.now(timezone.utc).isoformat(),
+                                    "⚠️",
+                                    f"Parse error: {str(e)[:40]}",
+                                )
+                                live.update(self.build_dashboard())
+
+                except KeyboardInterrupt:
+                    self.state = "interrupted"
+                    self.add_event(
+                        datetime.now(timezone.utc).isoformat(), "⏹️", "Monitor stopped by user"
+                    )
+                    live.update(self.build_dashboard())
+        finally:
+            # Restore terminal settings
+            if has_keyboard and old_settings:
+                termios.tcsetattr(keyboard_fd, termios.TCSADRAIN, old_settings)
+            if keyboard_fd:
+                keyboard_fd.close()
 
         # Final summary
         self.console.print("\n[bold]Monitor Summary:[/bold]")
