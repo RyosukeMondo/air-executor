@@ -10,14 +10,16 @@ import logging
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import yaml
 
 from ..config.state_config import StateConfig
 from ..domain.enums import Phase
+from ..domain.interfaces.state_repository import IStateRepository
 
 
-class ProjectStateManager:
+class ProjectStateManager(IStateRepository):
     """
     Manage project-based state with smart invalidation logic.
 
@@ -140,6 +142,40 @@ config_hash: {config_hash}
             if temp_file.exists():
                 temp_file.unlink()
             raise
+
+    def get_state(self, phase: str) -> dict[str, Any] | None:
+        """
+        Get saved state data for a phase.
+
+        Args:
+            phase: Setup phase name ('hooks' or 'tests')
+
+        Returns:
+            State data dict if exists and valid, None otherwise
+        """
+        state_file = self.state_dir / f"{phase}_state.md"
+        if not state_file.exists():
+            return None
+
+        try:
+            state_content = state_file.read_text(encoding="utf-8")
+            # Extract data section after second "---"
+            parts = state_content.split("---", 2)
+            if len(parts) < 3:
+                return None
+
+            # Parse YAML data from the markdown code block
+            data_section = parts[2]
+            # Find YAML block between ```yaml and ```
+            if "```yaml" in data_section:
+                yaml_start = data_section.index("```yaml") + 7
+                yaml_end = data_section.index("```", yaml_start)
+                yaml_content = data_section[yaml_start:yaml_end].strip()
+                return yaml.safe_load(yaml_content)
+            return None
+        except Exception as e:
+            self.logger.warning("Failed to read state for %s: %s", phase, e)
+            return None
 
     def should_reconfigure(self, phase: str) -> tuple[bool, str]:
         """
