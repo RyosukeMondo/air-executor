@@ -104,56 +104,16 @@ class FlutterAdapter(LanguageAdapter):
         )
 
         try:
-            # Find flutter executable (handle PATH issues)
             flutter_cmd = FlutterTestUtils.find_flutter_executable()
             if not flutter_cmd:
-                # Flutter not found - count test files instead
-                test_count = FlutterTestUtils.count_test_files_directly(project_path)
-                result.tests_passed = test_count
-                result.tests_failed = 0
-                result.success = test_count > 0
-                result.execution_time = time.time() - start_time
-                result.error_message = (
-                    f"Flutter not in PATH, counted {test_count} test files directly"
-                )
-                return result
+                return self._handle_flutter_not_found(project_path, result, start_time)
 
-            # Build test command based on strategy
-            if strategy == "minimal":
-                # Only unit tests
-                cmd = [flutter_cmd, "test", "test/unit/", "--no-pub"]
-                timeout = 300  # 5 min
-            elif strategy == "selective":
-                # Unit + widget tests, no integration
-                cmd = [flutter_cmd, "test", "--exclude-tags=integration", "--no-pub"]
-                timeout = 900  # 15 min
-            else:  # comprehensive
-                # Full test suite
-                cmd = [flutter_cmd, "test", "--no-pub"]
-                timeout = 1800  # 30 min
-
+            cmd, timeout = self._build_test_command(flutter_cmd, strategy)
             test_result = subprocess.run(
                 cmd, cwd=project_path, capture_output=True, text=True, timeout=timeout
             )
 
-            # Parse test results
-            result.test_failures = self.parse_errors(
-                test_result.stdout + test_result.stderr, "tests"
-            )
-
-            # Extract pass/fail counts
-            counts = FlutterTestUtils.extract_test_counts(test_result.stdout)
-            result.tests_passed = counts["passed"]
-            result.tests_failed = counts["failed"]
-
-            # If no tests detected from output but flutter ran, count files
-            if result.tests_passed == 0 and result.tests_failed == 0:
-                test_count = FlutterTestUtils.count_test_files_directly(project_path)
-                if test_count > 0:
-                    result.error_message = f"Flutter test ran but detected 0 tests. Found {test_count} *_test.dart files. Possible test discovery issue."
-                    # Use file count as fallback
-                    result.tests_passed = test_count
-
+            self._populate_test_result(result, test_result, project_path)
             result.success = test_result.returncode == 0
             result.execution_time = time.time() - start_time
 
@@ -165,6 +125,54 @@ class FlutterAdapter(LanguageAdapter):
             result.error_message = str(e)
 
         return result
+
+    def _handle_flutter_not_found(
+        self, project_path: str, result: AnalysisResult, start_time: float
+    ) -> AnalysisResult:
+        """Handle case when Flutter executable is not found."""
+        test_count = FlutterTestUtils.count_test_files_directly(project_path)
+        result.tests_passed = test_count
+        result.tests_failed = 0
+        result.success = test_count > 0
+        result.execution_time = time.time() - start_time
+        result.error_message = (
+            f"Flutter not in PATH, counted {test_count} test files directly"
+        )
+        return result
+
+    def _build_test_command(self, flutter_cmd: str, strategy: str) -> tuple[List[str], int]:
+        """Build test command and timeout based on strategy."""
+        if strategy == "minimal":
+            return [flutter_cmd, "test", "test/unit/", "--no-pub"], 300
+        elif strategy == "selective":
+            return [flutter_cmd, "test", "--exclude-tags=integration", "--no-pub"], 900
+        else:  # comprehensive
+            return [flutter_cmd, "test", "--no-pub"], 1800
+
+    def _populate_test_result(
+        self, result: AnalysisResult, test_result: subprocess.CompletedProcess, project_path: str
+    ) -> None:
+        """Populate result with test outcomes."""
+        result.test_failures = self.parse_errors(
+            test_result.stdout + test_result.stderr, "tests"
+        )
+
+        counts = FlutterTestUtils.extract_test_counts(test_result.stdout)
+        result.tests_passed = counts["passed"]
+        result.tests_failed = counts["failed"]
+
+        if result.tests_passed == 0 and result.tests_failed == 0:
+            self._handle_zero_tests_detected(result, project_path)
+
+    def _handle_zero_tests_detected(self, result: AnalysisResult, project_path: str) -> None:
+        """Handle case when no tests are detected from output."""
+        test_count = FlutterTestUtils.count_test_files_directly(project_path)
+        if test_count > 0:
+            result.error_message = (
+                f"Flutter test ran but detected 0 tests. Found {test_count} "
+                "*_test.dart files. Possible test discovery issue."
+            )
+            result.tests_passed = test_count
 
     def analyze_coverage(self, project_path: str) -> AnalysisResult:
         """Analyze test coverage and find gaps."""
@@ -280,76 +288,79 @@ class FlutterAdapter(LanguageAdapter):
         """Validate Flutter toolchain availability."""
         results = []
 
-        # 1. Validate Flutter
         flutter_result = self._validate_flutter()
         results.append(flutter_result)
 
-        # 2. Validate Dart (usually comes with Flutter)
         dart_result = self._validate_dart()
         results.append(dart_result)
 
-        # 3. Validate flutter analyze (requires flutter)
-        if flutter_result.available:
-            results.append(
-                ToolValidationResult(
-                    tool_name="flutter analyze",
-                    available=True,
-                    version=flutter_result.version,
-                    path=flutter_result.path,
-                )
-            )
-        else:
-            results.append(
-                ToolValidationResult(
-                    tool_name="flutter analyze",
-                    available=False,
-                    error_message="flutter not available",
-                    fix_suggestion="Install Flutter: https://docs.flutter.dev/get-started/install",
-                )
-            )
-
-        # 4. Validate flutter test (requires flutter)
-        if flutter_result.available:
-            results.append(
-                ToolValidationResult(
-                    tool_name="flutter test",
-                    available=True,
-                    version=flutter_result.version,
-                    path=flutter_result.path,
-                )
-            )
-        else:
-            results.append(
-                ToolValidationResult(
-                    tool_name="flutter test",
-                    available=False,
-                    error_message="flutter not available",
-                    fix_suggestion="Install Flutter: https://docs.flutter.dev/get-started/install",
-                )
-            )
+        results.append(self._create_flutter_analyze_validation(flutter_result))
+        results.append(self._create_flutter_test_validation(flutter_result))
 
         return results
+
+    def _create_flutter_analyze_validation(
+        self, flutter_result: ToolValidationResult
+    ) -> ToolValidationResult:
+        """Create validation result for flutter analyze tool."""
+        if flutter_result.available:
+            return ToolValidationResult(
+                tool_name="flutter analyze",
+                available=True,
+                version=flutter_result.version,
+                path=flutter_result.path,
+            )
+        return ToolValidationResult(
+            tool_name="flutter analyze",
+            available=False,
+            error_message="flutter not available",
+            fix_suggestion="Install Flutter: https://docs.flutter.dev/get-started/install",
+        )
+
+    def _create_flutter_test_validation(
+        self, flutter_result: ToolValidationResult
+    ) -> ToolValidationResult:
+        """Create validation result for flutter test tool."""
+        if flutter_result.available:
+            return ToolValidationResult(
+                tool_name="flutter test",
+                available=True,
+                version=flutter_result.version,
+                path=flutter_result.path,
+            )
+        return ToolValidationResult(
+            tool_name="flutter test",
+            available=False,
+            error_message="flutter not available",
+            fix_suggestion="Install Flutter: https://docs.flutter.dev/get-started/install",
+        )
 
     def _validate_flutter(self) -> ToolValidationResult:
         """Validate Flutter installation."""
         flutter_cmd = FlutterTestUtils.find_flutter_executable()
 
         if not flutter_cmd:
-            return ToolValidationResult(
-                tool_name="flutter",
-                available=False,
-                error_message="Flutter not found in PATH or common locations",
-                fix_suggestion="Install Flutter: https://docs.flutter.dev/get-started/install\n"
-                "Or add to PATH: export PATH=$HOME/flutter/bin:$PATH",
-            )
+            return self._create_flutter_not_found_result()
 
-        # Get version
+        return self._get_flutter_version(flutter_cmd)
+
+    def _create_flutter_not_found_result(self) -> ToolValidationResult:
+        """Create result when Flutter is not found."""
+        return ToolValidationResult(
+            tool_name="flutter",
+            available=False,
+            error_message="Flutter not found in PATH or common locations",
+            fix_suggestion="Install Flutter: https://docs.flutter.dev/get-started/install\n"
+            "Or add to PATH: export PATH=$HOME/flutter/bin:$PATH",
+        )
+
+    def _get_flutter_version(self, flutter_cmd: str) -> ToolValidationResult:
+        """Get Flutter version and create validation result."""
         try:
             result = subprocess.run(
                 [flutter_cmd, "--version"], capture_output=True, text=True, timeout=10
             )
 
-            # Parse version from output
             version_match = re.search(r"Flutter\s+([\d.]+)", result.stdout)
             version = version_match.group(1) if version_match else "unknown"
 
@@ -367,33 +378,47 @@ class FlutterAdapter(LanguageAdapter):
 
     def _validate_dart(self) -> ToolValidationResult:
         """Validate Dart installation."""
+        dart_cmd = self._find_dart_executable()
+
+        if not dart_cmd:
+            return self._create_dart_not_found_result()
+
+        return self._get_dart_version(dart_cmd)
+
+    def _find_dart_executable(self) -> str | None:
+        """Find Dart executable in PATH or Flutter installation."""
         import shutil
 
         dart_cmd = shutil.which("dart")
+        if dart_cmd:
+            return dart_cmd
 
-        if not dart_cmd:
-            # Try flutter/bin/dart
-            flutter_cmd = FlutterTestUtils.find_flutter_executable()
-            if flutter_cmd:
-                dart_cmd = str(Path(flutter_cmd).parent / "dart")
-                if not Path(dart_cmd).exists():
-                    dart_cmd = None
+        flutter_cmd = FlutterTestUtils.find_flutter_executable()
+        if not flutter_cmd:
+            return None
 
-        if not dart_cmd:
-            return ToolValidationResult(
-                tool_name="dart",
-                available=False,
-                error_message="Dart not found",
-                fix_suggestion="Dart usually comes with Flutter. Check: flutter doctor",
-            )
+        dart_in_flutter = str(Path(flutter_cmd).parent / "dart")
+        if Path(dart_in_flutter).exists():
+            return dart_in_flutter
 
-        # Get version
+        return None
+
+    def _create_dart_not_found_result(self) -> ToolValidationResult:
+        """Create result when Dart is not found."""
+        return ToolValidationResult(
+            tool_name="dart",
+            available=False,
+            error_message="Dart not found",
+            fix_suggestion="Dart usually comes with Flutter. Check: flutter doctor",
+        )
+
+    def _get_dart_version(self, dart_cmd: str) -> ToolValidationResult:
+        """Get Dart version and create validation result."""
         try:
             result = subprocess.run(
                 [dart_cmd, "--version"], capture_output=True, text=True, timeout=10
             )
 
-            # Parse version from output (stderr for dart)
             output = result.stdout + result.stderr
             version_match = re.search(r"Dart SDK version:\s+([\d.]+)", output)
             version = version_match.group(1) if version_match else "unknown"
