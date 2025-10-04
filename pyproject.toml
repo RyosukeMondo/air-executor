@@ -36,6 +36,13 @@ ignore_missing_imports = true
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+exclude = [
+    "tests/tmp_*",           # Temporary test runs
+    "tests/fixtures",        # Test fixtures
+    "**/node_modules",       # JS dependencies
+    "**/.venv",             # Virtual environments
+    "**/__pycache__",       # Python cache
+]
 
 [tool.ruff.lint]
 select = [
