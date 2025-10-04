@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from airflow_dags.autonomous_fixing.config import SetupTrackerConfig
 from airflow_dags.autonomous_fixing.core.setup_tracker import SetupTracker
 
 
@@ -15,10 +16,8 @@ class TestSetupTrackerFilesystem:
     @pytest.fixture
     def tracker(self, tmp_path):
         """Create SetupTracker with temporary state directory."""
-        # Patch STATE_DIR to use tmp_path
-        with patch.object(SetupTracker, 'STATE_DIR', tmp_path):
-            tracker = SetupTracker(redis_config=None)
-            yield tracker
+        config = SetupTrackerConfig(state_dir=tmp_path, ttl_days=30, redis_config=None)
+        return SetupTracker(config=config)
 
     def test_mark_setup_complete_creates_marker(self, tracker, tmp_path):
         """Test that marking setup complete creates filesystem marker."""
@@ -91,6 +90,7 @@ class TestSetupTrackerFilesystem:
 
         # Check permissions (owner read/write only)
         import stat
+
         mode = marker_files[0].stat().st_mode
         assert stat.S_IMODE(mode) == 0o600
 
@@ -141,40 +141,51 @@ class TestSetupTrackerRedis:
     @pytest.fixture
     def tracker_with_redis(self, mock_redis, tmp_path):
         """Create SetupTracker with mocked Redis."""
-        with patch.object(SetupTracker, 'STATE_DIR', tmp_path):
-            with patch('airflow_dags.autonomous_fixing.core.setup_tracker.redis.Redis', return_value=mock_redis):
-                redis_config = {
-                    'redis_host': 'localhost',
-                    'redis_port': 6379,
-                    'namespace': 'test_namespace'
-                }
-                tracker = SetupTracker(redis_config)
-                yield tracker, mock_redis
+        with patch(
+            "airflow_dags.autonomous_fixing.core.setup_tracker.redis.Redis", return_value=mock_redis
+        ):
+            redis_config_dict = {
+                "redis_host": "localhost",
+                "redis_port": 6379,
+                "namespace": "test_namespace",
+            }
+            config = SetupTrackerConfig(
+                state_dir=tmp_path, ttl_days=30, redis_config=redis_config_dict
+            )
+            tracker = SetupTracker(config=config)
+            yield tracker, mock_redis
 
     def test_redis_initialization_success(self, mock_redis, tmp_path):
         """Test successful Redis initialization."""
-        with patch.object(SetupTracker, 'STATE_DIR', tmp_path):
-            with patch('airflow_dags.autonomous_fixing.core.setup_tracker.redis.Redis', return_value=mock_redis):
-                redis_config = {'redis_host': 'localhost', 'redis_port': 6379}
-                tracker = SetupTracker(redis_config)
+        with patch(
+            "airflow_dags.autonomous_fixing.core.setup_tracker.redis.Redis", return_value=mock_redis
+        ):
+            config = SetupTrackerConfig(
+                state_dir=tmp_path, redis_config={"redis_host": "localhost", "redis_port": 6379}
+            )
+            tracker = SetupTracker(config=config)
 
-                assert tracker.redis_client is not None
-                mock_redis.ping.assert_called_once()
+            assert tracker.redis_client is not None
+            mock_redis.ping.assert_called_once()
 
     def test_redis_initialization_failure_fallback(self, tmp_path):
         """Test graceful fallback when Redis initialization fails."""
-        with patch.object(SetupTracker, 'STATE_DIR', tmp_path):
-            mock_redis = MagicMock()
-            # Use redis.ConnectionError for realistic simulation
-            import redis as redis_module
-            mock_redis.ping.side_effect = redis_module.ConnectionError("Connection failed")
+        mock_redis = MagicMock()
+        # Use redis.ConnectionError for realistic simulation
+        import redis as redis_module
 
-            with patch('airflow_dags.autonomous_fixing.core.setup_tracker.redis.Redis', return_value=mock_redis):
-                redis_config = {'redis_host': 'localhost', 'redis_port': 6379}
-                tracker = SetupTracker(redis_config)
+        mock_redis.ping.side_effect = redis_module.ConnectionError("Connection failed")
 
-                # Should fallback to None (filesystem only)
-                assert tracker.redis_client is None
+        with patch(
+            "airflow_dags.autonomous_fixing.core.setup_tracker.redis.Redis", return_value=mock_redis
+        ):
+            config = SetupTrackerConfig(
+                state_dir=tmp_path, redis_config={"redis_host": "localhost", "redis_port": 6379}
+            )
+            tracker = SetupTracker(config=config)
+
+            # Should fallback to None (filesystem only)
+            assert tracker.redis_client is None
 
     def test_mark_setup_complete_stores_in_redis(self, tracker_with_redis):
         """Test that marking complete stores in Redis."""
@@ -191,7 +202,7 @@ class TestSetupTrackerRedis:
 
         assert "setup:test_namespace:" in key
         assert ":hooks" in key
-        assert ttl == SetupTracker.TTL_SECONDS
+        assert ttl == tracker.config.ttl_seconds
         assert datetime.fromisoformat(value)  # Valid ISO timestamp
 
     def test_is_setup_complete_checks_redis_first(self, tracker_with_redis):
@@ -234,6 +245,7 @@ class TestSetupTrackerRedis:
 
         # Simulate Redis query failure with realistic exception
         import redis as redis_module
+
         mock_redis.exists.side_effect = redis_module.RedisError("Redis error")
 
         # Create filesystem marker
@@ -265,6 +277,7 @@ class TestSetupTrackerRedis:
 
         # Simulate Redis store failure with realistic exception
         import redis as redis_module
+
         mock_redis.setex.side_effect = redis_module.RedisError("Redis write failed")
 
         # Should not raise exception
@@ -281,9 +294,8 @@ class TestSetupTrackerEdgeCases:
     @pytest.fixture
     def tracker(self, tmp_path):
         """Create SetupTracker with temporary state directory."""
-        with patch.object(SetupTracker, 'STATE_DIR', tmp_path):
-            tracker = SetupTracker(redis_config=None)
-            yield tracker
+        config = SetupTrackerConfig(state_dir=tmp_path, ttl_days=30, redis_config=None)
+        return SetupTracker(config=config)
 
     def test_project_path_with_special_characters(self, tracker, tmp_path):
         """Test handling of project paths with special characters."""
@@ -319,26 +331,34 @@ class TestSetupTrackerEdgeCases:
         state_dir = tmp_path / "new_state_dir"
         assert not state_dir.exists()
 
-        with patch.object(SetupTracker, 'STATE_DIR', state_dir):
-            _ = SetupTracker(redis_config=None)
+        config = SetupTrackerConfig(state_dir=state_dir, redis_config=None)
+        _ = SetupTracker(config=config)
 
-            # State directory should be created
-            assert state_dir.exists()
-            assert state_dir.is_dir()
+        # State directory should be created
+        assert state_dir.exists()
+        assert state_dir.is_dir()
 
     def test_namespace_isolation(self, tmp_path):
         """Test that different namespaces are isolated in Redis keys."""
-        with patch.object(SetupTracker, 'STATE_DIR', tmp_path):
-            mock_redis = MagicMock()
-            mock_redis.ping.return_value = True
+        mock_redis = MagicMock()
+        mock_redis.ping.return_value = True
 
-            with patch('airflow_dags.autonomous_fixing.core.setup_tracker.redis.Redis', return_value=mock_redis):
-                tracker1 = SetupTracker({'redis_host': 'localhost', 'namespace': 'ns1'})
-                tracker2 = SetupTracker({'redis_host': 'localhost', 'namespace': 'ns2'})
+        with patch(
+            "airflow_dags.autonomous_fixing.core.setup_tracker.redis.Redis", return_value=mock_redis
+        ):
+            config1 = SetupTrackerConfig(
+                state_dir=tmp_path, redis_config={"redis_host": "localhost", "namespace": "ns1"}
+            )
+            config2 = SetupTrackerConfig(
+                state_dir=tmp_path, redis_config={"redis_host": "localhost", "namespace": "ns2"}
+            )
 
-                key1 = tracker1._get_redis_key("/project", "hooks")
-                key2 = tracker2._get_redis_key("/project", "hooks")
+            tracker1 = SetupTracker(config=config1)
+            tracker2 = SetupTracker(config=config2)
 
-                assert "ns1" in key1
-                assert "ns2" in key2
-                assert key1 != key2
+            key1 = tracker1._get_redis_key("/project", "hooks")
+            key2 = tracker2._get_redis_key("/project", "hooks")
+
+            assert "ns1" in key1
+            assert "ns2" in key2
+            assert key1 != key2

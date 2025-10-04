@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 import pytest
 import yaml
 
+from airflow_dags.autonomous_fixing.config import PreflightConfig
 from airflow_dags.autonomous_fixing.core.setup_tracker import SetupTracker
 from airflow_dags.autonomous_fixing.core.validators.preflight import PreflightValidator
 
@@ -22,9 +23,10 @@ class TestPreflightValidatorHookConfig:
         return tracker
 
     @pytest.fixture
-    def validator(self, mock_tracker):
-        """Create PreflightValidator with mock tracker."""
-        return PreflightValidator(mock_tracker)
+    def validator(self, mock_tracker, tmp_path):
+        """Create PreflightValidator with mock tracker and test config."""
+        config = PreflightConfig.for_testing(tmp_path)
+        return PreflightValidator(mock_tracker, config=config)
 
     @patch("airflow_dags.autonomous_fixing.core.validators.preflight.ProjectStateManager")
     def test_can_skip_when_state_not_tracked(
@@ -214,9 +216,10 @@ class TestPreflightValidatorTestDiscovery:
         return tracker
 
     @pytest.fixture
-    def validator(self, mock_tracker):
-        """Create PreflightValidator with mock tracker."""
-        return PreflightValidator(mock_tracker)
+    def validator(self, mock_tracker, tmp_path):
+        """Create PreflightValidator with mock tracker and test config."""
+        config = PreflightConfig.for_testing(tmp_path)
+        return PreflightValidator(mock_tracker, config=config)
 
     @patch("airflow_dags.autonomous_fixing.core.validators.preflight.ProjectStateManager")
     def test_can_skip_when_state_not_tracked(
@@ -396,10 +399,11 @@ class TestCacheValidation:
     """Test internal cache validation methods."""
 
     @pytest.fixture
-    def validator(self):
-        """Create validator with mock tracker."""
+    def validator(self, tmp_path):
+        """Create validator with mock tracker and test config."""
         tracker = Mock(spec=SetupTracker)
-        return PreflightValidator(tracker)
+        config = PreflightConfig.for_testing(tmp_path)
+        return PreflightValidator(tracker, config=config)
 
     def test_validate_hook_cache_valid(self, validator, tmp_path):
         """Test validation of valid hook cache."""
@@ -487,11 +491,12 @@ class TestPerformance:
     """Test overall performance requirements."""
 
     @pytest.fixture
-    def validator(self):
-        """Create validator with mock tracker."""
+    def validator(self, tmp_path):
+        """Create validator with mock tracker and test config."""
         tracker = Mock(spec=SetupTracker)
         tracker.is_setup_complete.return_value = True
-        val = PreflightValidator(tracker)
+        config = PreflightConfig.for_testing(tmp_path)
+        val = PreflightValidator(tracker, config=config)
         return val, tracker
 
     def test_combined_validation_under_200ms(self, validator, tmp_path):

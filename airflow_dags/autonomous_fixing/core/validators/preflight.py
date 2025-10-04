@@ -348,7 +348,7 @@ class PreflightValidator:
         except (PermissionError, OSError) as e:
             return (False, f"cache file unreadable: {e}")
         except Exception as e:
-            self.logger.error(f"Unexpected error validating hook cache {cache_path}: {e}")
+            self.logger.error("Unexpected error validating hook cache %s: %s", cache_path, e)
             return (False, f"unexpected error: {e}")
 
     def _validate_test_cache(self, cache_path: Path) -> Tuple[bool, str]:
@@ -392,5 +392,5 @@ class PreflightValidator:
         except (PermissionError, OSError) as e:
             return (False, f"cache file unreadable: {e}")
         except Exception as e:
-            self.logger.error(f"Unexpected error validating test cache {cache_path}: {e}")
+            self.logger.error("Unexpected error validating test cache %s: %s", cache_path, e)
             return (False, f"unexpected error: {e}")

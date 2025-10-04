@@ -14,6 +14,7 @@ from typing import Tuple
 
 import yaml
 
+from ..config.state_config import StateConfig
 from ..domain.enums import Phase
 
 
@@ -33,19 +34,17 @@ class ProjectStateManager:
     - Orchestrate setup flow (that's IterationEngine's job)
     """
 
-    STATE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60  # 30 days
-    EXTERNAL_HOOK_CACHE_DIR = Path("config/precommit-cache")
-    EXTERNAL_TEST_CACHE_DIR = Path("config/test-cache")
-
-    def __init__(self, project_path: Path):
+    def __init__(self, project_path: Path, config: StateConfig | None = None):
         """
         Initialize state manager for a project.
 
         Args:
             project_path: Path to project directory
+            config: Optional StateConfig for custom settings. If None, uses defaults.
         """
         self.project_path = project_path
-        self.state_dir = project_path / ".ai-state"
+        self.config = config or StateConfig()
+        self.state_dir = project_path / self.config.state_dir_name
         self.logger = logging.getLogger(__name__)
 
     def save_state(self, phase: str, data: dict) -> None:
@@ -119,14 +118,15 @@ config_hash: {config_hash}
 
     def _get_invalidation_triggers(self, phase: str) -> str:
         """Get invalidation triggers for phase."""
+        max_age_days = self.config.max_age_days
         if phase == str(Phase.HOOKS):
-            return """- .pre-commit-config.yaml modified
+            return f"""- .pre-commit-config.yaml modified
 - .git/hooks/pre-commit deleted
-- State age > 30 days"""
+- State age > {max_age_days} days"""
 
         # tests
-        return """- package.json modified
-- State age > 30 days"""
+        return f"""- package.json modified
+- State age > {max_age_days} days"""
 
     def _write_state_file(self, state_file: Path, content: str) -> None:
         """Write state file atomically."""
@@ -135,9 +135,9 @@ config_hash: {config_hash}
             temp_file.write_text(content, encoding="utf-8")
             temp_file.chmod(0o644)  # User writable, others read
             temp_file.replace(state_file)
-            self.logger.info(f"Saved state to {state_file}")
+            self.logger.info("Saved state to %s", state_file)
         except Exception as e:
-            self.logger.error(f"Failed to save state to {state_file}: {e}")
+            self.logger.error("Failed to save state to %s: %s", state_file, e)
             if temp_file.exists():
                 temp_file.unlink()
             raise
@@ -170,7 +170,7 @@ config_hash: {config_hash}
 
         # Check 1: Does project state exist?
         if not state_file.exists():
-            self.logger.debug(f"Project state missing for {phase}: {state_file}")
+            self.logger.debug("Project state missing for %s: %s", phase, state_file)
             return self._check_external_cache(phase)
 
         # Check 2: Is state file valid?
@@ -210,7 +210,7 @@ config_hash: {config_hash}
             return None
 
         framework = "husky" if husky_dir.exists() else "pre-commit"
-        self.logger.debug(f"Detected existing {framework} hooks in filesystem, skipping setup")
+        self.logger.debug("Detected existing %s hooks in filesystem, skipping setup", framework)
         return (False, f"{framework} hooks already configured")
 
     def _build_success_message(self, phase: str, generated: str) -> Tuple[bool, str]:
@@ -228,20 +228,20 @@ config_hash: {config_hash}
             state_content = state_file.read_text(encoding="utf-8")
             return self._parse_state_content(state_file, state_content)
         except Exception as e:
-            self.logger.error(f"Failed to parse state file {state_file}: {e}")
+            self.logger.error("Failed to parse state file %s: %s", state_file, e)
             state_file.unlink()
             return None
 
     def _parse_state_content(self, state_file: Path, state_content: str):
         """Parse state content and extract metadata."""
         if not state_content.startswith("---"):
-            self.logger.warning(f"State file corrupted (no frontmatter): {state_file}")
+            self.logger.warning("State file corrupted (no frontmatter): %s", state_file)
             state_file.unlink()
             return None
 
         parts = state_content.split("---", 2)
         if len(parts) < 3:
-            self.logger.warning(f"State file corrupted (invalid frontmatter): {state_file}")
+            self.logger.warning("State file corrupted (invalid frontmatter): %s", state_file)
             state_file.unlink()
             return None
 
@@ -249,17 +249,17 @@ config_hash: {config_hash}
         return metadata.get("config_hash", ""), metadata.get("generated", "")
 
     def _check_staleness(self, phase, generated):
-        """Check if state is stale (>30 days)."""
+        """Check if state is stale (>max_age_days)."""
         generated_time = self._parse_timestamp(generated)
         if generated_time is None:
             return None
 
         state_age = time.time() - generated_time
-        if state_age <= self.STATE_MAX_AGE_SECONDS:
+        if state_age <= self.config.max_age_seconds:
             return None
 
         days_old = int(state_age / 86400)
-        self.logger.debug(f"State stale ({days_old}d) for {phase}")
+        self.logger.debug("State stale (%dd) for %s", days_old, phase)
         return (True, f"state stale ({days_old}d old)")
 
     def _parse_timestamp(self, generated):
@@ -271,7 +271,7 @@ config_hash: {config_hash}
                 return generated.timestamp()
             raise ValueError(f"Invalid timestamp type: {type(generated)}")
         except Exception as e:
-            self.logger.warning(f"Failed to parse state timestamp: {e}")
+            self.logger.warning("Failed to parse state timestamp: %s", e)
             return None
 
     def _check_config_changes(self, phase, state_file, stored_hash):
@@ -294,7 +294,7 @@ config_hash: {config_hash}
         if config_file.stat().st_mtime <= state_mtime:
             return None
 
-        self.logger.debug(f"Config file modified for {phase}: {config_file.name}")
+        self.logger.debug("Config file modified for %s: %s", phase, config_file.name)
         return (True, f"{config_file.name} modified")
 
     def _check_config_hash(self, phase: str, stored_hash: str):
@@ -304,7 +304,10 @@ config_hash: {config_hash}
             return None
 
         self.logger.debug(
-            f"Config hash changed for {phase}: {stored_hash[:8]} -> {current_hash[:8]}"
+            "Config hash changed for %s: %s -> %s",
+            phase,
+            stored_hash[:8],
+            current_hash[:8],
         )
         return (True, "config content changed")
 
@@ -380,7 +383,7 @@ config_hash: {config_hash}
         # Add .ai-state/ to gitignore
         lines.append(".ai-state/")
         gitignore.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        self.logger.info(f"Added .ai-state/ to {gitignore}")
+        self.logger.info("Added .ai-state/ to %s", gitignore)
 
     def _read_gitignore_lines(self, gitignore: Path) -> list:
         """Read gitignore lines or return empty list."""
@@ -408,14 +411,15 @@ config_hash: {config_hash}
             return (True, f"no {phase} state found")
 
         cache_age = time.time() - external_cache.stat().st_mtime
-        if cache_age > self.STATE_MAX_AGE_SECONDS:
+        if cache_age > self.config.max_age_seconds:
             days_old = int(cache_age / 86400)
             return (True, f"external cache stale ({days_old}d)")
 
         # Log migration notice
         self.logger.info(
-            f"Migrating state from config/ to .ai-state/ for {phase} "
-            f"(using external cache, will save to project on next run)"
+            "Migrating state from config/ to .ai-state/ for %s "
+            "(using external cache, will save to project on next run)",
+            phase,
         )
         days_old = int(cache_age / 86400)
         return (False, f"{phase} configured {days_old}d ago (external cache)")
@@ -424,5 +428,5 @@ config_hash: {config_hash}
         """Get external cache file path for phase."""
         project_name = self.project_path.name
         if phase == str(Phase.HOOKS):
-            return self.EXTERNAL_HOOK_CACHE_DIR / f"{project_name}-hooks.yaml"
-        return self.EXTERNAL_TEST_CACHE_DIR / f"{project_name}-tests.yaml"
+            return self.config.external_hook_cache_dir / f"{project_name}-hooks.yaml"
+        return self.config.external_test_cache_dir / f"{project_name}-tests.yaml"

@@ -9,7 +9,9 @@ import hashlib
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
+
+from airflow_dags.autonomous_fixing.config.setup_tracker_config import SetupTrackerConfig
 
 try:
     import redis
@@ -25,7 +27,7 @@ class SetupTracker:
 
     Responsibilities:
     - Store setup completion state in Redis (primary) or filesystem (fallback)
-    - Query setup completion with TTL-based staleness detection (30 days)
+    - Query setup completion with TTL-based staleness detection (configurable)
     - Gracefully degrade when Redis unavailable
     - Prevent redundant AI invocations for already-completed setup
 
@@ -35,23 +37,37 @@ class SetupTracker:
     - Orchestrate setup flow (that's IterationEngine's job)
     """
 
-    TTL_SECONDS = 30 * 24 * 60 * 60  # 30 days
-    STATE_DIR = Path(".ai-state")
-
-    def __init__(self, redis_config: Optional[dict] = None):
+    def __init__(self, config: Optional[Union[SetupTrackerConfig, dict]] = None):
         """
-        Initialize setup tracker with optional Redis connection.
+        Initialize setup tracker with optional configuration.
 
         Args:
-            redis_config: Optional dict with redis_host, redis_port, namespace
-                         If None or Redis unavailable, uses filesystem fallback only
+            config: Either SetupTrackerConfig object or dict (backward compatibility).
+                   If dict, treated as redis_config.
+                   If None, uses default configuration.
+
+        Example:
+            >>> # New style (recommended)
+            >>> config = SetupTrackerConfig(state_dir=tmp_path / "state", ttl_days=1)
+            >>> tracker = SetupTracker(config=config)
+
+            >>> # Old style (backward compatible)
+            >>> tracker = SetupTracker(redis_config={"redis_host": "localhost"})
         """
         self.logger = logging.getLogger(__name__)
         self.redis_client = None
         self.namespace = "autonomous_fix"
 
-        self._initialize_redis(redis_config)
-        self.STATE_DIR.mkdir(parents=True, exist_ok=True)
+        # Handle backward compatibility: dict means old-style redis_config
+        if isinstance(config, dict):
+            self.config = SetupTrackerConfig(redis_config=config)
+        elif config is None:
+            self.config = SetupTrackerConfig()
+        else:
+            self.config = config
+
+        self._initialize_redis(self.config.redis_config)
+        self.config.state_dir.mkdir(parents=True, exist_ok=True)
 
     def _initialize_redis(self, redis_config: Optional[dict]) -> None:
         """Initialize Redis connection if config provided and library available."""
@@ -190,7 +206,7 @@ class SetupTracker:
             timestamp = datetime.fromisoformat(timestamp_str)
             age = datetime.now() - timestamp
 
-            if age < timedelta(seconds=self.TTL_SECONDS):
+            if age < timedelta(seconds=self.config.ttl_seconds):
                 self.logger.debug(
                     "SetupTracker: Found valid %s marker (age: %dd) for %s",
                     phase,
@@ -244,7 +260,7 @@ class SetupTracker:
 
         try:
             key = self._get_redis_key(project, phase)
-            self.redis_client.setex(key, self.TTL_SECONDS, datetime.now().isoformat())
+            self.redis_client.setex(key, self.config.ttl_seconds, datetime.now().isoformat())
             return True
         except (redis.ConnectionError, redis.TimeoutError) as e:
             self.logger.warning("SetupTracker: Redis connection error for %s: %s", phase, e)
@@ -268,7 +284,7 @@ class SetupTracker:
         """
         # Hash project path for unique marker files
         project_hash = hashlib.sha256(str(project).encode()).hexdigest()[:16]
-        return self.STATE_DIR / f"{project_hash}_{phase}_complete.marker"
+        return self.config.state_dir / f"{project_hash}_{phase}_complete.marker"
 
     def _filesystem_store(self, project: str, phase: str, timestamp: str) -> None:
         """
