@@ -133,7 +133,7 @@ setup(
 
 
 @pytest.fixture
-def cleanup_state():
+def cleanup_state():  # noqa: C901
     """Cleanup state markers and caches before test."""
     # Clean up state directory
     state_dir = Path('.ai-state')
