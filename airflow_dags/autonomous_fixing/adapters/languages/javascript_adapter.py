@@ -112,8 +112,9 @@ class JavaScriptAdapter(LanguageAdapter):
                 'tests'
             )
 
-            # Extract counts
-            counts = self._extract_test_counts(test_result.stdout)
+            # Extract counts (Jest outputs summary to stderr, not stdout!)
+            output = test_result.stdout + test_result.stderr
+            counts = self._extract_test_counts(output)
             result.tests_passed = counts['passed']
             result.tests_failed = counts['failed']
 
@@ -415,15 +416,19 @@ class JavaScriptAdapter(LanguageAdapter):
         return violations
 
     def _extract_test_counts(self, output: str) -> Dict[str, int]:
-        """Extract test pass/fail counts."""
+        """Extract test pass/fail counts from final summary."""
         passed = 0
         failed = 0
 
-        # Jest: "Tests: 2 failed, 5 passed, 7 total"
-        if match := re.search(r'(\d+) passed', output):
-            passed = int(match.group(1))
-        if match := re.search(r'(\d+) failed', output):
-            failed = int(match.group(1))
+        # Jest outputs final summary: "Tests: 2 failed, 5 passed, 7 total"
+        # Use findall to get all matches, then take the last one (final summary)
+        passed_matches = re.findall(r'(\d+) passed', output)
+        if passed_matches:
+            passed = int(passed_matches[-1])  # Last occurrence = final summary
+
+        failed_matches = re.findall(r'(\d+) failed', output)
+        if failed_matches:
+            failed = int(failed_matches[-1])  # Last occurrence = final summary
 
         return {'passed': passed, 'failed': failed}
 
