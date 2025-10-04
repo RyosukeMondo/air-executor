@@ -357,7 +357,26 @@ Success:
 - Tests pass
 ```
 
-**Status**: [ ]
+**Status**: [x] COMPLETED
+
+**Changes Made**:
+- Created new `setup_phase_runner.py` module in `airflow_dags/autonomous_fixing/core/`
+- Extracted 7 setup-related methods from `iteration_engine.py`:
+  - `_save_project_state_safe()`
+  - `_process_hook_setup_for_project()`
+  - `_run_hook_setup_phase()`
+  - `_process_test_discovery_for_project()`
+  - `_run_test_discovery_phase()`
+  - `_print_setup_summary()` (renamed to `print_setup_summary()` as public method)
+  - `run_setup_phases()` (new public method combining hooks + tests phases)
+- Updated `iteration_engine.py`:
+  - Added import for `SetupPhaseRunner`
+  - Created `setup_runner` instance in `__init__()`
+  - Updated `_run_setup_phases()` to delegate to `setup_runner.run_setup_phases()`
+  - Removed 118 lines of setup-related code
+- **Result**: `iteration_engine.py` reduced from 624 lines → 494 lines ✓
+- Ruff linter: All checks passed ✓
+- Module size now ≤ 500 lines (Target: 500, Actual: 494)
 
 ---
 
@@ -1080,7 +1099,7 @@ Key workflows to verify:
 ### Phase 2: Code Organization & Structure 🟡
 - [x] Task 2.1: Fix Import Positioning (Major improvements - ruff passes)
 - [x] Task 2.2: Fix Line Length Issues
-- [ ] Task 2.3: Refactor Oversized Module
+- [x] Task 2.3: Refactor Oversized Module
 
 ### Phase 3: Code Complexity & Design 🟡
 - [ ] Task 3.1: Reduce Instance Attributes

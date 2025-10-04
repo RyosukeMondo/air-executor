@@ -5,15 +5,13 @@ Clean, focused module that ONLY handles the iteration loop logic.
 No analysis, no fixing, no scoring - just iteration coordination.
 """
 
-from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
-from ..domain.interfaces import ISetupTracker
 from .analysis_verifier import AnalysisVerifier
 from .debug_logger import DebugLogger
 from .hook_level_manager import HookLevelManager
+from .setup_phase_runner import SetupPhaseRunner
 from .setup_tracker import SetupTracker
-from .state_manager import ProjectStateManager
 from .time_gatekeeper import TimeGatekeeper
 from .validators.preflight import PreflightValidator
 
@@ -99,8 +97,11 @@ class IterationEngine:
         self.verifier = AnalysisVerifier(self.config)
 
         # Setup optimization components
-        self.setup_tracker: ISetupTracker = SetupTracker(self.config.get("state_manager"))
-        self.validator: PreflightValidator = PreflightValidator(self.setup_tracker)
+        setup_tracker = SetupTracker(self.config.get("state_manager"))
+        validator = PreflightValidator(setup_tracker)
+        self.setup_runner = SetupPhaseRunner(
+            self.fixer, self.debug_logger, setup_tracker, validator
+        )
 
         # Pass debug logger to fixer for wrapper call logging
         self.fixer.debug_logger = self.debug_logger
@@ -108,135 +109,6 @@ class IterationEngine:
 
         # Circuit breaker for repeated test creation
         self.test_creation_attempts = {}  # project_path -> attempt_count
-
-    def _save_project_state_safe(self, project_path: str, phase: str, lang_name: str, **kwargs):
-        """Safely save project state without failing on error."""
-        try:
-            state_manager = ProjectStateManager(Path(project_path))
-            state_data = {"phase": phase, "language": lang_name, **kwargs}
-            state_manager.save_state(phase, state_data)
-        except Exception as e:
-            print(f"   ⚠️  Failed to save project state for {Path(project_path).name}: {e}")
-
-    def _process_hook_setup_for_project(
-        self, project_path: str, lang_name: str
-    ) -> tuple[bool, float, float]:
-        """Process hook setup for a single project. Returns (skipped, time_saved, cost_saved)."""
-        can_skip, reason = self.validator.can_skip_hook_config(Path(project_path))
-        if can_skip:
-            print(f"   ⏭️  {Path(project_path).name}: {reason}")
-            return True, 60.0, 0.50
-
-        success = self.fixer.configure_precommit_hooks(project_path, lang_name)
-        if success:
-            self.setup_tracker.mark_setup_complete(project_path, "hooks")
-            self._save_project_state_safe(project_path, "hooks", lang_name, configured=True)
-
-        return False, 0.0, 0.0
-
-    def _run_hook_setup_phase(self, projects_by_language: dict) -> tuple:
-        """Run pre-commit hook setup phase (SRP)"""
-        print(f"\n{'='*80}")
-        print("🔧 SETUP PHASE 0: Pre-Commit Hook Configuration")
-        print(f"{'='*80}")
-
-        hooks_total = sum(len(project_list) for project_list in projects_by_language.values())
-        hooks_skipped = 0
-        hooks_time_saved = 0.0
-        hooks_cost_saved = 0.0
-
-        for lang_name, project_list in projects_by_language.items():
-            for project_path in project_list:
-                skipped, time_saved, cost_saved = self._process_hook_setup_for_project(
-                    project_path, lang_name
-                )
-                if skipped:
-                    hooks_skipped += 1
-                    hooks_time_saved += time_saved
-                    hooks_cost_saved += cost_saved
-
-        if hooks_skipped > 0:
-            print(f"\n   ⏭️  Skipped hook setup for {hooks_skipped}/{hooks_total} projects")
-            print(f"   💰 Savings: {hooks_time_saved:.0f}s + ${hooks_cost_saved:.2f}")
-            self.debug_logger.log_setup_skip_stats(
-                phase="hooks",
-                skipped=hooks_skipped,
-                total=hooks_total,
-                time_saved=hooks_time_saved,
-                cost_saved=hooks_cost_saved,
-            )
-
-        return hooks_skipped, hooks_time_saved, hooks_cost_saved
-
-    def _process_test_discovery_for_project(
-        self, project_path: str, lang_name: str
-    ) -> tuple[bool, float, float]:
-        """
-        Process test discovery for a single project.
-        Returns (skipped, time_saved, cost_saved).
-        """
-        can_skip, reason = self.validator.can_skip_test_discovery(Path(project_path))
-        if can_skip:
-            print(f"   ⏭️  {Path(project_path).name}: {reason}")
-            return True, 90.0, 0.60
-
-        result = self.fixer.discover_test_config(project_path, lang_name)
-        if result.success:
-            self.setup_tracker.mark_setup_complete(project_path, "tests")
-            self._save_project_state_safe(project_path, "tests", lang_name, discovered=True)
-
-        return False, 0.0, 0.0
-
-    def _run_test_discovery_phase(self, projects_by_language: dict) -> tuple:
-        """Run test discovery phase (SRP)"""
-        print(f"\n{'='*80}")
-        print("🔧 SETUP PHASE 1: Test Configuration Discovery")
-        print(f"{'='*80}")
-
-        tests_total = sum(len(project_list) for project_list in projects_by_language.values())
-        tests_skipped = 0
-        tests_time_saved = 0.0
-        tests_cost_saved = 0.0
-
-        for lang_name, project_list in projects_by_language.items():
-            for project_path in project_list:
-                skipped, time_saved, cost_saved = self._process_test_discovery_for_project(
-                    project_path, lang_name
-                )
-                if skipped:
-                    tests_skipped += 1
-                    tests_time_saved += time_saved
-                    tests_cost_saved += cost_saved
-
-        if tests_skipped > 0:
-            print(f"\n   ⏭️  Skipped test discovery for {tests_skipped}/{tests_total} projects")
-            print(f"   💰 Savings: {tests_time_saved:.0f}s + ${tests_cost_saved:.2f}")
-            self.debug_logger.log_setup_skip_stats(
-                phase="tests",
-                skipped=tests_skipped,
-                total=tests_total,
-                time_saved=tests_time_saved,
-                cost_saved=tests_cost_saved,
-            )
-
-        return tests_skipped, tests_time_saved, tests_cost_saved
-
-    def _print_setup_summary(self, hooks_stats: tuple, tests_stats: tuple, total_projects: int):
-        """Print combined setup optimization summary (SRP)"""
-        hooks_skipped, hooks_time_saved, hooks_cost_saved = hooks_stats
-        tests_skipped, tests_time_saved, tests_cost_saved = tests_stats
-
-        total_skipped = hooks_skipped + tests_skipped
-        total_time_saved = hooks_time_saved + tests_time_saved
-        total_cost_saved = hooks_cost_saved + tests_cost_saved
-
-        if total_skipped > 0:
-            print(f"\n{'='*80}")
-            print("📊 SETUP OPTIMIZATION SUMMARY")
-            print(f"{'='*80}")
-            print(f"   ⏭️  Total skipped: {total_skipped}/{total_projects * 2} setup operations")
-            print(f"   💰 Total savings: {total_time_saved:.0f}s + ${total_cost_saved:.2f}")
-            print(f"{'='*80}")
 
     def _run_static_analysis_phase(self, projects_by_language: dict, iteration: int) -> tuple:
         """Run P1 static analysis phase (SRP)"""
@@ -479,11 +351,8 @@ class IterationEngine:
                 )
 
     def _run_setup_phases(self, projects_by_language: dict):
-        """Run all setup phases and print summary."""
-        hooks_stats = self._run_hook_setup_phase(projects_by_language)
-        tests_stats = self._run_test_discovery_phase(projects_by_language)
-        total_projects = sum(len(project_list) for project_list in projects_by_language.values())
-        self._print_setup_summary(hooks_stats, tests_stats, total_projects)
+        """Run all setup phases and print summary (delegated to SetupPhaseRunner)."""
+        self.setup_runner.run_setup_phases(projects_by_language)
 
     def _process_p1_gate(self, projects_by_language: dict, iteration: int) -> tuple:
         """Process P1 gate. Returns (p1_score_data, abort_result, should_continue)."""

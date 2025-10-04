@@ -1,0 +1,11 @@
+{
+  "prompt": "Work on spec: google-tasks-sync\n\n**THIS ITERATION - Complete ONE task only:**\n1. Use spec-workflow to fetch the next pending task from google-tasks-sync spec\n2. Implement ONLY that task\n3. Make/update tests for what you changed\n4. Run linter and fix any issues if applicable\n5. Use spec-workflow to update task status to completed\n6. Commit changes with descriptive message\n7. Use spec-workflow to check remaining tasks\n8. DONE - End this iteration (next iteration will continue with next task)\n\n**Critical:**\n- Complete ONLY ONE task per iteration (not multiple tasks)\n- Use spec-workflow MCP tools to fetch, update, and check tasks\n- After commit, this iteration is DONE\n- Orchestrator will automatically start next iteration\n- Each iteration = one task cycle\n- End session without asking for further actions",
+  "completion_file": "/home/rmondo/repos/wa-tools/.spec-workflow/specs/google-tasks-sync/tasks.md",
+  "completion_regex": "\\[x\\] 28. End-to-end manual testing checklist",
+  "max_iterations": 30,
+  "project_path": "/home/rmondo/repos/wa-tools",
+  "wrapper_path": "/home/rmondo/repos/air-executor/scripts/claude_wrapper.py",
+  "python_exec": "/home/rmondo/repos/air-executor/.venv/bin/python3",
+  "circuit_breaker_threshold": 3,
+  "require_git_changes": true
+}
