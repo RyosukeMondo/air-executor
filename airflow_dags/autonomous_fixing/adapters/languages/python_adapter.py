@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import List, Dict
 from .base import LanguageAdapter
 from ...domain.models import AnalysisResult, ToolValidationResult
+from ..test_result_parser import TestResultParserStrategy
 
 
 class PythonAdapter(LanguageAdapter):
@@ -75,7 +76,7 @@ class PythonAdapter(LanguageAdapter):
         return result
 
     def run_tests(self, project_path: str, strategy: str) -> AnalysisResult:
-        """Run pytest with strategy."""
+        """Run pytest with strategy using centralized parsing."""
         start_time = time.time()
         result = AnalysisResult(
             language=self.language_name,
@@ -85,7 +86,8 @@ class PythonAdapter(LanguageAdapter):
 
         try:
             # Build pytest command based on strategy
-            cmd = ['pytest']
+            xml_file = Path(project_path) / '.pytest-results.xml'
+            cmd = ['pytest', f'--junitxml={xml_file}']
 
             if strategy == 'minimal':
                 # Only fast tests, no slow or integration
@@ -108,19 +110,28 @@ class PythonAdapter(LanguageAdapter):
                 timeout=timeout
             )
 
-            # Parse test results
-            result.test_failures = self.parse_errors(
-                test_result.stdout + test_result.stderr,
-                'tests'
+            # Parse test results using centralized strategy (SOLID: Single Responsibility)
+            output = test_result.stdout + test_result.stderr
+            counts = TestResultParserStrategy.parse(
+                language='python',
+                output=output,
+                output_file=xml_file if xml_file.exists() else None
             )
 
-            # Extract counts
-            counts = self._extract_test_counts(test_result.stdout)
-            result.tests_passed = counts['passed']
-            result.tests_failed = counts['failed']
+            # Parse test failures for error reporting
+            result.test_failures = self.parse_errors(output, 'tests')
 
-            result.success = test_result.returncode == 0
+            # Apply parsed counts
+            result.tests_passed = counts.passed
+            result.tests_failed = counts.failed
+            result.tests_skipped = counts.skipped
+
+            result.success = counts.success
             result.execution_time = time.time() - start_time
+
+            # Cleanup XML file
+            if xml_file.exists():
+                xml_file.unlink()
 
         except subprocess.TimeoutExpired:
             result.success = False
@@ -412,19 +423,6 @@ class PythonAdapter(LanguageAdapter):
                 })
 
         return violations
-
-    def _extract_test_counts(self, output: str) -> Dict[str, int]:
-        """Extract pytest pass/fail counts."""
-        passed = 0
-        failed = 0
-
-        # Look for summary: "5 passed, 2 failed in 1.23s"
-        if match := re.search(r'(\d+) passed', output):
-            passed = int(match.group(1))
-        if match := re.search(r'(\d+) failed', output):
-            failed = int(match.group(1))
-
-        return {'passed': passed, 'failed': failed}
 
     def _parse_coverage_json(self, coverage_file: Path) -> Dict:
         """Parse coverage.json file."""

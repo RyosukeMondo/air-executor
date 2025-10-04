@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import List, Dict
 from .base import LanguageAdapter
 from ...domain.models import AnalysisResult, ToolValidationResult
+from ..test_result_parser import TestResultParserStrategy
 
 
 class JavaScriptAdapter(LanguageAdapter):
@@ -68,7 +69,7 @@ class JavaScriptAdapter(LanguageAdapter):
         return result
 
     def run_tests(self, project_path: str, strategy: str) -> AnalysisResult:
-        """Run Jest/Vitest with strategy."""
+        """Run Jest/Vitest with strategy using centralized parsing."""
         start_time = time.time()
         result = AnalysisResult(
             language=self.language_name,
@@ -79,12 +80,16 @@ class JavaScriptAdapter(LanguageAdapter):
         try:
             # Determine test framework
             framework = self.config.get('test_framework', 'jest')
+            output_file = Path(project_path) / '.test-results.json'
 
             # Build test command based on strategy
             if framework == 'jest':
                 cmd = ['npm', 'test', '--']
+                # Try to get JSON output for structured parsing
+                cmd.extend(['--json', f'--outputFile={output_file}'])
             else:  # vitest
                 cmd = ['npm', 'run', 'test', '--']
+                cmd.extend(['--reporter=json', f'--outputFile={output_file}'])
 
             if strategy == 'minimal':
                 # Only unit tests, fast
@@ -106,20 +111,28 @@ class JavaScriptAdapter(LanguageAdapter):
                 timeout=timeout
             )
 
-            # Parse test results
-            result.test_failures = self.parse_errors(
-                test_result.stdout + test_result.stderr,
-                'tests'
+            # Parse test results using centralized strategy (SOLID: Single Responsibility)
+            output = test_result.stdout + test_result.stderr
+            counts = TestResultParserStrategy.parse(
+                language='javascript',
+                output=output,
+                output_file=output_file if output_file.exists() else None
             )
 
-            # Extract counts (Jest outputs summary to stderr, not stdout!)
-            output = test_result.stdout + test_result.stderr
-            counts = self._extract_test_counts(output)
-            result.tests_passed = counts['passed']
-            result.tests_failed = counts['failed']
+            # Parse test failures for error reporting
+            result.test_failures = self.parse_errors(output, 'tests')
 
-            result.success = test_result.returncode == 0
+            # Apply parsed counts
+            result.tests_passed = counts.passed
+            result.tests_failed = counts.failed
+            result.tests_skipped = counts.skipped
+
+            result.success = counts.success
             result.execution_time = time.time() - start_time
+
+            # Cleanup JSON output file
+            if output_file.exists():
+                output_file.unlink()
 
         except subprocess.TimeoutExpired:
             result.success = False
@@ -414,23 +427,6 @@ class JavaScriptAdapter(LanguageAdapter):
                 continue
 
         return violations
-
-    def _extract_test_counts(self, output: str) -> Dict[str, int]:
-        """Extract test pass/fail counts from final summary."""
-        passed = 0
-        failed = 0
-
-        # Jest outputs final summary: "Tests: 2 failed, 5 passed, 7 total"
-        # Use findall to get all matches, then take the last one (final summary)
-        passed_matches = re.findall(r'(\d+) passed', output)
-        if passed_matches:
-            passed = int(passed_matches[-1])  # Last occurrence = final summary
-
-        failed_matches = re.findall(r'(\d+) failed', output)
-        if failed_matches:
-            failed = int(failed_matches[-1])  # Last occurrence = final summary
-
-        return {'passed': passed, 'failed': failed}
 
     def _parse_coverage_json(self, coverage_file: Path) -> Dict:
         """Parse Jest/Vitest coverage JSON."""
