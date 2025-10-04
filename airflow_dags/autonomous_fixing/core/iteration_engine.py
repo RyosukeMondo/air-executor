@@ -9,6 +9,7 @@ from typing import Dict
 from .debug_logger import DebugLogger
 from .time_gatekeeper import TimeGatekeeper
 from .analysis_verifier import AnalysisVerifier
+from .hook_level_manager import HookLevelManager
 
 
 class IterationEngine:
@@ -46,6 +47,7 @@ class IterationEngine:
         self.debug_logger = DebugLogger(config, project_name)
         self.time_gate = TimeGatekeeper(config)
         self.verifier = AnalysisVerifier(config)
+        self.hook_manager = HookLevelManager()  # Progressive hook enforcement
 
         # Pass debug logger to fixer for wrapper call logging
         self.fixer.debug_logger = self.debug_logger
@@ -174,6 +176,17 @@ class IterationEngine:
 
             # P1 gate passed!
             print(f"\n✅ P1 gate PASSED ({p1_score_data['score']:.1%} >= {p1_score_data['threshold']:.0%})")
+
+            # UPGRADE HOOKS: P1 passed → Enable Level 1 (type checking + build)
+            for lang_name, project_list in projects_by_language.items():
+                for project_path in project_list:
+                    adapter = self.analyzer._get_adapter(lang_name)
+                    self.hook_manager.upgrade_after_gate_passed(
+                        project_path, lang_name, 'p1',
+                        gate_passed=True,
+                        score=p1_score_data['score'],
+                        adapter=adapter
+                    )
 
             # === PHASE 2: Tests ===
             print(f"\n{'='*80}")
@@ -308,6 +321,18 @@ class IterationEngine:
 
             # Both gates passed!
             print(f"\n✅ P2 gate PASSED ({p2_score_data['score']:.1%} >= {p2_score_data['threshold']:.0%})")
+
+            # UPGRADE HOOKS: P2 passed → Enable Level 2 (type + tests)
+            for lang_name, project_list in projects_by_language.items():
+                for project_path in project_list:
+                    adapter = self.analyzer._get_adapter(lang_name)
+                    self.hook_manager.upgrade_after_gate_passed(
+                        project_path, lang_name, 'p2',
+                        gate_passed=True,
+                        score=p2_score_data['score'],
+                        adapter=adapter
+                    )
+
             print(f"\n🎉 All priority gates passed in iteration {iteration}!")
 
             # End iteration timing

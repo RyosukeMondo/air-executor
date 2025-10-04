@@ -1,0 +1,454 @@
+# Progressive Pre-Commit Hook Levels Configuration
+#
+# Philosophy: Only enforce quality that has been proven to pass
+# Prevents "hook hell" where all commits are blocked on messy codebases
+
+# =============================================================================
+# Hook Levels Definition
+# =============================================================================
+
+levels:
+  0:
+    name: framework_only
+    description: "Hook framework installed, no enforcement (learning mode)"
+    enabled_after: setup_phase
+    checks: []
+    purpose: |
+      Install husky/pre-commit infrastructure without blocking commits.
+      Allows system to improve code without interference.
+
+  1:
+    name: type_safety
+    description: "Type checking and build validation enforced"
+    enabled_after: p1_gate_passed
+    requires:
+      - phase: p1
+        threshold: 0.80  # P1 score ≥ 80%
+        verification:
+          - type_check_passes
+          - build_succeeds
+    checks:
+      - id: type_check
+        javascript: "npm run type-check"  # tsc --noEmit
+        python: "mypy ."
+        go: "go vet ./..."
+        flutter: "flutter analyze"
+        blocking: true
+        rationale: "P1 gate passed - no type errors should return"
+
+      - id: build
+        javascript: "npm run build"
+        python: "python -m py_compile src/**/*.py"
+        go: "go build ./..."
+        flutter: "flutter build --debug"
+        blocking: true
+        rationale: "P1 gate passed - build must succeed"
+
+  2:
+    name: tests
+    description: "Type safety + unit tests enforced"
+    enabled_after: p2_gate_passed
+    requires:
+      - phase: p2
+        threshold: 0.80  # P2 score ≥ 80%
+        verification:
+          - tests_exist
+          - tests_pass
+          - pass_rate_above_threshold
+    checks:
+      - id: type_check
+        # Inherited from Level 1
+        blocking: true
+
+      - id: build
+        # Inherited from Level 1
+        blocking: true
+
+      - id: unit_tests
+        javascript: "npm test -- --passWithNoTests"
+        python: "pytest tests/ --tb=short"
+        go: "go test ./..."
+        flutter: "flutter test"
+        blocking: true
+        rationale: "P2 gate passed - tests must continue passing"
+
+  3:
+    name: full_quality
+    description: "Full quality gates enforced (type + tests + coverage + lint)"
+    enabled_after: p3_gate_passed
+    requires:
+      - phase: p3
+        threshold: 0.80  # P3 score ≥ 80%
+        verification:
+          - coverage_above_threshold
+          - no_lint_errors
+    checks:
+      - id: type_check
+        # Inherited from Level 1
+        blocking: true
+
+      - id: build
+        # Inherited from Level 1
+        blocking: true
+
+      - id: unit_tests
+        # Inherited from Level 2
+        blocking: true
+
+      - id: coverage
+        javascript: |
+          npm test -- --coverage --coverageThreshold='{
+            "global": {
+              "branches": 60,
+              "functions": 60,
+              "lines": 60,
+              "statements": 60
+            }
+          }'
+        python: "pytest --cov=src --cov-report=term --cov-fail-under=60"
+        go: "go test -cover -coverprofile=coverage.out ./... && go tool cover -func=coverage.out | grep total | awk '{if ($3+0 < 60) exit 1}'"
+        flutter: "flutter test --coverage && lcov --summary coverage/lcov.info | grep lines | awk '{if ($2+0 < 60) exit 1}'"
+        blocking: true
+        rationale: "P3 gate passed - coverage must stay above 60%"
+
+      - id: lint
+        javascript: "npx eslint ."
+        python: "pylint src/"
+        go: "golangci-lint run"
+        flutter: "flutter analyze"
+        blocking: true
+        rationale: "Full quality achieved - maintain code style"
+
+# =============================================================================
+# Phase to Level Mapping
+# =============================================================================
+
+phase_progression:
+  setup:
+    installs_level: 0
+    hook_state: learning_mode
+    description: "Install framework, no enforcement"
+
+  p1_complete:
+    upgrades_to_level: 1
+    trigger:
+      - p1_gate_passed: true
+      - p1_score: "≥ 0.80"
+    hook_state: type_safety_locked
+    description: "Type errors eliminated - lock in type safety"
+    verification_before_upgrade:
+      - run_type_check: true
+      - expect_zero_errors: true
+      - run_build: true
+      - expect_success: true
+
+  p2_complete:
+    upgrades_to_level: 2
+    trigger:
+      - p2_gate_passed: true
+      - p2_score: "≥ 0.80"
+    hook_state: tests_locked
+    description: "Tests passing - lock in test quality"
+    verification_before_upgrade:
+      - run_tests: true
+      - expect_failures: 0
+      - expect_passed: "> 0"
+
+  p3_complete:
+    upgrades_to_level: 3
+    trigger:
+      - p3_gate_passed: true
+      - p3_score: "≥ 0.80"
+    hook_state: full_quality_locked
+    description: "Full quality achieved - lock in all gates"
+    verification_before_upgrade:
+      - check_coverage: true
+      - expect_coverage: "≥ 60%"
+      - run_lint: true
+      - expect_errors: 0
+
+# =============================================================================
+# Hook Templates by Language
+# =============================================================================
+
+templates:
+  javascript:
+    framework: husky
+    files:
+      - path: .husky/pre-commit
+        template: |
+          #!/bin/sh
+          . "$(dirname "$0")/_/husky.sh"
+
+          # Read current hook level
+          LEVEL=$(cat .husky/.level 2>/dev/null || echo "0")
+
+          echo "🔍 Pre-commit checks (Level $LEVEL)"
+
+          # Level 1+: Type checking
+          if [ "$LEVEL" -ge 1 ]; then
+            echo "  📊 Type checking..."
+            npm run type-check || {
+              echo "  ❌ Type checking failed (Level 1 requirement)"
+              exit 1
+            }
+
+            echo "  🔨 Build validation..."
+            npm run build || {
+              echo "  ❌ Build failed (Level 1 requirement)"
+              exit 1
+            }
+          fi
+
+          # Level 2+: Unit tests
+          if [ "$LEVEL" -ge 2 ]; then
+            echo "  🧪 Running tests..."
+            npm test -- --passWithNoTests || {
+              echo "  ❌ Tests failed (Level 2 requirement)"
+              exit 1
+            }
+          fi
+
+          # Level 3+: Coverage + Linting
+          if [ "$LEVEL" -ge 3 ]; then
+            echo "  📈 Coverage check..."
+            npm test -- --coverage --coverageThreshold='{"global":{"branches":60,"functions":60,"lines":60,"statements":60}}' || {
+              echo "  ❌ Coverage below 60% (Level 3 requirement)"
+              exit 1
+            }
+
+            echo "  🔧 Linting..."
+            npx eslint . || {
+              echo "  ❌ Linting failed (Level 3 requirement)"
+              exit 1
+            }
+          fi
+
+          echo "✅ All Level $LEVEL checks passed!"
+          exit 0
+
+      - path: .husky/.level
+        initial_content: "0"
+        description: "Current hook enforcement level"
+
+      - path: package.json
+        additions:
+          scripts:
+            type-check: "tsc --noEmit"
+            build: "tsc"  # or appropriate build command
+
+  python:
+    framework: pre-commit
+    files:
+      - path: .pre-commit-config.yaml
+        template: |
+          # Progressive pre-commit hooks
+          # Level controlled by .pre-commit-level file
+
+          repos:
+            - repo: local
+              hooks:
+                # Level 1: Type checking
+                - id: mypy
+                  name: "mypy (Level 1+)"
+                  entry: bash -c 'LEVEL=$(cat .pre-commit-level 2>/dev/null || echo 0); if [ "$LEVEL" -ge 1 ]; then mypy .; else echo "⏭️  mypy: Not enforced yet (Level $LEVEL)"; fi'
+                  language: system
+                  types: [python]
+                  pass_filenames: false
+
+                # Level 2: Unit tests
+                - id: pytest
+                  name: "pytest (Level 2+)"
+                  entry: bash -c 'LEVEL=$(cat .pre-commit-level 2>/dev/null || echo 0); if [ "$LEVEL" -ge 2 ]; then pytest tests/ --tb=short; else echo "⏭️  pytest: Not enforced yet (Level $LEVEL)"; fi'
+                  language: system
+                  pass_filenames: false
+
+                # Level 3: Coverage
+                - id: pytest-cov
+                  name: "coverage (Level 3+)"
+                  entry: bash -c 'LEVEL=$(cat .pre-commit-level 2>/dev/null || echo 0); if [ "$LEVEL" -ge 3 ]; then pytest --cov=src --cov-fail-under=60; else echo "⏭️  coverage: Not enforced yet (Level $LEVEL)"; fi'
+                  language: system
+                  pass_filenames: false
+
+                # Level 3: Linting
+                - id: pylint
+                  name: "pylint (Level 3+)"
+                  entry: bash -c 'LEVEL=$(cat .pre-commit-level 2>/dev/null || echo 0); if [ "$LEVEL" -ge 3 ]; then pylint src/; else echo "⏭️  pylint: Not enforced yet (Level $LEVEL)"; fi'
+                  language: system
+                  types: [python]
+
+      - path: .pre-commit-level
+        initial_content: "0"
+        description: "Current hook enforcement level"
+
+  go:
+    framework: native
+    files:
+      - path: .git/hooks/pre-commit
+        template: |
+          #!/bin/bash
+          # Progressive pre-commit hooks for Go
+
+          LEVEL=$(cat .git/hooks/.level 2>/dev/null || echo "0")
+          echo "🔍 Pre-commit checks (Level $LEVEL)"
+
+          # Level 1+: Type checking & Build
+          if [ "$LEVEL" -ge 1 ]; then
+            echo "  📊 Go vet..."
+            go vet ./... || exit 1
+
+            echo "  🔨 Build..."
+            go build ./... || exit 1
+          fi
+
+          # Level 2+: Tests
+          if [ "$LEVEL" -ge 2 ]; then
+            echo "  🧪 Tests..."
+            go test ./... || exit 1
+          fi
+
+          # Level 3+: Coverage + Lint
+          if [ "$LEVEL" -ge 3 ]; then
+            echo "  📈 Coverage..."
+            go test -cover ./... -coverprofile=coverage.out
+            COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+            if (( $(echo "$COVERAGE < 60" | bc -l) )); then
+              echo "  ❌ Coverage $COVERAGE% < 60%"
+              exit 1
+            fi
+
+            echo "  🔧 Linting..."
+            golangci-lint run || exit 1
+          fi
+
+          echo "✅ All Level $LEVEL checks passed!"
+
+      - path: .git/hooks/.level
+        initial_content: "0"
+
+  flutter:
+    framework: native
+    files:
+      - path: .git/hooks/pre-commit
+        template: |
+          #!/bin/bash
+          # Progressive pre-commit hooks for Flutter
+
+          LEVEL=$(cat .git/hooks/.level 2>/dev/null || echo "0")
+          echo "🔍 Pre-commit checks (Level $LEVEL)"
+
+          # Level 1+: Analysis
+          if [ "$LEVEL" -ge 1 ]; then
+            echo "  📊 Flutter analyze..."
+            flutter analyze || exit 1
+          fi
+
+          # Level 2+: Tests
+          if [ "$LEVEL" -ge 2 ]; then
+            echo "  🧪 Tests..."
+            flutter test || exit 1
+          fi
+
+          # Level 3+: Coverage
+          if [ "$LEVEL" -ge 3 ]; then
+            echo "  📈 Coverage..."
+            flutter test --coverage
+            COVERAGE=$(lcov --summary coverage/lcov.info 2>/dev/null | grep lines | awk '{print $2}' | sed 's/%//')
+            if (( $(echo "$COVERAGE < 60" | bc -l) )); then
+              echo "  ❌ Coverage $COVERAGE% < 60%"
+              exit 1
+            fi
+          fi
+
+          echo "✅ All Level $LEVEL checks passed!"
+
+      - path: .git/hooks/.level
+        initial_content: "0"
+
+# =============================================================================
+# Safety & Rollback Configuration
+# =============================================================================
+
+safety:
+  verification_before_upgrade:
+    enabled: true
+    description: "Run quality checks before upgrading hook level"
+    timeout: 300  # 5 minutes max for verification
+
+  regression_detection:
+    enabled: true
+    description: "Detect if quality regresses below current level"
+    check_frequency: every_commit
+    auto_rollback: false  # Manual investigation required
+    alert: true
+
+  emergency_override:
+    enabled: true
+    file: .hook-override
+    requires_justification: true
+    auto_expire_hours: 24
+    template: |
+      # Emergency hook override
+      # Created: {timestamp}
+      # Expires: {expiry}
+      # Justification: {reason}
+      #
+      # This bypass is TEMPORARY and will auto-expire.
+      # Fix the quality issues ASAP.
+
+# =============================================================================
+# Integration with Autonomous Fixing
+# =============================================================================
+
+autonomous_integration:
+  setup_phase:
+    action: install_framework
+    target_level: 0
+    description: "Install hook framework, no enforcement"
+
+  after_p1_passed:
+    action: upgrade_hooks
+    from_level: 0
+    to_level: 1
+    verification_required: true
+    checks:
+      - type_check_passes
+      - build_succeeds
+
+  after_p2_passed:
+    action: upgrade_hooks
+    from_level: 1
+    to_level: 2
+    verification_required: true
+    checks:
+      - tests_exist
+      - tests_pass
+
+  after_p3_passed:
+    action: upgrade_hooks
+    from_level: 2
+    to_level: 3
+    verification_required: true
+    checks:
+      - coverage_above_60
+      - lint_passes
+
+  prompts:
+    upgrade_notification: |
+      🎉 {phase} gate passed! Upgrading pre-commit hooks to Level {level}.
+
+      Previously enforced:
+      {previous_checks}
+
+      Now enforcing:
+      {new_checks}
+
+      This prevents regression - quality cannot drop below this level.
+      Future commits must pass these checks.
+
+    verification_failed: |
+      ⚠️  Cannot upgrade to Level {level} - verification failed:
+      {failures}
+
+      Continuing with current Level {current_level}.
+      Fix these issues to enable higher enforcement.
