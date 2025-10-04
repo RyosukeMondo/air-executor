@@ -39,7 +39,7 @@ class JavaScriptAdapter(LanguageAdapter):
         return projects
 
     def static_analysis(self, project_path: str) -> AnalysisResult:
-        """Run eslint + tsc in parallel."""
+        """Run eslint + tsc sequentially."""
         start_time = time.time()
         result = AnalysisResult(
             language=self.language_name, phase="static", project_path=project_path

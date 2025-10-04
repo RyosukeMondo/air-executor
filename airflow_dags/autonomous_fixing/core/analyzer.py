@@ -6,7 +6,6 @@ No fixing, no scoring, no iteration logic - just analysis.
 """
 
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Dict, List
 
@@ -14,8 +13,11 @@ from typing import Dict, List
 @dataclass
 class ProjectAnalysisResult:
     """Result from analyzing multiple projects (collection of results)."""
+
     phase: str  # 'p1_static', 'p2_tests', etc.
-    results_by_project: Dict[str, any] = field(default_factory=dict)  # Maps "lang:path" -> AnalysisResult
+    results_by_project: Dict[str, any] = field(
+        default_factory=dict
+    )  # Maps "lang:path" -> AnalysisResult
     execution_time: float = 0.0
 
 
@@ -43,60 +45,61 @@ class ProjectAnalyzer:
         """
         self.adapters = language_adapters
         self.config = config
-        self.max_workers = config.get('execution', {}).get('max_concurrent_projects', 5)
 
     def analyze_static(self, projects_by_language: Dict[str, List[str]]) -> ProjectAnalysisResult:
         """
-        Run P1 static analysis on all projects in parallel.
+        Run P1 static analysis on all projects sequentially (for real-time logging and Ctrl+C).
 
         Returns: AnalysisResult with results_by_project keyed by "language:path"
         """
         start_time = time.time()
-        result = ProjectAnalysisResult(phase='p1_static')
+        result = ProjectAnalysisResult(phase="p1_static")
 
-        # Prepare tasks for parallel execution
-        tasks = []
+        # Count total projects
+        total_projects = sum(len(projects) for projects in projects_by_language.values())
+        print(f"\n🚀 Analyzing {total_projects} project(s) sequentially...\n")
+
+        # Execute sequentially (no threads - immediate logging and Ctrl+C)
+        project_num = 0
         for lang_name, projects in projects_by_language.items():
             adapter = self.adapters[lang_name]
             for project_path in projects:
-                tasks.append((lang_name, adapter, project_path))
+                project_num += 1
+                project_name = project_path.split("/")[-1]
 
-        print(f"\n🚀 Analyzing {len(tasks)} project(s) in parallel (max {self.max_workers} concurrent)...\n")
+                print(
+                    f"[{project_num}/{total_projects}] Analyzing {lang_name.upper()}: {project_name}..."
+                )
 
-        # Execute in parallel
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            future_to_project = {
-                executor.submit(adapter.static_analysis, project_path): (lang_name, project_path)
-                for lang_name, adapter, project_path in tasks
-            }
-
-            for future in as_completed(future_to_project):
-                lang_name, project_path = future_to_project[future]
                 try:
-                    analysis = future.result()
+                    analysis = adapter.static_analysis(project_path)
                     key = f"{lang_name}:{project_path}"
                     result.results_by_project[key] = analysis
 
                     # Print summary
                     total_issues = (
-                        len(analysis.errors) +
-                        len(analysis.file_size_violations) +
-                        len(analysis.complexity_violations)
+                        len(analysis.errors)
+                        + len(analysis.file_size_violations)
+                        + len(analysis.complexity_violations)
                     )
-                    print(f"✓ {lang_name.upper()}: {project_path.split('/')[-1]}")
-                    print(f"   Issues: {total_issues} (errors: {len(analysis.errors)}, "
-                          f"size: {len(analysis.file_size_violations)}, "
-                          f"complexity: {len(analysis.complexity_violations)})")
+                    print(f"✓ {lang_name.upper()}: {project_name}")
+                    print(
+                        f"   Issues: {total_issues} (errors: {len(analysis.errors)}, "
+                        f"size: {len(analysis.file_size_violations)}, "
+                        f"complexity: {len(analysis.complexity_violations)})\n"
+                    )
                 except Exception as e:
-                    print(f"✗ {lang_name.upper()}: {project_path.split('/')[-1]} - Error: {e}")
+                    print(f"✗ {lang_name.upper()}: {project_name} - Error: {e}\n")
 
         result.execution_time = time.time() - start_time
         print(f"\n⏱️  Completed in {result.execution_time:.1f}s")
         return result
 
-    def analyze_tests(self, projects_by_language: Dict[str, List[str]], strategy: str) -> ProjectAnalysisResult:
+    def analyze_tests(
+        self, projects_by_language: Dict[str, List[str]], strategy: str
+    ) -> ProjectAnalysisResult:
         """
-        Run P2 test analysis on all projects in parallel.
+        Run P2 test analysis on all projects sequentially (for real-time logging and Ctrl+C).
 
         Args:
             strategy: 'minimal', 'selective', or 'comprehensive'
@@ -104,37 +107,35 @@ class ProjectAnalyzer:
         Returns: AnalysisResult with test results
         """
         start_time = time.time()
-        result = ProjectAnalysisResult(phase='p2_tests')
+        result = ProjectAnalysisResult(phase="p2_tests")
 
-        # Prepare tasks
-        tasks = []
+        # Count total projects
+        total_projects = sum(len(projects) for projects in projects_by_language.values())
+        print(f"\n🚀 Running tests on {total_projects} project(s) sequentially...\n")
+
+        # Execute sequentially (no threads - immediate logging and Ctrl+C)
+        project_num = 0
         for lang_name, projects in projects_by_language.items():
             adapter = self.adapters[lang_name]
             for project_path in projects:
-                tasks.append((lang_name, adapter, project_path, strategy))
+                project_num += 1
+                project_name = project_path.split("/")[-1]
 
-        print(f"\n🚀 Running tests on {len(tasks)} project(s) in parallel (max {self.max_workers} concurrent)...\n")
+                print(
+                    f"[{project_num}/{total_projects}] Running tests for {lang_name.upper()}: {project_name}..."
+                )
 
-        # Execute in parallel
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            future_to_project = {
-                executor.submit(adapter.run_tests, project_path, strategy): (lang_name, project_path)
-                for lang_name, adapter, project_path, strategy in tasks
-            }
-
-            for future in as_completed(future_to_project):
-                lang_name, project_path = future_to_project[future]
                 try:
-                    analysis = future.result()
+                    analysis = adapter.run_tests(project_path, strategy)
                     key = f"{lang_name}:{project_path}"
                     result.results_by_project[key] = analysis
 
                     # Print summary
                     total = analysis.tests_passed + analysis.tests_failed
-                    print(f"✓ {lang_name.upper()}: {project_path.split('/')[-1]}")
-                    print(f"   Tests: {analysis.tests_passed}/{total} passed")
+                    print(f"✓ {lang_name.upper()}: {project_name}")
+                    print(f"   Tests: {analysis.tests_passed}/{total} passed\n")
                 except Exception as e:
-                    print(f"✗ {lang_name.upper()}: {project_path.split('/')[-1]} - Error: {e}")
+                    print(f"✗ {lang_name.upper()}: {project_name} - Error: {e}\n")
 
         result.execution_time = time.time() - start_time
         print(f"\n⏱️  Completed in {result.execution_time:.1f}s")
