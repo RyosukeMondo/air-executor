@@ -62,80 +62,100 @@ class WrapperMonitor:
             "errors": 0,
         }
 
-    def process_event(self, event: Dict[str, Any]) -> None:  # noqa: C901
+    def process_event(self, event: Dict[str, Any]) -> None:
         """Process a single JSON event from the wrapper."""
         event_type = event.get("event")
         timestamp = event.get("timestamp", datetime.now(timezone.utc).isoformat())
 
-        if event_type == "ready":
-            self.state = "ready"
-            self.start_time = None
-            self.add_event(timestamp, "🚀", "Wrapper ready")
+        # Dispatch to specific event handlers
+        handlers = {
+            "ready": self._handle_ready,
+            "run_started": self._handle_run_started,
+            "phase_detected": self._handle_phase_detected,
+            "tool_started": self._handle_tool_started,
+            "tool_completed": self._handle_tool_completed,
+            "stream": self._handle_stream,
+            "run_completed": self._handle_run_completed,
+            "run_failed": self._handle_run_failed,
+            "run_cancelled": self._handle_run_cancelled,
+            "shutdown": self._handle_shutdown,
+            "error": self._handle_error,
+            "state": self._handle_state,
+        }
 
-        elif event_type == "run_started":
-            self.state = "executing"
-            self.run_id = event.get("run_id")
-            self.start_time = datetime.fromisoformat(timestamp)
-            self.add_event(timestamp, "▶️", "Run started")
+        handler = handlers.get(event_type)
+        if handler:
+            handler(event, timestamp)
 
-        elif event_type == "phase_detected":
-            self.phase = event.get("phase", "Unknown")
-            self.add_event(timestamp, "📊", f"Phase: {self.phase}")
+    def _handle_ready(self, event: Dict[str, Any], timestamp: str) -> None:
+        self.state = "ready"
+        self.start_time = None
+        self.add_event(timestamp, "🚀", "Wrapper ready")
 
-        elif event_type == "tool_started":
-            tool = event.get("tool", "unknown")
-            self.current_tool = tool
-            self.tool_progress = event.get("progress", "0/0")
-            self.stats["tools_total"] = int(self.tool_progress.split("/")[1])
-            self.add_event(timestamp, "🔧", f"Tool: {tool}")
+    def _handle_run_started(self, event: Dict[str, Any], timestamp: str) -> None:
+        self.state = "executing"
+        self.run_id = event.get("run_id")
+        self.start_time = datetime.fromisoformat(timestamp)
+        self.add_event(timestamp, "▶️", "Run started")
 
-        elif event_type == "tool_completed":
-            tool = event.get("tool", self.current_tool)
-            self.current_tool = None
-            self.tool_progress = event.get("progress", self.tool_progress)
-            self.stats["tools_completed"] = int(self.tool_progress.split("/")[0])
-            self.add_event(timestamp, "✅", f"Done: {tool}")
+    def _handle_phase_detected(self, event: Dict[str, Any], timestamp: str) -> None:
+        self.phase = event.get("phase", "Unknown")
+        self.add_event(timestamp, "📊", f"Phase: {self.phase}")
 
-        elif event_type == "stream":
-            self.stats["streams_received"] += 1
-            payload = event.get("payload", {})
-            msg_type = payload.get("message_type", "")
+    def _handle_tool_started(self, event: Dict[str, Any], timestamp: str) -> None:
+        tool = event.get("tool", "unknown")
+        self.current_tool = tool
+        self.tool_progress = event.get("progress", "0/0")
+        self.stats["tools_total"] = int(self.tool_progress.split("/")[1])
+        self.add_event(timestamp, "🔧", f"Tool: {tool}")
 
-            # Only log significant stream events
-            if "text" in msg_type.lower() or msg_type == "TextBlock":
-                text = payload.get("text", "")
-                if text and len(text.strip()) > 0:
-                    preview = text[:50] + "..." if len(text) > 50 else text
-                    self.add_event(timestamp, "💬", f"Text: {preview}")
+    def _handle_tool_completed(self, event: Dict[str, Any], timestamp: str) -> None:
+        tool = event.get("tool", self.current_tool)
+        self.current_tool = None
+        self.tool_progress = event.get("progress", self.tool_progress)
+        self.stats["tools_completed"] = int(self.tool_progress.split("/")[0])
+        self.add_event(timestamp, "✅", f"Done: {tool}")
 
-        elif event_type == "run_completed":
-            self.state = "completed"
-            reason = event.get("reason", "ok")
-            self.add_event(timestamp, "🎉", f"Completed: {reason}")
+    def _handle_stream(self, event: Dict[str, Any], timestamp: str) -> None:
+        self.stats["streams_received"] += 1
+        payload = event.get("payload", {})
+        msg_type = payload.get("message_type", "")
 
-        elif event_type == "run_failed":
-            self.state = "failed"
-            self.stats["errors"] += 1
-            error = event.get("error", "Unknown error")
-            self.add_event(timestamp, "❌", f"Failed: {error}")
+        # Only log significant stream events
+        if "text" in msg_type.lower() or msg_type == "TextBlock":
+            text = payload.get("text", "")
+            if text and len(text.strip()) > 0:
+                preview = text[:50] + "..." if len(text) > 50 else text
+                self.add_event(timestamp, "💬", f"Text: {preview}")
 
-        elif event_type == "run_cancelled":
-            self.state = "cancelled"
-            self.add_event(timestamp, "⏹️", "Cancelled")
+    def _handle_run_completed(self, event: Dict[str, Any], timestamp: str) -> None:
+        self.state = "completed"
+        reason = event.get("reason", "ok")
+        self.add_event(timestamp, "🎉", f"Completed: {reason}")
 
-        elif event_type == "shutdown":
-            self.state = "shutdown"
-            self.add_event(timestamp, "🛑", "Shutdown")
+    def _handle_run_failed(self, event: Dict[str, Any], timestamp: str) -> None:
+        self.state = "failed"
+        self.stats["errors"] += 1
+        error = event.get("error", "Unknown error")
+        self.add_event(timestamp, "❌", f"Failed: {error}")
 
-        elif event_type == "error":
-            self.stats["errors"] += 1
-            error_msg = event.get("error", "Unknown")
-            self.add_event(timestamp, "⚠️", f"Error: {error_msg}")
+    def _handle_run_cancelled(self, event: Dict[str, Any], timestamp: str) -> None:
+        self.state = "cancelled"
+        self.add_event(timestamp, "⏹️", "Cancelled")
 
-        elif event_type == "state":
-            new_state = event.get("state", "unknown")
-            self.state = new_state
-            self.session_id = event.get("last_session_id")
+    def _handle_shutdown(self, event: Dict[str, Any], timestamp: str) -> None:
+        self.state = "shutdown"
+        self.add_event(timestamp, "🛑", "Shutdown")
+
+    def _handle_error(self, event: Dict[str, Any], timestamp: str) -> None:
+        self.stats["errors"] += 1
+        error_msg = event.get("error", "Unknown")
+        self.add_event(timestamp, "⚠️", f"Error: {error_msg}")
+
+    def _handle_state(self, event: Dict[str, Any], timestamp: str) -> None:
+        new_state = event.get("state", "unknown")
+        self.state = new_state
+        self.session_id = event.get("last_session_id")
 
     def add_event(self, timestamp: str, icon: str, message: str) -> None:
         """Add event to recent events list."""

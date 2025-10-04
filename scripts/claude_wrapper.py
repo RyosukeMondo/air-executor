@@ -300,7 +300,7 @@ class ClaudeCodeWrapper:
     # ---------------------------------------------------------------------
     # Claude Code execution
     # ---------------------------------------------------------------------
-    async def _run_query(  # noqa: C901
+    async def _run_query(
         self,
         run_context: Dict[str, Any],
         prompt: str,
@@ -309,18 +309,7 @@ class ClaudeCodeWrapper:
         cancel_scope: Optional[anyio.CancelScope] = None
 
         # Detect and emit phase information
-        detected_phase = self._detect_phase(prompt)
-        if detected_phase:
-            self.current_phase = detected_phase
-            run_context["phase"] = detected_phase
-            self.output_json(
-                {
-                    "event": "phase_detected",
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "run_id": run_context["id"],
-                    "phase": detected_phase,
-                }
-            )
+        self._emit_phase_detected(run_context, prompt)
 
         # Reset tool stats for this run
         self.tool_stats = {"total": 0, "completed": 0, "active": None}
@@ -340,58 +329,7 @@ class ClaudeCodeWrapper:
                             "payload": serialised,
                         }
                     )
-
-                    # Detect and emit tool events
-                    tool_event = self._detect_tool_event(serialised)
-                    if tool_event:
-                        if tool_event["event_type"] == "tool_started":
-                            self.tool_stats["total"] += 1
-                            self.tool_stats["active"] = tool_event["tool"]
-                            self.output_json(
-                                {
-                                    "event": "tool_started",
-                                    "timestamp": datetime.utcnow().isoformat(),
-                                    "run_id": run_context["id"],
-                                    "tool": tool_event["tool"],
-                                    "progress": f"{self.tool_stats['completed']}/{self.tool_stats['total']}",
-                                }
-                            )
-                        elif tool_event["event_type"] == "tool_completed":
-                            self.tool_stats["completed"] += 1
-                            completed_tool = self.tool_stats["active"]
-                            self.tool_stats["active"] = None
-                            self.output_json(
-                                {
-                                    "event": "tool_completed",
-                                    "timestamp": datetime.utcnow().isoformat(),
-                                    "run_id": run_context["id"],
-                                    "tool": completed_tool,
-                                    "progress": f"{self.tool_stats['completed']}/{self.tool_stats['total']}",
-                                }
-                            )
-
-                    # Capture session id when available
-                    session_id = self._extract_session_id(serialised)
-                    if session_id:
-                        self.last_session_id = session_id
-                        run_context["session_id"] = session_id
-
-                    # Detect rate/usage limit notice in the stream and remember it
-                    try:
-                        limit_msg = self._detect_limit_message(serialised)
-                    except Exception:  # defensive
-                        limit_msg = None
-                    if limit_msg and not run_context.get("limit_reached"):
-                        run_context["limit_reached"] = True
-                        run_context["limit_message"] = limit_msg
-                        self.output_json(
-                            {
-                                "event": "limit_notice",
-                                "timestamp": datetime.utcnow().isoformat(),
-                                "run_id": run_context["id"],
-                                "message": limit_msg,
-                            }
-                        )
+                    self._process_stream_message(serialised, run_context)
 
         except anyio.get_cancelled_exc_class():
             self.output_json(
@@ -406,182 +344,13 @@ class ClaudeCodeWrapper:
                 }
             )
         except ProcessError as exc:  # type: ignore[has-type]
-            text = str(exc)
-            if "EPIPE" in text or "Broken pipe" in text:
-                logger.debug("Suppressing expected EPIPE from Claude CLI: %s", exc)
-                self.output_json(
-                    {
-                        "event": "run_terminated",
-                        "timestamp": datetime.utcnow().isoformat(),
-                        "run_id": run_context["id"],
-                        "reason": "broken_pipe",
-                        "version": 1,
-                        "outcome": "terminated",
-                        "tags": [],
-                    }
-                )
-            else:
-                # If we already observed a limit notice in the stream, treat this as a successful completion
-                if run_context.get("limit_reached"):
-                    logger.info("Rate/usage limit detected; treating run as completed")
-                    self.output_json(
-                        {
-                            "event": "run_completed",
-                            "timestamp": datetime.utcnow().isoformat(),
-                            "run_id": run_context["id"],
-                            "version": 1,
-                            "outcome": "completed",
-                            "reason": "limit_reached",
-                            "tags": ["limit"],
-                            "message": run_context.get("limit_message"),
-                        }
-                    )
-                    if run_context.get("exit_on_complete"):
-                        self.output_json(
-                            {
-                                "event": "auto_shutdown",
-                                "timestamp": datetime.utcnow().isoformat(),
-                                "reason": "exit_on_complete",
-                                "run_id": run_context["id"],
-                                "version": 1,
-                                "outcome": "shutdown",
-                                "tags": [],
-                            }
-                        )
-                        logger.info("exit_on_complete=true; initiating graceful shutdown")
-                        self.shutdown_requested = True
-                        try:
-                            if self.task_group is not None and hasattr(
-                                self.task_group, "cancel_scope"
-                            ):
-                                self.task_group.cancel_scope.cancel()
-                                logger.info("cancelled task_group via cancel_scope")
-                        except Exception:
-                            logger.exception("failed to cancel task_group during exit_on_complete")
-                    return
-                else:
-                    logger.error("Claude Code process failed: %s", exc)
-                    self.output_json(
-                        {
-                            "event": "run_failed",
-                            "timestamp": datetime.utcnow().isoformat(),
-                            "run_id": run_context["id"],
-                            "version": 1,
-                            "outcome": "failed",
-                            "reason": "sdk_error",
-                            "tags": [],
-                            "error": text,
-                            "traceback": getattr(exc, "traceback", None),
-                        }
-                    )
+            self._handle_process_error(exc, run_context)
         except Exception as exc:  # pragma: no cover - defensive
-            # Convert unexpected failure to success when a prior limit notice was seen
-            if run_context.get("limit_reached"):
-                logger.info("Rate/usage limit detected; converting exception to run_completed")
-                self.output_json(
-                    {
-                        "event": "run_completed",
-                        "timestamp": datetime.utcnow().isoformat(),
-                        "run_id": run_context["id"],
-                        "version": 1,
-                        "outcome": "completed",
-                        "reason": "limit_reached",
-                        "tags": ["limit"],
-                        "message": run_context.get("limit_message"),
-                    }
-                )
-                if run_context.get("exit_on_complete"):
-                    self.output_json(
-                        {
-                            "event": "auto_shutdown",
-                            "timestamp": datetime.utcnow().isoformat(),
-                            "reason": "exit_on_complete",
-                            "run_id": run_context["id"],
-                            "version": 1,
-                            "outcome": "shutdown",
-                            "tags": [],
-                        }
-                    )
-                    logger.info("exit_on_complete=true; initiating graceful shutdown")
-                    self.shutdown_requested = True
-                    try:
-                        if self.task_group is not None and hasattr(self.task_group, "cancel_scope"):
-                            self.task_group.cancel_scope.cancel()
-                            logger.info("cancelled task_group via cancel_scope")
-                    except Exception:
-                        logger.exception("failed to cancel task_group during exit_on_complete")
-                return
-            else:
-                logger.error("Unexpected Claude Code failure", exc_info=True)
-                self.output_json(
-                    {
-                        "event": "run_failed",
-                        "timestamp": datetime.utcnow().isoformat(),
-                        "run_id": run_context["id"],
-                        "version": 1,
-                        "outcome": "failed",
-                        "reason": "unexpected",
-                        "tags": [],
-                        "error": str(exc),
-                        "traceback": traceback.format_exc(limit=20),
-                    }
-                )
+            self._handle_unexpected_error(exc, run_context)
         else:
-            logger.info("run_completed id=%s", run_context["id"])
-            self.output_json(
-                {
-                    "event": "run_completed",
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "run_id": run_context["id"],
-                    "version": 1,
-                    "outcome": "completed",
-                    "reason": "ok",
-                    "tags": [],
-                }
-            )
-            # If requested, gracefully shut down the wrapper immediately after completion
-            if run_context.get("exit_on_complete"):
-                self.output_json(
-                    {
-                        "event": "auto_shutdown",
-                        "timestamp": datetime.utcnow().isoformat(),
-                        "reason": "exit_on_complete",
-                        "run_id": run_context["id"],
-                    }
-                )
-                logger.info("exit_on_complete=true; initiating graceful shutdown")
-                # Request shutdown and cancel the main task group so run() can unwind cleanly
-                self.shutdown_requested = True
-                try:
-                    if self.task_group is not None and hasattr(self.task_group, "cancel_scope"):
-                        self.task_group.cancel_scope.cancel()
-                        logger.info("cancelled task_group via cancel_scope")
-                except Exception:
-                    logger.exception("failed to cancel task_group during exit_on_complete")
-                # Allow finally: to run and run() to emit shutdown
-                return
+            self._handle_normal_completion(run_context)
         finally:
-            logger.info(
-                "finalising run id=%s; cancelling scope and resetting state", run_context.get("id")
-            )
-            if cancel_scope is not None:
-                cancel_scope.cancel()  # ensure scope exits cleanly if still active
-
-            if self.current_run is run_context:
-                self.current_run = None
-                self.state = "idle"
-
-            if self.current_run_done_event is not None:
-                self.current_run_done_event.set()
-
-            self.output_json(
-                {
-                    "event": "state",
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "state": self.state,
-                    "last_session_id": self.last_session_id,
-                }
-            )
+            self._finalize_run(run_context, cancel_scope)
 
     def serialise_message(self, message: Any) -> Dict[str, Any]:
         if isinstance(message, dict):
@@ -684,6 +453,223 @@ class ClaudeCodeWrapper:
             }
 
         return None
+
+    def _handle_normal_completion(self, run_context: Dict[str, Any]) -> None:
+        """Handle normal successful completion of query."""
+        logger.info("run_completed id=%s", run_context["id"])
+        self.output_json(
+            {
+                "event": "run_completed",
+                "timestamp": datetime.utcnow().isoformat(),
+                "run_id": run_context["id"],
+                "version": 1,
+                "outcome": "completed",
+                "reason": "ok",
+                "tags": [],
+            }
+        )
+        if run_context.get("exit_on_complete"):
+            self._trigger_exit_on_complete(run_context)
+
+    def _finalize_run(
+        self, run_context: Dict[str, Any], cancel_scope: Optional[anyio.CancelScope]
+    ) -> None:
+        """Finalize run cleanup and state reset."""
+        logger.info(
+            "finalising run id=%s; cancelling scope and resetting state", run_context.get("id")
+        )
+        if cancel_scope is not None:
+            cancel_scope.cancel()  # ensure scope exits cleanly if still active
+
+        if self.current_run is run_context:
+            self.current_run = None
+            self.state = "idle"
+
+        if self.current_run_done_event is not None:
+            self.current_run_done_event.set()
+
+        self.output_json(
+            {
+                "event": "state",
+                "timestamp": datetime.utcnow().isoformat(),
+                "state": self.state,
+                "last_session_id": self.last_session_id,
+            }
+        )
+
+    def _handle_process_error(self, exc: Exception, run_context: Dict[str, Any]) -> None:
+        """Handle ProcessError exceptions during query execution."""
+        text = str(exc)
+        if "EPIPE" in text or "Broken pipe" in text:
+            logger.debug("Suppressing expected EPIPE from Claude CLI: %s", exc)
+            self.output_json(
+                {
+                    "event": "run_terminated",
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "run_id": run_context["id"],
+                    "reason": "broken_pipe",
+                    "version": 1,
+                    "outcome": "terminated",
+                    "tags": [],
+                }
+            )
+        elif run_context.get("limit_reached"):
+            self._handle_limit_completion(run_context)
+        else:
+            logger.error("Claude Code process failed: %s", exc)
+            self.output_json(
+                {
+                    "event": "run_failed",
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "run_id": run_context["id"],
+                    "version": 1,
+                    "outcome": "failed",
+                    "reason": "sdk_error",
+                    "tags": [],
+                    "error": text,
+                    "traceback": getattr(exc, "traceback", None),
+                }
+            )
+
+    def _handle_unexpected_error(self, exc: Exception, run_context: Dict[str, Any]) -> None:
+        """Handle unexpected exceptions during query execution."""
+        if run_context.get("limit_reached"):
+            logger.info("Rate/usage limit detected; converting exception to run_completed")
+            self._handle_limit_completion(run_context)
+        else:
+            logger.error("Unexpected Claude Code failure", exc_info=True)
+            self.output_json(
+                {
+                    "event": "run_failed",
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "run_id": run_context["id"],
+                    "version": 1,
+                    "outcome": "failed",
+                    "reason": "unexpected",
+                    "tags": [],
+                    "error": str(exc),
+                    "traceback": traceback.format_exc(limit=20),
+                }
+            )
+
+    def _emit_phase_detected(self, run_context: Dict[str, Any], prompt: str) -> None:
+        """Detect and emit phase information."""
+        detected_phase = self._detect_phase(prompt)
+        if detected_phase:
+            self.current_phase = detected_phase
+            run_context["phase"] = detected_phase
+            self.output_json(
+                {
+                    "event": "phase_detected",
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "run_id": run_context["id"],
+                    "phase": detected_phase,
+                }
+            )
+
+    def _process_stream_message(
+        self, serialised: Dict[str, Any], run_context: Dict[str, Any]
+    ) -> None:
+        """Process a single stream message and emit relevant events."""
+        # Detect and emit tool events
+        tool_event = self._detect_tool_event(serialised)
+        if tool_event:
+            self._handle_tool_event(tool_event, run_context)
+
+        # Capture session id when available
+        session_id = self._extract_session_id(serialised)
+        if session_id:
+            self.last_session_id = session_id
+            run_context["session_id"] = session_id
+
+        # Detect rate/usage limit notice
+        self._check_limit_message(serialised, run_context)
+
+    def _handle_tool_event(self, tool_event: Dict[str, Any], run_context: Dict[str, Any]) -> None:
+        """Handle tool started/completed events."""
+        if tool_event["event_type"] == "tool_started":
+            self.tool_stats["total"] += 1
+            self.tool_stats["active"] = tool_event["tool"]
+            self.output_json(
+                {
+                    "event": "tool_started",
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "run_id": run_context["id"],
+                    "tool": tool_event["tool"],
+                    "progress": f"{self.tool_stats['completed']}/{self.tool_stats['total']}",
+                }
+            )
+        elif tool_event["event_type"] == "tool_completed":
+            self.tool_stats["completed"] += 1
+            completed_tool = self.tool_stats["active"]
+            self.tool_stats["active"] = None
+            self.output_json(
+                {
+                    "event": "tool_completed",
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "run_id": run_context["id"],
+                    "tool": completed_tool,
+                    "progress": f"{self.tool_stats['completed']}/{self.tool_stats['total']}",
+                }
+            )
+
+    def _check_limit_message(self, serialised: Dict[str, Any], run_context: Dict[str, Any]) -> None:
+        """Check for and emit rate/usage limit notices."""
+        try:
+            limit_msg = self._detect_limit_message(serialised)
+        except Exception:  # defensive
+            limit_msg = None
+        if limit_msg and not run_context.get("limit_reached"):
+            run_context["limit_reached"] = True
+            run_context["limit_message"] = limit_msg
+            self.output_json(
+                {
+                    "event": "limit_notice",
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "run_id": run_context["id"],
+                    "message": limit_msg,
+                }
+            )
+
+    def _handle_limit_completion(self, run_context: Dict[str, Any]) -> None:
+        """Handle completion when limit is reached."""
+        logger.info("Rate/usage limit detected; treating run as completed")
+        self.output_json(
+            {
+                "event": "run_completed",
+                "timestamp": datetime.utcnow().isoformat(),
+                "run_id": run_context["id"],
+                "version": 1,
+                "outcome": "completed",
+                "reason": "limit_reached",
+                "tags": ["limit"],
+                "message": run_context.get("limit_message"),
+            }
+        )
+        if run_context.get("exit_on_complete"):
+            self._trigger_exit_on_complete(run_context)
+
+    def _trigger_exit_on_complete(self, run_context: Dict[str, Any]) -> None:
+        """Trigger graceful shutdown when exit_on_complete is set."""
+        self.output_json(
+            {
+                "event": "auto_shutdown",
+                "timestamp": datetime.utcnow().isoformat(),
+                "reason": "exit_on_complete",
+                "run_id": run_context["id"],
+                "version": 1,
+                "outcome": "shutdown",
+                "tags": [],
+            }
+        )
+        logger.info("exit_on_complete=true; initiating graceful shutdown")
+        self.shutdown_requested = True
+        try:
+            if self.task_group is not None and hasattr(self.task_group, "cancel_scope"):
+                self.task_group.cancel_scope.cancel()
+                logger.info("cancelled task_group via cancel_scope")
+        except Exception:
+            logger.exception("failed to cancel task_group during exit_on_complete")
 
     # ---------------------------------------------------------------------
     # Main loop
