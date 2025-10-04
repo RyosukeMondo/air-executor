@@ -4,6 +4,8 @@ import subprocess
 from functools import wraps
 from typing import Callable
 
+from ..domain.exceptions import ConfigurationError
+
 
 def handle_analysis_errors(phase_name: str, tool_name: str = None, install_command: str = None):
     """Decorator for consistent error handling across adapter methods.
@@ -51,24 +53,20 @@ def handle_analysis_errors(phase_name: str, tool_name: str = None, install_comma
             except FileNotFoundError as e:
                 # Tool not installed - fail fast with helpful message
                 if tool_name and install_command:
-                    raise RuntimeError(
+                    raise ConfigurationError(
                         f"{tool_name} not found: {e}\n"
                         f"Install with: {install_command}"
                     ) from e
-                raise RuntimeError(
+                raise ConfigurationError(
                     f"Tool not found for {phase_name}: {e}\n"
                     f"Check tool installation"
                 ) from e
 
-            except RuntimeError as e:
-                # Configuration errors - fail fast
-                error_msg = str(e).lower()
-                if "not installed" in error_msg or "not found" in error_msg or "no module named" in error_msg:
-                    # Add context and re-raise
-                    raise RuntimeError(
-                        f"{phase_name.capitalize()} tool not available: {e}\n"
-                        f"Install command: {install_command if install_command else 'Check documentation'}"
-                    ) from e
+            except ConfigurationError:
+                # Configuration errors from nested calls - re-raise immediately
+                raise
+
+            except RuntimeError:
                 # Other runtime errors - let method handle or propagate
                 raise
 

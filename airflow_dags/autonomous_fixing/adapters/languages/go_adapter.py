@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 from typing import Dict, List
 
+from ...domain.exceptions import ConfigurationError
 from ...domain.models import AnalysisResult, ToolValidationResult
 from ..error_parser import ErrorParserStrategy
 from .base import LanguageAdapter
@@ -61,13 +62,11 @@ class GoAdapter(LanguageAdapter):
             result.success = result.compute_quality_check()
             result.execution_time = time.time() - start_time
 
+        except ConfigurationError:
+            # Configuration errors from nested calls - re-raise immediately
+            raise
+
         except RuntimeError as e:
-            # Configuration errors (go tools not installed) - fail fast
-            if "not installed" in str(e).lower() or "not found" in str(e).lower():
-                raise RuntimeError(
-                    f"Go analysis tool not available: {e}\n"
-                    f"Check Go installation and PATH"
-                ) from e
             result.success = False
             result.error_message = str(e)
             result.execution_time = time.time() - start_time
@@ -107,7 +106,7 @@ class GoAdapter(LanguageAdapter):
             result.execution_time = time.time() - start_time
         except FileNotFoundError as e:
             # go command not found - fail fast
-            raise RuntimeError(
+            raise ConfigurationError(
                 f"Go not found: {e}\n"
                 f"Install Go: https://golang.org/doc/install"
             ) from e
@@ -180,7 +179,7 @@ class GoAdapter(LanguageAdapter):
             result.execution_time = time.time() - start_time
         except FileNotFoundError as e:
             # go command not found - fail fast
-            raise RuntimeError(
+            raise ConfigurationError(
                 f"Go not found for coverage: {e}\n"
                 f"Install Go: https://golang.org/doc/install"
             ) from e
@@ -226,7 +225,7 @@ class GoAdapter(LanguageAdapter):
             result.execution_time = time.time() - start_time
         except FileNotFoundError as e:
             # go command not found - fail fast
-            raise RuntimeError(
+            raise ConfigurationError(
                 f"Go not found for E2E tests: {e}\n"
                 f"Install Go: https://golang.org/doc/install"
             ) from e

@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 from typing import Dict, List
 
+from ...domain.exceptions import ConfigurationError
 from ...domain.models import AnalysisResult, ToolValidationResult
 from ..error_parser import ErrorParserStrategy
 from ..test_result_parser import TestResultParserStrategy
@@ -63,13 +64,11 @@ class JavaScriptAdapter(LanguageAdapter):
             result.success = result.compute_quality_check()
             result.execution_time = time.time() - start_time
 
+        except ConfigurationError:
+            # Configuration errors from nested calls - re-raise immediately
+            raise
+
         except RuntimeError as e:
-            # Configuration errors (tools not installed) - fail fast
-            if "not installed" in str(e).lower() or "not found" in str(e).lower():
-                raise RuntimeError(
-                    f"JavaScript analysis tool not available: {e}\n"
-                    f"Check ESLint/TypeScript configuration"
-                ) from e
             result.success = False
             result.error_message = str(e)
             result.execution_time = time.time() - start_time
@@ -146,7 +145,7 @@ class JavaScriptAdapter(LanguageAdapter):
             result.execution_time = time.time() - start_time
         except FileNotFoundError as e:
             # Test runner not installed - fail fast
-            raise RuntimeError(
+            raise ConfigurationError(
                 f"Test runner not found: {e}\n"
                 f"Install with: npm install --save-dev jest (or vitest)"
             ) from e
@@ -190,7 +189,7 @@ class JavaScriptAdapter(LanguageAdapter):
             result.execution_time = time.time() - start_time
         except FileNotFoundError as e:
             # Coverage tool not installed - fail fast
-            raise RuntimeError(
+            raise ConfigurationError(
                 f"Coverage tool not found: {e}\n"
                 f"Install with: npm install --save-dev jest (with coverage) or vitest"
             ) from e
@@ -249,7 +248,7 @@ class JavaScriptAdapter(LanguageAdapter):
             result.execution_time = time.time() - start_time
         except FileNotFoundError as e:
             # E2E tool not installed - fail fast
-            raise RuntimeError(
+            raise ConfigurationError(
                 f"E2E test tool not found: {e}\n"
                 f"Install with: npm install --save-dev @playwright/test (or cypress)"
             ) from e
@@ -519,7 +518,7 @@ class JavaScriptAdapter(LanguageAdapter):
             result.execution_time = time.time() - start_time
         except FileNotFoundError as e:
             # TypeScript/tsc not installed - fail fast
-            raise RuntimeError(
+            raise ConfigurationError(
                 f"TypeScript not found: {e}\n"
                 f"Install with: npm install --save-dev typescript"
             ) from e
@@ -580,13 +579,13 @@ class JavaScriptAdapter(LanguageAdapter):
             result.execution_time = time.time() - start_time
         except FileNotFoundError as e:
             # npm not installed - fail fast
-            raise RuntimeError(
+            raise ConfigurationError(
                 f"npm not found: {e}\n"
                 f"Install Node.js and npm: https://nodejs.org/"
             ) from e
         except json.JSONDecodeError as e:
             # package.json malformed - fail fast
-            raise RuntimeError(
+            raise ConfigurationError(
                 f"Invalid package.json: {e}\n"
                 f"Fix package.json format"
             ) from e

@@ -1,0 +1,26 @@
+project_name: air-executor
+language: python
+levels:
+  1:
+    enabled_at: '2025-10-04T22:42:51.012236'
+    status: active
+    checks:
+    - id: type_check
+      javascript: npm run type-check
+      python: mypy .
+      go: go vet ./...
+      flutter: flutter analyze
+      blocking: true
+      rationale: P1 gate passed - no type errors should return
+    - id: build
+      javascript: npm run build
+      python: python -m py_compile src/**/*.py
+      go: go build ./...
+      flutter: flutter build --debug
+      blocking: true
+      rationale: P1 gate passed - build must succeed
+progression_history:
+- level: 1
+  timestamp: '2025-10-04T22:42:51.012248'
+  reason: Phase P1 gate passed
+current_level: 1

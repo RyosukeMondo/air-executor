@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Callable, Dict, List
 
+from ...domain.exceptions import ConfigurationError
 from ...domain.interfaces import ILanguageAdapter
 
 # Import domain models (Single Source of Truth)
@@ -105,17 +106,13 @@ class LanguageAdapter(ILanguageAdapter, ABC):
             error_parts = [f"{tool_name or 'Tool'} not found: {e}"]
             if install_cmd:
                 error_parts.append(f"Install with: {install_cmd}")
-            raise RuntimeError("\n".join(error_parts)) from e
+            raise ConfigurationError("\n".join(error_parts)) from e
+
+        except ConfigurationError:
+            # Configuration errors from nested calls - re-raise immediately
+            raise
 
         except RuntimeError as e:
-            # Check if it's a configuration error (tool not installed)
-            error_msg = str(e).lower()
-            if any(phrase in error_msg for phrase in ["not installed", "not found", "no module named"]):
-                # Re-raise with additional context
-                error_parts = [f"{phase.capitalize()} tool error: {e}"]
-                if install_cmd:
-                    error_parts.append(f"Install: {install_cmd}")
-                raise RuntimeError("\n".join(error_parts)) from e
             # Other runtime errors - create failed result
             result = AnalysisResult(
                 language=self.language_name,
@@ -336,11 +333,11 @@ class LanguageAdapter(ILanguageAdapter, ABC):
             except (FileNotFoundError, PermissionError):
                 # Skip files that are inaccessible (expected for some files)
                 continue
-            except RuntimeError as e:
+            except ConfigurationError:
                 # Configuration errors (radon not installed, etc) - FAIL FAST
-                if "not installed" in str(e).lower() or "no module named" in str(e).lower():
-                    raise  # Re-raise configuration errors immediately
-                # Skip other runtime errors (malformed files, etc)
+                raise  # Re-raise immediately
+            except RuntimeError as e:
+                # Other runtime errors (malformed files, etc) - skip
                 print(f"   ⚠️  Skipping {file_path.name}: {e}")
                 continue
             except Exception as e:

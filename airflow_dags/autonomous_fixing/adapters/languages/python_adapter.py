@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 from typing import Dict, List
 
+from ...domain.exceptions import ConfigurationError
 from ...domain.models import AnalysisResult, ToolValidationResult
 from ..error_parser import ErrorParserStrategy
 from ..test_result_parser import TestResultParserStrategy
@@ -71,14 +72,12 @@ class PythonAdapter(LanguageAdapter):
             result.success = result.compute_quality_check()
             result.execution_time = time.time() - start_time
 
+        except ConfigurationError:
+            # Configuration errors from nested calls - re-raise immediately
+            raise
+
         except RuntimeError as e:
-            # Configuration errors (tools not installed) - fail fast
-            if "not installed" in str(e).lower() or "no module named" in str(e).lower():
-                raise RuntimeError(
-                    f"Static analysis tool not available: {e}\n"
-                    f"Check linters configuration: {linters}"
-                ) from e
-            # Other runtime errors
+            # Other runtime errors - create failed result
             result.success = False
             result.error_message = str(e)
             result.execution_time = time.time() - start_time
@@ -148,7 +147,7 @@ class PythonAdapter(LanguageAdapter):
             result.execution_time = time.time() - start_time
         except FileNotFoundError as e:
             # pytest not installed or not in PATH - fail fast
-            raise RuntimeError(
+            raise ConfigurationError(
                 f"pytest not found: {e}\n"
                 f"Install with: pip install pytest"
             ) from e
@@ -193,7 +192,7 @@ class PythonAdapter(LanguageAdapter):
             result.execution_time = time.time() - start_time
         except FileNotFoundError as e:
             # pytest-cov not installed - fail fast
-            raise RuntimeError(
+            raise ConfigurationError(
                 f"pytest-cov not found: {e}\n"
                 f"Install with: pip install pytest-cov"
             ) from e
@@ -235,7 +234,7 @@ class PythonAdapter(LanguageAdapter):
             result.execution_time = time.time() - start_time
         except FileNotFoundError as e:
             # pytest not available - fail fast
-            raise RuntimeError(
+            raise ConfigurationError(
                 f"pytest not found for E2E tests: {e}\n"
                 f"Install with: pip install pytest"
             ) from e
@@ -276,7 +275,7 @@ class PythonAdapter(LanguageAdapter):
         if result.returncode != 0:
             error_msg = result.stderr or result.stdout or "Unknown error"
             if "No module named" in error_msg:
-                raise RuntimeError(
+                raise ConfigurationError(
                     f"Radon is not installed. Install with: pip install radon\n"
                     f"Error: {error_msg}"
                 )
@@ -497,7 +496,7 @@ class PythonAdapter(LanguageAdapter):
             result.execution_time = time.time() - start_time
         except FileNotFoundError as e:
             # mypy not installed - fail fast
-            raise RuntimeError(
+            raise ConfigurationError(
                 f"mypy not found: {e}\n"
                 f"Install with: pip install mypy"
             ) from e
@@ -543,7 +542,7 @@ class PythonAdapter(LanguageAdapter):
 
         except FileNotFoundError as e:
             # Python not available - fail fast
-            raise RuntimeError(
+            raise ConfigurationError(
                 f"Python not found for syntax check: {e}\n"
                 f"Python installation may be corrupted"
             ) from e
