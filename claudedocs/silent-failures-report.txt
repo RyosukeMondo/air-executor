@@ -1,0 +1,255 @@
+EXCEPTION HANDLING ANALYSIS
+Generated: /home/rmondo/repos/air-executor
+
+
+CRITICAL (28):
+----------------------------------------------------------------------------------------------------
+CRITICAL | airflow_dags/autonomous_fixing/executor_utils.py:29 | except Exception as e:
+  Handler: return f"Could not read file: {str(e)}"
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/flutter_adapter.py:123 | except Exception as e:
+  Handler: result.success = False result.error_message = str(e)
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/flutter_adapter.py:207 | except Exception as e:
+  Handler: result.success = False result.error_message = str(e)
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/flutter_adapter.py:247 | except Exception as e:
+  Handler: result.success = False result.error_message = str(e)
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/flutter_adapter.py:370 | except Exception as e:
+  Handler: return ToolValidationResult( tool_name="flutter", available=False, path=flutter_cmd, error_message=f"Flutter found but failed to run: {e}", fix_suggestion="Check Flutter installation: flutter doctor", )
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/flutter_adapter.py:429 | except Exception as e:
+  Handler: return ToolValidationResult( tool_name="dart", available=False, path=dart_cmd, error_message=f"Dart found but failed to run: {e}", )
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/python_adapter.py:74 | except Exception as e:
+  Handler: result.success = False result.error_message = str(e)
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/python_adapter.py:135 | except Exception as e:
+  Handler: result.success = False result.error_message = str(e)
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/python_adapter.py:171 | except Exception as e:
+  Handler: result.success = False result.error_message = str(e)
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/python_adapter.py:204 | except Exception as e:
+  Handler: result.success = False result.error_message = str(e)
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/python_adapter.py:373 | except Exception as e:
+  Handler: return ToolValidationResult( tool_name="python", available=False, path=python_cmd, error_message=f"Python found but failed to run: {e}", )
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/python_adapter.py:421 | except Exception as e:
+  Handler: return ToolValidationResult( tool_name=tool_name, available=False, path=tool_cmd, error_message=f"{tool_name} found but failed to run: {e}", )
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/python_adapter.py:457 | except Exception as e:
+  Handler: result.success = False result.errors = [{"message": f"Type check failed: {str(e)}"}]
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/python_adapter.py:495 | except Exception as e:
+  Handler: result.success = False result.error_message = f"Build check failed: {str(e)}" result.errors = [{"message": result.error_message}]
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/go_adapter.py:64 | except Exception as e:
+  Handler: result.success = False result.error_message = str(e)
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/go_adapter.py:96 | except Exception as e:
+  Handler: result.success = False result.error_message = str(e)
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/go_adapter.py:161 | except Exception as e:
+  Handler: result.success = False result.error_message = str(e)
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/go_adapter.py:199 | except Exception as e:
+  Handler: result.success = False result.error_message = str(e)
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/go_adapter.py:467 | except Exception as e:
+  Handler: return ToolValidationResult( tool_name='go', available=False, path=go_cmd, error_message=f'Go found but failed to run: {e}' )
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/go_adapter.py:502 | except Exception as e:
+  Handler: return ToolValidationResult( tool_name=tool_name, available=False, path=tool_cmd, error_message=f'{tool_name} found but failed to run: {e}' )
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/javascript_adapter.py:66 | except Exception as e:
+  Handler: result.success = False result.error_message = str(e)
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/javascript_adapter.py:135 | except Exception as e:
+  Handler: result.success = False result.error_message = str(e)
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/javascript_adapter.py:171 | except Exception as e:
+  Handler: result.success = False result.error_message = str(e)
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/javascript_adapter.py:222 | except Exception as e:
+  Handler: result.success = False result.error_message = str(e)
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/javascript_adapter.py:384 | except Exception as e:
+  Handler: return ToolValidationResult( tool_name="node", available=False, path=node_cmd, error_message=f"Node.js found but failed to run: {e}", )
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/javascript_adapter.py:443 | except Exception as e:
+  Handler: return ToolValidationResult( tool_name=tool_name, available=False, path=tool_cmd, error_message=f"{tool_name} found but failed to run: {e}", )
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/javascript_adapter.py:484 | except Exception as e:
+  Handler: result.success = False result.errors = [{"message": f"Type check failed: {str(e)}"}]
+CRITICAL | airflow_dags/autonomous_fixing/adapters/languages/javascript_adapter.py:537 | except Exception as e:
+  Handler: result.success = False result.error_message = f"Build failed: {str(e)}" result.errors = [{"message": result.error_message}]
+
+WARNING (62):
+----------------------------------------------------------------------------------------------------
+WARNING  | airflow_dags/autonomous_fixing/smart_health_monitor.py:187 | except Exception as e:
+  Handler: print(f"  ⚠️ Analysis failed: {e}")
+WARNING  | airflow_dags/autonomous_fixing/issue_discovery.py:69 | except Exception as e:
+  Handler: print(f"  ❌ Error discovering build issues: {e}") return []
+WARNING  | airflow_dags/autonomous_fixing/issue_discovery.py:102 | except Exception as e:
+  Handler: print(f"  ❌ Error discovering test failures: {e}") return []
+WARNING  | airflow_dags/autonomous_fixing/issue_discovery.py:129 | except Exception as e:
+  Handler: print(f"  ❌ Error discovering lint issues: {e}") return []
+WARNING  | airflow_dags/autonomous_fixing/issue_discovery.py:178 | except Exception as e:
+  Handler: print(f"  ⚠️ Failed to parse line: {line[:100]}... ({e})") return None
+WARNING  | airflow_dags/autonomous_fixing/issue_discovery.py:214 | except Exception as e:
+  Handler: print(f"  ⚠️ Failed to parse test failure: {e}") return None
+WARNING  | airflow_dags/autonomous_fixing/fix_orchestrator.py:287 | except Exception as e:
+  Handler: print(f"    ❌ Exception: {e}") self.state_manager.mark_task_failed(task.id, str(e)) self.state_manager.increment_failure_count()
+WARNING  | airflow_dags/autonomous_fixing/core/iteration_engine.py:74 | except Exception as e:
+  Handler: print(f"   ⚠️  Failed to save project state for {Path(project_path).name}: {e}")
+WARNING  | airflow_dags/autonomous_fixing/core/analyzer.py:91 | except Exception as e:
+  Handler: print(f"✗ {lang_name.upper()}: {project_name} - Error: {e}\n")
+WARNING  | airflow_dags/autonomous_fixing/core/analyzer.py:137 | except Exception as e:
+  Handler: print(f"✗ {lang_name.upper()}: {project_name} - Error: {e}\n")
+WARNING  | airflow_dags/autonomous_fixing/core/state_manager.py:230 | except Exception as e:
+  Handler: self.logger.error(f"Failed to parse state file {state_file}: {e}") state_file.unlink() return None
+WARNING  | airflow_dags/autonomous_fixing/core/state_manager.py:273 | except Exception as e:
+  Handler: self.logger.warning(f"Failed to parse state timestamp: {e}") return None
+WARNING  | airflow_dags/autonomous_fixing/adapters/error_parser.py:88 | except Exception:
+  Handler: return []
+WARNING  | airflow_dags/autonomous_fixing/adapters/error_parser.py:115 | except Exception:
+  Handler: return []
+WARNING  | airflow_dags/autonomous_fixing/adapters/error_parser.py:142 | except Exception:
+  Handler: return []
+WARNING  | airflow_dags/autonomous_fixing/adapters/error_parser.py:169 | except Exception:
+  Handler: return []
+WARNING  | airflow_dags/autonomous_fixing/adapters/error_parser.py:205 | except Exception:
+  Handler: return []
+WARNING  | airflow_dags/autonomous_fixing/adapters/error_parser.py:233 | except Exception:
+  Handler: return []
+WARNING  | airflow_dags/autonomous_fixing/adapters/error_parser.py:260 | except Exception:
+  Handler: return []
+WARNING  | airflow_dags/autonomous_fixing/adapters/error_parser.py:287 | except Exception:
+  Handler: return []
+WARNING  | airflow_dags/autonomous_fixing/adapters/error_parser.py:318 | except Exception:
+  Handler: return []
+WARNING  | airflow_dags/autonomous_fixing/adapters/error_parser.py:345 | except Exception:
+  Handler: return []
+WARNING  | airflow_dags/autonomous_fixing/adapters/error_parser.py:376 | except Exception:
+  Handler: return []
+WARNING  | airflow_dags/autonomous_fixing/adapters/error_parser.py:466 | except Exception:
+  Handler: continue
+WARNING  | airflow_dags/autonomous_fixing/adapters/test_result_parser.py:84 | except Exception:
+  Handler: return None
+WARNING  | airflow_dags/autonomous_fixing/adapters/test_result_parser.py:118 | except Exception:
+  Handler: return None
+WARNING  | airflow_dags/autonomous_fixing/adapters/test_result_parser.py:142 | except Exception:
+  Handler: return None
+WARNING  | airflow_dags/autonomous_fixing/adapters/test_result_parser.py:175 | except Exception:
+  Handler: return None
+WARNING  | airflow_dags/autonomous_fixing/adapters/test_result_parser.py:199 | except Exception:
+  Handler: return None
+WARNING  | airflow_dags/autonomous_fixing/adapters/test_result_parser.py:242 | except Exception:
+  Handler: return None
+WARNING  | airflow_dags/autonomous_fixing/adapters/test_result_parser.py:261 | except Exception:
+  Handler: return None
+WARNING  | airflow_dags/autonomous_fixing/adapters/test_result_parser.py:303 | except Exception:
+  Handler: return None
+WARNING  | airflow_dags/autonomous_fixing/core/validators/preflight.py:337 | except Exception as e:
+  Handler: self.logger.error(f"Unexpected error validating hook cache {cache_path}: {e}") return (False, f"unexpected error: {e}")
+WARNING  | airflow_dags/autonomous_fixing/core/validators/preflight.py:381 | except Exception as e:
+  Handler: self.logger.error(f"Unexpected error validating test cache {cache_path}: {e}") return (False, f"unexpected error: {e}")
+WARNING  | airflow_dags/autonomous_fixing/adapters/languages/flutter_adapter.py:38 | except Exception:
+  Handler: continue
+WARNING  | airflow_dags/autonomous_fixing/adapters/languages/flutter_adapter.py:92 | except Exception as e:
+  Handler: result.success = False result.error_message = str(e) print(f"[DEBUG] EXCEPTION: {e}")
+WARNING  | airflow_dags/autonomous_fixing/adapters/languages/flutter_adapter.py:276 | except Exception:
+  Handler: return 0
+WARNING  | airflow_dags/autonomous_fixing/adapters/languages/flutter_adapter.py:466 | except Exception:
+  Handler: return {"percentage": 0, "gaps": []}
+WARNING  | airflow_dags/autonomous_fixing/adapters/languages/python_linters.py:55 | except Exception:
+  Handler: pass
+WARNING  | airflow_dags/autonomous_fixing/adapters/languages/python_linters.py:88 | except Exception:
+  Handler: pass
+WARNING  | airflow_dags/autonomous_fixing/adapters/languages/python_linters.py:122 | except Exception:
+  Handler: pass
+WARNING  | airflow_dags/autonomous_fixing/adapters/languages/base.py:196 | except Exception:
+  Handler: continue
+WARNING  | airflow_dags/autonomous_fixing/adapters/languages/base.py:258 | except Exception as e:
+  Handler: # Unexpected errors - log and skip print(f"   ⚠️  Unexpected error analyzing {file_path.name}: {type(e).__name__}: {e}") continue
+WARNING  | airflow_dags/autonomous_fixing/adapters/languages/python_adapter.py:269 | except Exception:
+  Handler: return 0
+WARNING  | airflow_dags/autonomous_fixing/adapters/languages/python_adapter.py:307 | except Exception:
+  Handler: return {"percentage": 0, "gaps": []}
+WARNING  | airflow_dags/autonomous_fixing/adapters/languages/go_adapter.py:232 | except Exception:
+  Handler: # Fallback to simple heuristic return self._simple_complexity(file_path)
+WARNING  | airflow_dags/autonomous_fixing/adapters/languages/go_adapter.py:252 | except Exception:
+  Handler: return 0
+WARNING  | airflow_dags/autonomous_fixing/adapters/languages/go_adapter.py:290 | except Exception:
+  Handler: pass
+WARNING  | airflow_dags/autonomous_fixing/adapters/languages/go_adapter.py:321 | except Exception:
+  Handler: pass
+WARNING  | airflow_dags/autonomous_fixing/adapters/languages/go_adapter.py:354 | except Exception:
+  Handler: return {'percentage': 0, 'gaps': []}
+WARNING  | airflow_dags/autonomous_fixing/adapters/languages/javascript_linters.py:31 | except Exception as e:
+  Handler: print(f"   ✗ ESLint failed: {e}", flush=True) return []
+WARNING  | airflow_dags/autonomous_fixing/adapters/languages/javascript_linters.py:54 | except Exception as e:
+  Handler: print(f"   ✗ TypeScript check failed: {e}", flush=True) return []
+WARNING  | airflow_dags/autonomous_fixing/adapters/languages/javascript_adapter.py:253 | except Exception:
+  Handler: pass
+WARNING  | airflow_dags/autonomous_fixing/adapters/languages/javascript_adapter.py:277 | except Exception:
+  Handler: return 0
+WARNING  | airflow_dags/autonomous_fixing/adapters/languages/javascript_adapter.py:323 | except Exception:
+  Handler: return {"percentage": 0, "gaps": []}
+WARNING  | airflow_dags/autonomous_fixing/adapters/languages/javascript_adapter.py:406 | except Exception:
+  Handler: continue
+WARNING  | airflow_dags/autonomous_fixing/adapters/git/git_verifier.py:54 | except Exception as e:
+  Handler: print(f"      ⚠️  Git check failed: {e}") return None
+WARNING  | airflow_dags/autonomous_fixing/adapters/git/git_verifier.py:156 | except Exception:
+  Handler: return None
+WARNING  | airflow_dags/autonomous_fixing/adapters/ai/wrapper_history.py:191 | except Exception as e:
+  Handler: # Log errors but don't break execution print(f"⚠️  Failed to write wrapper history: {e}")
+WARNING  | airflow_dags/autonomous_fixing/adapters/ai/wrapper_history.py:219 | except Exception:
+  Handler: pass
+WARNING  | airflow_dags/autonomous_fixing/adapters/ai/response_parser.py:85 | except Exception as e:
+  Handler: logger.warning(f"Failed to load config from {self.config_path}: {e}, using defaults")
+WARNING  | airflow_dags/autonomous_fixing/adapters/ai/claude_client.py:338 | except Exception as e:
+  Handler: duration = time.time() - start_time result = {"success": False, "error": str(e), "events": []} self._log_result(prompt, project_path, prompt_type, result, duration) return result
+
+UNKNOWN (17):
+----------------------------------------------------------------------------------------------------
+UNKNOWN  | airflow_dags/commit_and_push_dag.py:18 | except ImportError:
+UNKNOWN  | airflow_dags/python_cleanup_dag.py:18 | except ImportError:
+UNKNOWN  | airflow_dags/autonomous_fixing/multi_language_orchestrator.py:21 | except ImportError:
+UNKNOWN  | airflow_dags/autonomous_fixing/multi_language_orchestrator.py:28 | except ImportError:
+UNKNOWN  | airflow_dags/autonomous_fixing/multi_language_orchestrator.py:178 | except yaml.YAMLError as e:
+UNKNOWN  | airflow_dags/autonomous_fixing/executor_runner.py:21 | except ImportError:
+UNKNOWN  | airflow_dags/autonomous_fixing/core/setup_tracker.py:17 | except ImportError:
+UNKNOWN  | airflow_dags/autonomous_fixing/core/setup_tracker.py:89 | except redis.RedisError as e:
+UNKNOWN  | airflow_dags/autonomous_fixing/core/setup_tracker.py:152 | except redis.RedisError as e:
+UNKNOWN  | airflow_dags/autonomous_fixing/core/setup_tracker.py:235 | except redis.RedisError as e:
+UNKNOWN  | airflow_dags/autonomous_fixing/core/tool_validator.py:13 | except ImportError:
+UNKNOWN  | airflow_dags/autonomous_fixing/core/fixer.py:334 | except ImportError:
+UNKNOWN  | airflow_dags/autonomous_fixing/core/validators/preflight.py:333 | except yaml.YAMLError as e:
+UNKNOWN  | airflow_dags/autonomous_fixing/core/validators/preflight.py:377 | except yaml.YAMLError as e:
+UNKNOWN  | airflow_dags/autonomous_fixing/adapters/languages/base.py:251 | except RuntimeError as e:
+UNKNOWN  | airflow_dags/autonomous_fixing/adapters/languages/python_adapter.py:480 | except SyntaxError as e:
+UNKNOWN  | airflow_dags/autonomous_fixing/adapters/ai/response_parser.py:83 | except yaml.YAMLError as e:
+
+INFO (35):
+----------------------------------------------------------------------------------------------------
+INFO     | airflow_dags/claude_query_sdk.py:127 | except json.JSONDecodeError:
+INFO     | airflow_dags/autonomous_fixing/multi_language_orchestrator.py:175 | except FileNotFoundError:
+INFO     | airflow_dags/autonomous_fixing/issue_discovery.py:96 | except json.JSONDecodeError:
+INFO     | airflow_dags/autonomous_fixing/executor_runner.py:102 | except subprocess.TimeoutExpired:
+INFO     | airflow_dags/autonomous_fixing/executor_runner.py:167 | except (json.JSONDecodeError, AttributeError):
+INFO     | airflow_dags/autonomous_fixing/core/setup_tracker.py:86 | except (redis.ConnectionError, redis.TimeoutError, OSError) as e:
+INFO     | airflow_dags/autonomous_fixing/core/setup_tracker.py:150 | except (redis.ConnectionError, redis.TimeoutError) as e:
+INFO     | airflow_dags/autonomous_fixing/core/setup_tracker.py:188 | except (OSError, ValueError) as e:
+INFO     | airflow_dags/autonomous_fixing/core/setup_tracker.py:232 | except (redis.ConnectionError, redis.TimeoutError) as e:
+INFO     | airflow_dags/autonomous_fixing/core/setup_tracker.py:273 | except (OSError, PermissionError) as e:
+INFO     | airflow_dags/autonomous_fixing/core/hook_level_manager.py:64 | except (ValueError, FileNotFoundError):
+INFO     | airflow_dags/autonomous_fixing/adapters/test_result_parser.py:79 | except json.JSONDecodeError:
+INFO     | airflow_dags/autonomous_fixing/adapters/test_result_parser.py:234 | except json.JSONDecodeError:
+INFO     | airflow_dags/autonomous_fixing/adapters/test_result_parser.py:295 | except json.JSONDecodeError:
+INFO     | airflow_dags/autonomous_fixing/core/validators/preflight.py:335 | except (PermissionError, OSError) as e:
+INFO     | airflow_dags/autonomous_fixing/core/validators/preflight.py:379 | except (PermissionError, OSError) as e:
+INFO     | airflow_dags/autonomous_fixing/adapters/languages/flutter_adapter.py:88 | except subprocess.TimeoutExpired:
+INFO     | airflow_dags/autonomous_fixing/adapters/languages/flutter_adapter.py:120 | except subprocess.TimeoutExpired:
+INFO     | airflow_dags/autonomous_fixing/adapters/languages/flutter_adapter.py:204 | except subprocess.TimeoutExpired:
+INFO     | airflow_dags/autonomous_fixing/adapters/languages/flutter_adapter.py:244 | except subprocess.TimeoutExpired:
+INFO     | airflow_dags/autonomous_fixing/adapters/languages/base.py:248 | except (FileNotFoundError, PermissionError):
+INFO     | airflow_dags/autonomous_fixing/adapters/languages/python_adapter.py:132 | except subprocess.TimeoutExpired:
+INFO     | airflow_dags/autonomous_fixing/adapters/languages/python_adapter.py:168 | except subprocess.TimeoutExpired:
+INFO     | airflow_dags/autonomous_fixing/adapters/languages/python_adapter.py:201 | except subprocess.TimeoutExpired:
+INFO     | airflow_dags/autonomous_fixing/adapters/languages/python_adapter.py:454 | except subprocess.TimeoutExpired:
+INFO     | airflow_dags/autonomous_fixing/adapters/languages/go_adapter.py:93 | except subprocess.TimeoutExpired:
+INFO     | airflow_dags/autonomous_fixing/adapters/languages/go_adapter.py:158 | except subprocess.TimeoutExpired:
+INFO     | airflow_dags/autonomous_fixing/adapters/languages/go_adapter.py:196 | except subprocess.TimeoutExpired:
+INFO     | airflow_dags/autonomous_fixing/adapters/languages/javascript_adapter.py:132 | except subprocess.TimeoutExpired:
+INFO     | airflow_dags/autonomous_fixing/adapters/languages/javascript_adapter.py:168 | except subprocess.TimeoutExpired:
+INFO     | airflow_dags/autonomous_fixing/adapters/languages/javascript_adapter.py:219 | except subprocess.TimeoutExpired:
+INFO     | airflow_dags/autonomous_fixing/adapters/languages/javascript_adapter.py:481 | except subprocess.TimeoutExpired:
+INFO     | airflow_dags/autonomous_fixing/adapters/languages/javascript_adapter.py:533 | except subprocess.TimeoutExpired:
+INFO     | airflow_dags/autonomous_fixing/adapters/ai/claude_client.py:163 | except json.JSONDecodeError:
+INFO     | airflow_dags/autonomous_fixing/adapters/ai/claude_client.py:331 | except subprocess.TimeoutExpired:
+
+OK (5):
+----------------------------------------------------------------------------------------------------
+OK       | airflow_dags/claude_query_sdk.py:23 | except Exception as e:
+OK       | airflow_dags/claude_query_sdk.py:228 | except subprocess.TimeoutExpired:
+OK       | airflow_dags/claude_query_sdk.py:232 | except Exception as e:
+OK       | airflow_dags/autonomous_fixing_dag.py:115 | except Exception:
+OK       | airflow_dags/autonomous_fixing/core/state_manager.py:137 | except Exception as e:
