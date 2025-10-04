@@ -12,6 +12,7 @@ from .analysis_verifier import AnalysisVerifier
 from .debug_logger import DebugLogger
 from .hook_level_manager import HookLevelManager
 from .setup_tracker import SetupTracker
+from .state_manager import ProjectStateManager
 from .time_gatekeeper import TimeGatekeeper
 from .validators.preflight import PreflightValidator
 
@@ -88,6 +89,18 @@ class IterationEngine:
                 success = self.fixer.configure_precommit_hooks(project_path, lang_name)
                 if success:
                     self.setup_tracker.mark_setup_complete(project_path, 'hooks')
+                    # Save project state after successful hook configuration
+                    try:
+                        state_manager = ProjectStateManager(Path(project_path))
+                        state_data = {
+                            'phase': 'hooks',
+                            'language': lang_name,
+                            'configured': True
+                        }
+                        state_manager.save_state('hooks', state_data)
+                    except Exception as e:
+                        # Log error but don't fail setup tracking
+                        print(f"   ⚠️  Failed to save project state for {Path(project_path).name}: {e}")
 
         if hooks_skipped > 0:
             print(f"\n   ⏭️  Skipped hook setup for {hooks_skipped}/{hooks_total} projects")
@@ -126,6 +139,18 @@ class IterationEngine:
                 result = self.fixer.discover_test_config(project_path, lang_name)
                 if result.success:
                     self.setup_tracker.mark_setup_complete(project_path, 'tests')
+                    # Save project state after successful test discovery
+                    try:
+                        state_manager = ProjectStateManager(Path(project_path))
+                        state_data = {
+                            'phase': 'tests',
+                            'language': lang_name,
+                            'discovered': True
+                        }
+                        state_manager.save_state('tests', state_data)
+                    except Exception as e:
+                        # Log error but don't fail setup tracking
+                        print(f"   ⚠️  Failed to save project state for {Path(project_path).name}: {e}")
 
         if tests_skipped > 0:
             print(f"\n   ⏭️  Skipped test discovery for {tests_skipped}/{tests_total} projects")

@@ -14,6 +14,7 @@ from typing import Iterator, Optional, Tuple
 import yaml
 
 from ..setup_tracker import SetupTracker
+from ..state_manager import ProjectStateManager
 
 
 class PreflightValidator:
@@ -234,11 +235,8 @@ class PreflightValidator:
         """
         Check if pre-commit hooks setup can be skipped.
 
-        Validates:
-        1. Setup state tracked as complete (via SetupTracker)
-        2. Hook cache file exists and is valid (<7 days)
-        3. Hook cache integrity (YAML parsability, required fields)
-        4. Actual hook files exist (.pre-commit-config.yaml, .git/hooks/pre-commit)
+        Delegates to ProjectStateManager for state validation with smart
+        invalidation based on configuration changes and file deletions.
 
         Args:
             project_path: Path to project directory
@@ -249,37 +247,30 @@ class PreflightValidator:
         """
         start_time = time.time()
         project_name = project_path.name
-        cache_path = self.HOOK_CACHE_DIR / f'{project_name}-hooks.yaml'
 
         # Check 1: Is setup tracked as complete?
         if result := self._check_setup_state(project_path, 'hooks', start_time):
             return result
 
-        # Check 2: Does cache file exist and is it fresh?
-        if result := self._check_cache_freshness(cache_path, project_name, 'hooks', start_time):
-            return result
+        # Check 2: Use ProjectStateManager for state validation
+        state_manager = ProjectStateManager(project_path)
+        should_reconfig, reason = state_manager.should_reconfigure('hooks')
 
-        # Check 3: Is cache valid and complete?
-        if result := self._check_hook_cache_validity(cache_path, project_name, start_time):
-            return result
+        elapsed = (time.time() - start_time) * 1000
 
-        # Check 4: Do actual hook files exist?
-        if result := self._check_hook_files_exist(project_path, project_name, start_time):
-            return result
+        if should_reconfig:
+            self.logger.debug(f"PreflightValidator: Hooks need reconfiguration for {project_name}: {reason} ({elapsed:.0f}ms)")
+            return (False, reason)
 
-        # All checks passed - setup can be skipped
-        with self._measure_validation(project_name, 'hooks', start_time):
-            cache_age_days = self._get_cache_age_days(cache_path)
-            return (True, f"hooks configured {cache_age_days}d ago (saved 60s + $0.50)")
+        self.logger.debug(f"PreflightValidator: Hooks can be skipped for {project_name}: {reason} ({elapsed:.0f}ms)")
+        return (True, f"{reason} (saved 60s + $0.50)")
 
     def can_skip_test_discovery(self, project_path: Path) -> Tuple[bool, str]:
         """
         Check if test discovery can be skipped.
 
-        Validates:
-        1. Setup state tracked as complete (via SetupTracker)
-        2. Test cache file exists and is valid (<7 days)
-        3. Test cache integrity (YAML parsability, required fields)
+        Delegates to ProjectStateManager for state validation with smart
+        invalidation based on configuration changes.
 
         Args:
             project_path: Path to project directory
@@ -290,24 +281,23 @@ class PreflightValidator:
         """
         start_time = time.time()
         project_name = project_path.name
-        cache_path = self.TEST_CACHE_DIR / f'{project_name}-tests.yaml'
 
         # Check 1: Is setup tracked as complete?
         if result := self._check_setup_state(project_path, 'tests', start_time):
             return result
 
-        # Check 2: Does cache file exist and is it fresh?
-        if result := self._check_cache_freshness(cache_path, project_name, 'tests', start_time):
-            return result
+        # Check 2: Use ProjectStateManager for state validation
+        state_manager = ProjectStateManager(project_path)
+        should_reconfig, reason = state_manager.should_reconfigure('tests')
 
-        # Check 3: Is cache valid and complete?
-        if result := self._check_test_cache_validity(cache_path, project_name, start_time):
-            return result
+        elapsed = (time.time() - start_time) * 1000
 
-        # All checks passed - discovery can be skipped
-        with self._measure_validation(project_name, 'tests', start_time):
-            cache_age_days = self._get_cache_age_days(cache_path)
-            return (True, f"tests discovered {cache_age_days}d ago (saved 90s + $0.60)")
+        if should_reconfig:
+            self.logger.debug(f"PreflightValidator: Tests need reconfiguration for {project_name}: {reason} ({elapsed:.0f}ms)")
+            return (False, reason)
+
+        self.logger.debug(f"PreflightValidator: Tests can be skipped for {project_name}: {reason} ({elapsed:.0f}ms)")
+        return (True, f"{reason} (saved 90s + $0.60)")
 
     def _validate_hook_cache(self, cache_path: Path) -> Tuple[bool, str]:
         """
