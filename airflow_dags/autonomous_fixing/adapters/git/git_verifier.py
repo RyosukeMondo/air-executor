@@ -4,8 +4,11 @@ Git Verifier - Verify that fixes result in actual git commits.
 Prevents wasteful iterations where Claude says "success" but nothing was actually done.
 """
 
+import logging
 import subprocess
 from typing import Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 
 class GitVerifier:
@@ -75,8 +78,13 @@ class GitVerifier:
                 'message': str
             }
         """
+        logger.debug(f"Verifying commit for operation: {operation}")
+        logger.debug(f"Project path: {project_path}")
+        logger.debug(f"Before commit: {before_commit}")
+
         # If we couldn't get before commit, can't verify
         if before_commit is None:
+            logger.warning(f"No initial commit hash available for {project_path}")
             return {
                 'verified': False,
                 'commit_made': False,
@@ -86,8 +94,10 @@ class GitVerifier:
 
         # Get current HEAD
         after_commit = self.get_head_commit(project_path)
+        logger.debug(f"After commit: {after_commit}")
 
         if after_commit is None:
+            logger.warning(f"Could not get post-fix commit hash for {project_path}")
             return {
                 'verified': False,
                 'commit_made': False,
@@ -97,6 +107,10 @@ class GitVerifier:
 
         # Check if commit changed
         if after_commit == before_commit:
+            logger.warning(
+                f"No commit detected after {operation} in {project_path} "
+                f"(before={before_commit[:8]}, after={after_commit[:8]})"
+            )
             return {
                 'verified': False,
                 'commit_made': False,
@@ -105,6 +119,10 @@ class GitVerifier:
             }
 
         # Success - commit was made
+        logger.info(
+            f"Commit verified for {operation} in {project_path}: "
+            f"{before_commit[:8]} → {after_commit[:8]}"
+        )
         return {
             'verified': True,
             'commit_made': True,
