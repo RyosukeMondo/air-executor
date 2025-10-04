@@ -10,12 +10,13 @@ from datetime import datetime
 from pathlib import Path
 
 import yaml
-from adapters.state.state_manager import StateManager
-from domain.models import Task
-from executor_runner import AirExecutorRunner
-from issue_discovery import IssueDiscovery
-from issue_grouping import IssueGrouper
-from smart_health_monitor import SmartHealthMonitor
+
+from airflow_dags.autonomous_fixing.adapters.state.state_manager import StateManager
+from airflow_dags.autonomous_fixing.domain.models.tasks import Task
+from airflow_dags.autonomous_fixing.executor_runner import AirExecutorRunner
+from airflow_dags.autonomous_fixing.issue_discovery import IssueDiscovery
+from airflow_dags.autonomous_fixing.issue_grouping import IssueGrouper
+from airflow_dags.autonomous_fixing.smart_health_monitor import SmartHealthMonitor
 
 
 class FixOrchestrator:

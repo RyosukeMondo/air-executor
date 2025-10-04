@@ -9,8 +9,9 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
-from executor_runner import extract_file_context
-from state_manager import Task, generate_task_id
+from airflow_dags.autonomous_fixing.adapters.state.state_manager import generate_task_id
+from airflow_dags.autonomous_fixing.domain.models.tasks import Task
+from airflow_dags.autonomous_fixing.executor_runner import extract_file_context
 
 
 class IssueDiscovery:

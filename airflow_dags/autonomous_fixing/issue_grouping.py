@@ -9,7 +9,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
 
-from state_manager import Task, generate_task_id
+from airflow_dags.autonomous_fixing.adapters.state.state_manager import generate_task_id
+from airflow_dags.autonomous_fixing.domain.models.tasks import Task
 
 
 @dataclass

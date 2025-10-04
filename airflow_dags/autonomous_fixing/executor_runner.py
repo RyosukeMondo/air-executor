@@ -10,13 +10,16 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from executor_prompts import PromptGenerator
-from executor_utils import extract_file_context, extract_structure  # noqa: F401
-from state_manager import Task
+from airflow_dags.autonomous_fixing.domain.models.tasks import Task
+from airflow_dags.autonomous_fixing.executor_prompts import PromptGenerator
+from airflow_dags.autonomous_fixing.executor_utils import (  # noqa: F401
+    extract_file_context,
+    extract_structure,
+)
 
 # Import BatchTask if available
 try:
-    from issue_grouping import BatchTask
+    from airflow_dags.autonomous_fixing.issue_grouping import BatchTask
 except ImportError:
     BatchTask = None
 
