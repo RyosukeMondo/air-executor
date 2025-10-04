@@ -33,6 +33,18 @@ except ImportError as import_error:  # pragma: no cover - handled at runtime
 else:
     CLAUDE_IMPORT_ERROR = None
 
+# Import monitoring utilities
+from wrapper_monitoring import (
+    MonitoringTracker,
+    emit_auto_shutdown,
+    emit_limit_notice,
+    emit_phase_detected,
+    emit_run_completed,
+    emit_run_failed,
+    emit_run_terminated,
+    emit_state,
+    emit_tool_event,
+)
 
 # Configure logging to stderr only (never stdout to avoid JSON pollution)
 logging.basicConfig(
@@ -47,22 +59,25 @@ logger = logging.getLogger(__name__)
 class ClaudeCodeWrapper:
     """High-level orchestrator around the Claude Code Python SDK."""
 
+    # Class-level constant (same for all instances)
+    _OPTIONS_SIGNATURE = None
+
     def __init__(self) -> None:
         if CLAUDE_IMPORT_ERROR:
             raise RuntimeError("claude_code_sdk is not available: " f"{CLAUDE_IMPORT_ERROR}")
+
+        # Initialize class-level signature once
+        if ClaudeCodeWrapper._OPTIONS_SIGNATURE is None:
+            ClaudeCodeWrapper._OPTIONS_SIGNATURE = inspect.signature(ClaudeCodeOptions)  # type: ignore[arg-type]
 
         self.shutdown_requested = False
         self.state = "idle"
         self.current_run: Optional[Dict[str, Any]] = None
         self.current_run_done_event: Optional[anyio.Event] = None
         self.task_group: Optional[anyio.abc.TaskGroup] = None
-        self._options_signature = inspect.signature(ClaudeCodeOptions)  # type: ignore[arg-type]
         self.last_session_id: Optional[str] = None
+        self.monitor = MonitoringTracker()  # Unified monitoring state
         self.setup_signal_handlers()
-
-        # Enhanced tracking for real-time visualization
-        self.tool_stats = {"total": 0, "completed": 0, "active": None}
-        self.current_phase = None
 
     # ---------------------------------------------------------------------
     # Signal handling
@@ -115,7 +130,7 @@ class ClaudeCodeWrapper:
     def build_options(self, raw_options: Optional[Dict[str, Any]]) -> ClaudeCodeOptions:
         raw_options = raw_options or {}
 
-        allowed_params = set(self._options_signature.parameters.keys()) - {"self"}
+        allowed_params = set(self._OPTIONS_SIGNATURE.parameters.keys()) - {"self"}
         filtered = {k: raw_options[k] for k in raw_options if k in allowed_params}
 
         # Support backward compatibility for "working_directory" alias
@@ -312,7 +327,7 @@ class ClaudeCodeWrapper:
         self._emit_phase_detected(run_context, prompt)
 
         # Reset tool stats for this run
-        self.tool_stats = {"total": 0, "completed": 0, "active": None}
+        self.monitor.reset_tools()
 
         try:
             with anyio.CancelScope() as scope:
@@ -370,104 +385,12 @@ class ClaudeCodeWrapper:
         result.setdefault("message_type", getattr(message, "type", message.__class__.__name__))
         return result
 
-    @staticmethod
-    def _detect_limit_message(serialised_message: Dict[str, Any]) -> Optional[str]:
-        """Detect textual rate/usage limit notice within a Claude SDK stream payload."""
-        candidates: list[str] = []
-
-        def push(value: Any) -> None:
-            if isinstance(value, str) and value:
-                candidates.append(value)
-
-        push(serialised_message.get("message"))
-        push(serialised_message.get("error"))
-        push(serialised_message.get("reason"))
-
-        payload = serialised_message.get("payload")
-        if isinstance(payload, dict):
-            for key in ("result", "message", "error", "details", "reason"):
-                push(payload.get(key))
-
-        # shallow scan of nested content arrays
-        content = serialised_message.get("content")
-        if isinstance(content, list):
-            for item in content[:5]:
-                if isinstance(item, dict):
-                    push(item.get("text"))
-
-        import re
-
-        pattern = re.compile(r"(limit\s*reached|rate\s*limit|usage\s*limit)", re.IGNORECASE)
-        for text in candidates:
-            if pattern.search(text):
-                return text
-        return None
-
-    @staticmethod
-    def _extract_session_id(serialised_message: Dict[str, Any]) -> Optional[str]:
-        session_id = serialised_message.get("session_id")
-        if isinstance(session_id, str):
-            return session_id
-
-        metadata = serialised_message.get("metadata")
-        if isinstance(metadata, dict) and isinstance(metadata.get("session_id"), str):
-            return metadata["session_id"]
-
-        return None
-
-    @staticmethod
-    def _detect_phase(prompt: str) -> Optional[str]:
-        """Detect execution phase from prompt content."""
-        prompt_lower = prompt.lower()
-        if "discover" in prompt_lower and "test" in prompt_lower:
-            return "P1: Test Discovery"
-        elif "fix_error" in prompt_lower or "linting" in prompt_lower or "type" in prompt_lower:
-            return "P1: Static Analysis"
-        elif "fix_test" in prompt_lower or "test failure" in prompt_lower:
-            return "P2: Test Fixing"
-        elif "coverage" in prompt_lower:
-            return "P3: Coverage"
-        elif "e2e" in prompt_lower or "integration" in prompt_lower:
-            return "P4: E2E Tests"
-        return None
-
-    def _detect_tool_event(self, serialised: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Detect tool execution events from stream messages."""
-        msg_type = serialised.get("message_type", "")
-
-        # Tool started
-        if msg_type == "ToolUseBlock" or "tool" in serialised.get("type", ""):
-            tool_name = serialised.get("name") or serialised.get("tool_name")
-            if tool_name:
-                return {
-                    "event_type": "tool_started",
-                    "tool": tool_name,
-                    "details": serialised.get("input", {}),
-                }
-
-        # Tool completed (result received)
-        if msg_type == "ToolResultBlock" or "result" in serialised.get("type", ""):
-            return {
-                "event_type": "tool_completed",
-                "tool": self.tool_stats.get("active"),
-            }
-
-        return None
+    # Monitoring methods now use wrapper_monitoring module
 
     def _handle_normal_completion(self, run_context: Dict[str, Any]) -> None:
         """Handle normal successful completion of query."""
         logger.info("run_completed id=%s", run_context["id"])
-        self.output_json(
-            {
-                "event": "run_completed",
-                "timestamp": datetime.utcnow().isoformat(),
-                "run_id": run_context["id"],
-                "version": 1,
-                "outcome": "completed",
-                "reason": "ok",
-                "tags": [],
-            }
-        )
+        emit_run_completed(self.output_json, run_context)
         if run_context.get("exit_on_complete"):
             self._trigger_exit_on_complete(run_context)
 
@@ -488,47 +411,20 @@ class ClaudeCodeWrapper:
         if self.current_run_done_event is not None:
             self.current_run_done_event.set()
 
-        self.output_json(
-            {
-                "event": "state",
-                "timestamp": datetime.utcnow().isoformat(),
-                "state": self.state,
-                "last_session_id": self.last_session_id,
-            }
-        )
+        emit_state(self.output_json, self.state, self.last_session_id)
 
     def _handle_process_error(self, exc: Exception, run_context: Dict[str, Any]) -> None:
         """Handle ProcessError exceptions during query execution."""
         text = str(exc)
         if "EPIPE" in text or "Broken pipe" in text:
             logger.debug("Suppressing expected EPIPE from Claude CLI: %s", exc)
-            self.output_json(
-                {
-                    "event": "run_terminated",
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "run_id": run_context["id"],
-                    "reason": "broken_pipe",
-                    "version": 1,
-                    "outcome": "terminated",
-                    "tags": [],
-                }
-            )
+            emit_run_terminated(self.output_json, run_context)
         elif run_context.get("limit_reached"):
             self._handle_limit_completion(run_context)
         else:
             logger.error("Claude Code process failed: %s", exc)
-            self.output_json(
-                {
-                    "event": "run_failed",
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "run_id": run_context["id"],
-                    "version": 1,
-                    "outcome": "failed",
-                    "reason": "sdk_error",
-                    "tags": [],
-                    "error": text,
-                    "traceback": getattr(exc, "traceback", None),
-                }
+            emit_run_failed(
+                self.output_json, run_context, "sdk_error", text, getattr(exc, "traceback", None)
             )
 
     def _handle_unexpected_error(self, exc: Exception, run_context: Dict[str, Any]) -> None:
@@ -538,46 +434,33 @@ class ClaudeCodeWrapper:
             self._handle_limit_completion(run_context)
         else:
             logger.error("Unexpected Claude Code failure", exc_info=True)
-            self.output_json(
-                {
-                    "event": "run_failed",
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "run_id": run_context["id"],
-                    "version": 1,
-                    "outcome": "failed",
-                    "reason": "unexpected",
-                    "tags": [],
-                    "error": str(exc),
-                    "traceback": traceback.format_exc(limit=20),
-                }
+            emit_run_failed(
+                self.output_json,
+                run_context,
+                "unexpected",
+                str(exc),
+                traceback.format_exc(limit=20),
             )
 
     def _emit_phase_detected(self, run_context: Dict[str, Any], prompt: str) -> None:
         """Detect and emit phase information."""
-        detected_phase = self._detect_phase(prompt)
+        detected_phase = self.monitor.detect_phase(prompt)
         if detected_phase:
-            self.current_phase = detected_phase
+            self.monitor.current_phase = detected_phase
             run_context["phase"] = detected_phase
-            self.output_json(
-                {
-                    "event": "phase_detected",
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "run_id": run_context["id"],
-                    "phase": detected_phase,
-                }
-            )
+            emit_phase_detected(self.output_json, run_context, detected_phase)
 
     def _process_stream_message(
         self, serialised: Dict[str, Any], run_context: Dict[str, Any]
     ) -> None:
         """Process a single stream message and emit relevant events."""
         # Detect and emit tool events
-        tool_event = self._detect_tool_event(serialised)
+        tool_event = self.monitor.detect_tool_event(serialised)
         if tool_event:
             self._handle_tool_event(tool_event, run_context)
 
         # Capture session id when available
-        session_id = self._extract_session_id(serialised)
+        session_id = self.monitor.extract_session_id(serialised)
         if session_id:
             self.last_session_id = session_id
             run_context["session_id"] = session_id
@@ -588,80 +471,39 @@ class ClaudeCodeWrapper:
     def _handle_tool_event(self, tool_event: Dict[str, Any], run_context: Dict[str, Any]) -> None:
         """Handle tool started/completed events."""
         if tool_event["event_type"] == "tool_started":
-            self.tool_stats["total"] += 1
-            self.tool_stats["active"] = tool_event["tool"]
-            self.output_json(
-                {
-                    "event": "tool_started",
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "run_id": run_context["id"],
-                    "tool": tool_event["tool"],
-                    "progress": f"{self.tool_stats['completed']}/{self.tool_stats['total']}",
-                }
-            )
+            tool_data = self.monitor.start_tool(tool_event["tool"])
+            emit_tool_event(self.output_json, "tool_started", run_context, tool_data)
         elif tool_event["event_type"] == "tool_completed":
-            self.tool_stats["completed"] += 1
-            completed_tool = self.tool_stats["active"]
-            self.tool_stats["active"] = None
-            self.output_json(
-                {
-                    "event": "tool_completed",
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "run_id": run_context["id"],
-                    "tool": completed_tool,
-                    "progress": f"{self.tool_stats['completed']}/{self.tool_stats['total']}",
-                }
-            )
+            tool_data = self.monitor.complete_tool()
+            emit_tool_event(self.output_json, "tool_completed", run_context, tool_data)
 
     def _check_limit_message(self, serialised: Dict[str, Any], run_context: Dict[str, Any]) -> None:
         """Check for and emit rate/usage limit notices."""
         try:
-            limit_msg = self._detect_limit_message(serialised)
+            limit_msg = self.monitor.detect_limit_message(serialised)
         except Exception:  # defensive
             limit_msg = None
         if limit_msg and not run_context.get("limit_reached"):
             run_context["limit_reached"] = True
             run_context["limit_message"] = limit_msg
-            self.output_json(
-                {
-                    "event": "limit_notice",
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "run_id": run_context["id"],
-                    "message": limit_msg,
-                }
-            )
+            emit_limit_notice(self.output_json, run_context, limit_msg)
 
     def _handle_limit_completion(self, run_context: Dict[str, Any]) -> None:
         """Handle completion when limit is reached."""
         logger.info("Rate/usage limit detected; treating run as completed")
-        self.output_json(
-            {
-                "event": "run_completed",
-                "timestamp": datetime.utcnow().isoformat(),
-                "run_id": run_context["id"],
-                "version": 1,
-                "outcome": "completed",
-                "reason": "limit_reached",
-                "tags": ["limit"],
-                "message": run_context.get("limit_message"),
-            }
+        emit_run_completed(
+            self.output_json,
+            run_context,
+            "limit_reached",
+            tags=["limit"],
+            message=run_context.get("limit_message"),
         )
         if run_context.get("exit_on_complete"):
             self._trigger_exit_on_complete(run_context)
 
     def _trigger_exit_on_complete(self, run_context: Dict[str, Any]) -> None:
         """Trigger graceful shutdown when exit_on_complete is set."""
-        self.output_json(
-            {
-                "event": "auto_shutdown",
-                "timestamp": datetime.utcnow().isoformat(),
-                "reason": "exit_on_complete",
-                "run_id": run_context["id"],
-                "version": 1,
-                "outcome": "shutdown",
-                "tags": [],
-            }
-        )
+        emit_auto_shutdown(self.output_json, run_context)
         logger.info("exit_on_complete=true; initiating graceful shutdown")
         self.shutdown_requested = True
         try:
