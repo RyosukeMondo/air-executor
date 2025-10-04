@@ -242,39 +242,46 @@ DO NOT skip any issues. DO NOT skip the commit step.
 
         return prompt
 
+    def _categorize_issue(self, message: str) -> str:
+        """Categorize issue based on message content (SRP)"""
+        msg_lower = message.lower()
+        if 'import' in msg_lower and 'unused' in msg_lower:
+            return 'Unused Imports'
+        if 'type' in msg_lower:
+            return 'Type Errors'
+        if 'null' in msg_lower:
+            return 'Null Safety'
+        if 'override' in msg_lower:
+            return 'Missing Overrides'
+        return 'Other Issues'
+
+    def _group_issues_by_category(self, issues: list) -> dict:
+        """Group issues by category (SRP, SSOT)"""
+        by_category = {}
+        for issue in issues:
+            category = self._categorize_issue(issue.get('message', ''))
+            if category not in by_category:
+                by_category[category] = []
+            by_category[category].append(issue)
+        return by_category
+
+    def _format_categorized_issues(self, by_category: dict) -> list:
+        """Format categorized issues for display (SRP, SLAP)"""
+        formatted = []
+        for category, issues in sorted(by_category.items()):
+            formatted.append(f"\n**{category}** ({len(issues)} issues):")
+            for i, issue in enumerate(issues[:10], 1):
+                formatted.append(f"  {i}. {issue['file']}:{issue['line']} - {issue['message'][:70]}")
+            if len(issues) > 10:
+                formatted.append(f"  ... and {len(issues) - 10} more")
+        return formatted
+
     def _mega_batch_prompt(self, task, summary: Optional[Dict]) -> str:
         """Generate prompt for mega batch (all issues in phase)"""
         related_issues = task.related_issues if hasattr(task, 'related_issues') else []
 
-        # Categorize issues for organized presentation
-        by_category = {}
-        for issue in related_issues:
-            msg = issue.get('message', '')
-            # Simple categorization
-            if 'import' in msg.lower() and 'unused' in msg.lower():
-                category = 'Unused Imports'
-            elif 'type' in msg.lower():
-                category = 'Type Errors'
-            elif 'null' in msg.lower():
-                category = 'Null Safety'
-            elif 'override' in msg.lower():
-                category = 'Missing Overrides'
-            else:
-                category = 'Other Issues'
-
-            if category not in by_category:
-                by_category[category] = []
-            by_category[category].append(issue)
-
-        # Build categorized summary
-        issues_by_category = []
-        for category, issues in sorted(by_category.items()):
-            issues_by_category.append(f"\n**{category}** ({len(issues)} issues):")
-            for i, issue in enumerate(issues[:10], 1):  # First 10 per category
-                issues_by_category.append(f"  {i}. {issue['file']}:{issue['line']} - {issue['message'][:70]}")
-            if len(issues) > 10:
-                issues_by_category.append(f"  ... and {len(issues) - 10} more")
-
+        by_category = self._group_issues_by_category(related_issues)
+        issues_by_category = self._format_categorized_issues(by_category)
         files = list(set(issue['file'] for issue in related_issues if issue.get('file')))
 
         prompt = f"""COMPREHENSIVE FIX: Fix ALL {len(related_issues)} issues in Flutter project.
