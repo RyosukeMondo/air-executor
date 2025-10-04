@@ -163,26 +163,41 @@ class OrchestratorConfig:
 
 ---
 
-#### 1.4 Create SetupTrackerConfig
-- [ ] Create config for SetupTracker state directory
-- [ ] Make STATE_DIR configurable (currently class variable)
-- [ ] Support test isolation
+#### 1.4 Create SetupTrackerConfig ✅
+- [x] Create config for SetupTracker state directory
+- [x] Make STATE_DIR configurable (currently class variable)
+- [x] Support test isolation
 
-**Acceptance Criteria**:
+**Acceptance Criteria**: ✅
 ```python
 @dataclass
 class SetupTrackerConfig:
     """Configuration for SetupTracker."""
-    state_dir: Path = Path(".ai-setup-state")
-    redis_config: Optional[Dict[str, Any]] = None
+    state_dir: Path = Path(".ai-state")
+    ttl_days: int = 30
+    redis_config: Optional[dict[str, Any]] = None
 
 # Usage:
-config = SetupTrackerConfig(state_dir=tmp_path / "setup-state")
+config = SetupTrackerConfig(state_dir=tmp_path / "setup-state", ttl_days=1)
 tracker = SetupTracker(config=config)
 ```
 
-**Files to modify**:
-- `airflow_dags/autonomous_fixing/core/setup_tracker.py`
+**Files modified**:
+- `airflow_dags/autonomous_fixing/config/setup_tracker_config.py` (created)
+- `airflow_dags/autonomous_fixing/config/__init__.py` (added export)
+- `airflow_dags/autonomous_fixing/core/setup_tracker.py` (updated to use config)
+
+**Tests added**:
+- `tests/unit/test_setup_tracker_config.py` (9 tests)
+- `tests/unit/test_setup_tracker_with_config.py` (10 tests)
+- Updated `tests/unit/test_setup_tracker.py` (22 tests, all passing)
+
+**Implementation notes**:
+- Backward compatible: accepts both `SetupTrackerConfig` and `dict` (treated as redis_config)
+- `for_testing()` method creates isolated test configs
+- `with_state_dir()` helper for easy state directory customization
+- `ttl_seconds` property computes TTL from days
+- All existing tests updated and passing ✅
 
 ---
 
@@ -980,8 +995,9 @@ def python_test_project(tmp_path):
 2. ✅ Phase 1.1: Create PreflightConfig
 3. ✅ Phase 1.2: Create StateManagerConfig
 4. ✅ Phase 1.3: Create OrchestratorConfig
-5. ⏭️ Phase 1.4: Create SetupTrackerConfig
-6. Review and approve plan with team
+5. ✅ Phase 1.4: Create SetupTrackerConfig
+6. ⏭️ Phase 1.5: Integration and Testing
+7. Review and approve plan with team
 
 ---
 

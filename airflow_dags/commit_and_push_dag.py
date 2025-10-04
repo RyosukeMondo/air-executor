@@ -7,7 +7,9 @@ This DAG:
 - Parameterizable working directory
 """
 
+import sys
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from airflow import DAG
 from airflow.providers.standard.operators.python import PythonOperator
@@ -17,11 +19,6 @@ try:
     from airflow.sdk import Param
 except ImportError:
     from airflow.models.param import Param
-
-# Import the reusable function (SSOT - Single Source of Truth)
-# Note: claude_query_sdk.py must be in the same dags folder
-import sys
-from pathlib import Path
 
 # Ensure dags folder is in path for imports
 sys.path.insert(0, str(Path(__file__).parent))
