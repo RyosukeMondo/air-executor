@@ -71,15 +71,13 @@ class MultiLanguageOrchestrator:
         else:
             self.orchestrator_config = config
 
-        # Keep config as dict for now (until all components are updated)
-        self.config = config if isinstance(config, dict) else self.orchestrator_config.to_dict()
         self.project_name = project_name
 
         # Initialize language adapters (SRP: each adapter handles one language)
         self.adapters = self._create_language_adapters()
 
         # Initialize core modules (SRP: each module has one job)
-        # Use self.config (dict) for components until they're updated
+        # Use config property (dict) for components until they're updated
         self.analyzer = ProjectAnalyzer(self.adapters, self.config)
         self.fixer = IssueFixer(self.config)
         self.scorer = HealthScorer(self.config)
@@ -94,6 +92,14 @@ class MultiLanguageOrchestrator:
             hook_manager=None,  # Will use default HookLevelManager
             project_name=project_name,
         )
+
+    @property
+    def config(self) -> dict:
+        """Get configuration as dict for backward compatibility.
+
+        Derives dict from orchestrator_config on-demand instead of storing redundantly.
+        """
+        return self.orchestrator_config.to_dict()
 
     def execute(self) -> dict:
         """
