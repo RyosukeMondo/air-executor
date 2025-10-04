@@ -6,14 +6,14 @@ Tests the full autonomous_fix.sh script execution twice on the same project to v
 3. Time savings measured and verified (>100s faster on second run)
 """
 
-import pytest
+import shutil
 import subprocess
 import tempfile
 import time
-import yaml
-import shutil
 from pathlib import Path
-from datetime import datetime
+
+import pytest
+import yaml
 
 
 @pytest.fixture
@@ -292,8 +292,6 @@ class TestAutonomousFixingCache:
 
         # Note: In a real scenario, we expect >100s savings
         # For E2E test with mock AI calls, we expect at least some time savings
-        # Adjust threshold based on actual implementation
-        expected_min_savings = 5  # Minimal savings for test environment
 
         # Assertions
         assert result1.returncode == 0, f"First run failed with code {result1.returncode}"
