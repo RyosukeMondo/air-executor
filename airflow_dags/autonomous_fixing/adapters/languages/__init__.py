@@ -1,7 +1,5 @@
 """Language adapters for multi-language autonomous fixing."""
 
-# Import models from domain (don't re-export from here)
-from ...domain.models import AnalysisResult, ToolValidationResult
 from .base import LanguageAdapter
 from .flutter_adapter import FlutterAdapter
 from .go_adapter import GoAdapter
