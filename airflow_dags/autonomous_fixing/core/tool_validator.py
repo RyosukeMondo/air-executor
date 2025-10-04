@@ -6,7 +6,6 @@ to catch issues early and provide helpful error messages.
 """
 
 from dataclasses import dataclass
-from typing import Dict, List
 
 try:
     from ..domain.models import ToolValidationResult
@@ -25,10 +24,10 @@ class ValidationSummary:
     total_tools: int
     available_tools: int
     missing_tools: int
-    warnings: List[str]
-    errors: List[str]
+    warnings: list[str]
+    errors: list[str]
     can_proceed: bool
-    fix_suggestions: List[str]
+    fix_suggestions: list[str]
 
 
 class ToolValidator:
@@ -46,7 +45,7 @@ class ToolValidator:
     - Fix tool issues (just reports them)
     """
 
-    def __init__(self, language_adapters: Dict, config: Dict):
+    def __init__(self, language_adapters: dict, config: dict):
         """
         Args:
             language_adapters: Dict of {language_name: adapter_instance}
@@ -136,7 +135,7 @@ class ToolValidator:
             fix_suggestions=fix_suggestions,
         )
 
-    def _determine_can_proceed(self, all_results: Dict[str, List[ToolValidationResult]]) -> bool:
+    def _determine_can_proceed(self, all_results: dict[str, list[ToolValidationResult]]) -> bool:
         """
         Determine if autonomous fixing can proceed.
 

@@ -9,7 +9,6 @@ import hashlib
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, Union
 
 from airflow_dags.autonomous_fixing.config.setup_tracker_config import SetupTrackerConfig
 
@@ -37,7 +36,7 @@ class SetupTracker:
     - Orchestrate setup flow (that's IterationEngine's job)
     """
 
-    def __init__(self, config: Optional[Union[SetupTrackerConfig, dict]] = None):
+    def __init__(self, config: SetupTrackerConfig | dict | None = None):
         """
         Initialize setup tracker with optional configuration.
 
@@ -69,7 +68,7 @@ class SetupTracker:
         self._initialize_redis(self.config.redis_config)
         self.config.state_dir.mkdir(parents=True, exist_ok=True)
 
-    def _initialize_redis(self, redis_config: Optional[dict]) -> None:
+    def _initialize_redis(self, redis_config: dict | None) -> None:
         """Initialize Redis connection if config provided and library available."""
         if not redis_config:
             return

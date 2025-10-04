@@ -6,7 +6,6 @@ No analysis, no fixing, no scoring - just iteration coordination.
 """
 
 from pathlib import Path
-from typing import Dict
 
 from .analysis_verifier import AnalysisVerifier
 from .debug_logger import DebugLogger
@@ -33,7 +32,7 @@ class IterationEngine:
     - Calculate scores (delegates to HealthScorer)
     """
 
-    def __init__(self, analyzer, fixer, scorer, config: Dict, project_name: str = "multi-project"):
+    def __init__(self, analyzer, fixer, scorer, config: dict, project_name: str = "multi-project"):
         """
         Args:
             analyzer: ProjectAnalyzer instance
@@ -90,7 +89,7 @@ class IterationEngine:
 
         return False, 0.0, 0.0
 
-    def _run_hook_setup_phase(self, projects_by_language: Dict) -> tuple:
+    def _run_hook_setup_phase(self, projects_by_language: dict) -> tuple:
         """Run pre-commit hook setup phase (SRP)"""
         print(f"\n{'='*80}")
         print("🔧 SETUP PHASE 0: Pre-Commit Hook Configuration")
@@ -140,7 +139,7 @@ class IterationEngine:
 
         return False, 0.0, 0.0
 
-    def _run_test_discovery_phase(self, projects_by_language: Dict) -> tuple:
+    def _run_test_discovery_phase(self, projects_by_language: dict) -> tuple:
         """Run test discovery phase (SRP)"""
         print(f"\n{'='*80}")
         print("🔧 SETUP PHASE 1: Test Configuration Discovery")
@@ -191,7 +190,7 @@ class IterationEngine:
             print(f"   💰 Total savings: {total_time_saved:.0f}s + ${total_cost_saved:.2f}")
             print(f"{'='*80}")
 
-    def _run_static_analysis_phase(self, projects_by_language: Dict, iteration: int) -> tuple:
+    def _run_static_analysis_phase(self, projects_by_language: dict, iteration: int) -> tuple:
         """Run P1 static analysis phase (SRP)"""
         print(f"\n{'='*80}")
         print("📍 PRIORITY 1: Fast Static Analysis")
@@ -254,7 +253,7 @@ class IterationEngine:
         self.time_gate.wait_if_needed(timing_result)
         return None  # Continue to next iteration
 
-    def _upgrade_hooks_after_p1(self, projects_by_language: Dict, p1_score_data: dict):
+    def _upgrade_hooks_after_p1(self, projects_by_language: dict, p1_score_data: dict):
         """Upgrade hooks to level 1 after P1 gate passes (SRP)"""
         for lang_name, project_list in projects_by_language.items():
             for project_path in project_list:
@@ -268,7 +267,7 @@ class IterationEngine:
                     adapter=adapter,
                 )
 
-    def _run_test_analysis_phase(self, projects_by_language: Dict, p1_score_data: dict) -> tuple:
+    def _run_test_analysis_phase(self, projects_by_language: dict, p1_score_data: dict) -> tuple:
         """Run P2 test analysis phase (SRP)"""
         print(f"\n{'='*80}")
         print("📍 PRIORITY 2: Strategic Unit Tests (Time-Aware)")
@@ -321,7 +320,7 @@ class IterationEngine:
                 del self.test_creation_attempts[project_path]
 
     def _handle_test_creation(
-        self, p2_result, iteration: int, projects_by_language: Dict, strategy: str
+        self, p2_result, iteration: int, projects_by_language: dict, strategy: str
     ) -> tuple:
         """Handle test creation when no tests exist (SRP)"""
         print("\n⚠️  CRITICAL: No tests found - delegating test creation")
@@ -349,7 +348,7 @@ class IterationEngine:
         return fix_result, None
 
     def _fix_p2_issues(
-        self, p2_result, p2_score_data, iteration: int, projects_by_language: Dict, strategy: str
+        self, p2_result, p2_score_data, iteration: int, projects_by_language: dict, strategy: str
     ) -> tuple:
         """Fix P2 issues - either create tests or fix failures. Returns (fix_result, abort_result)."""
         if p2_score_data.get("needs_test_creation", False):
@@ -396,7 +395,7 @@ class IterationEngine:
         return None
 
     def _handle_p2_gate_failure(
-        self, p2_result, p2_score_data, iteration: int, projects_by_language: Dict, strategy: str
+        self, p2_result, p2_score_data, iteration: int, projects_by_language: dict, strategy: str
     ) -> dict:
         """Handle P2 gate failure - create or fix tests (SRP)"""
         print(
@@ -411,7 +410,7 @@ class IterationEngine:
 
         return self._check_timing_abort(iteration, fix_result)
 
-    def _upgrade_hooks_after_p2(self, projects_by_language: Dict, p2_score_data: dict):
+    def _upgrade_hooks_after_p2(self, projects_by_language: dict, p2_score_data: dict):
         """Upgrade hooks to level 2 after P2 gate passes (SRP)"""
         for lang_name, project_list in projects_by_language.items():
             for project_path in project_list:
@@ -425,14 +424,14 @@ class IterationEngine:
                     adapter=adapter,
                 )
 
-    def _run_setup_phases(self, projects_by_language: Dict):
+    def _run_setup_phases(self, projects_by_language: dict):
         """Run all setup phases and print summary."""
         hooks_stats = self._run_hook_setup_phase(projects_by_language)
         tests_stats = self._run_test_discovery_phase(projects_by_language)
         total_projects = sum(len(project_list) for project_list in projects_by_language.values())
         self._print_setup_summary(hooks_stats, tests_stats, total_projects)
 
-    def _process_p1_gate(self, projects_by_language: Dict, iteration: int) -> tuple:
+    def _process_p1_gate(self, projects_by_language: dict, iteration: int) -> tuple:
         """Process P1 gate. Returns (p1_score_data, abort_result, should_continue)."""
         p1_result, p1_score_data, valid = self._run_static_analysis_phase(
             projects_by_language, iteration
@@ -453,7 +452,7 @@ class IterationEngine:
         return p1_score_data, None, False
 
     def _process_p2_gate(
-        self, projects_by_language: Dict, p1_score_data: dict, iteration: int
+        self, projects_by_language: dict, p1_score_data: dict, iteration: int
     ) -> tuple:
         """Process P2 gate. Returns (p2_score_data, abort_result, should_continue)."""
         p2_result, p2_score_data, strategy = self._run_test_analysis_phase(
@@ -476,7 +475,7 @@ class IterationEngine:
 
     def _build_success_result(
         self, iteration: int, p1_score_data: dict, p2_score_data: dict
-    ) -> Dict:
+    ) -> dict:
         """Build success result dictionary."""
         timing_result = self.time_gate.end_iteration(iteration)
         self.debug_logger.log_iteration_end(
@@ -496,7 +495,7 @@ class IterationEngine:
             "metrics": self.debug_logger.get_metrics(),
         }
 
-    def _run_single_iteration(self, projects_by_language: Dict, iteration: int) -> Dict:
+    def _run_single_iteration(self, projects_by_language: dict, iteration: int) -> dict:
         """Run a single iteration. Returns result dict if done, None to continue."""
         print(f"\n{'='*80}")
         print(f"🔁 ITERATION {iteration}/{self.max_iterations}")
@@ -527,7 +526,7 @@ class IterationEngine:
         print(f"\n🎉 All priority gates passed in iteration {iteration}!")
         return self._build_success_result(iteration, p1_score_data, p2_score_data)
 
-    def run_improvement_loop(self, projects_by_language: Dict) -> Dict:
+    def run_improvement_loop(self, projects_by_language: dict) -> dict:
         """
         Run the improvement loop until gates pass or max iterations reached.
 
@@ -562,7 +561,7 @@ class IterationEngine:
             "metrics": self.debug_logger.get_metrics(),
         }
 
-    def _print_score(self, score_data: Dict, execution_time: float):
+    def _print_score(self, score_data: dict, execution_time: float):
         """Print score summary."""
         print("\n📊 Phase Result:")
         print(f"   Score: {score_data['score']:.1%}")

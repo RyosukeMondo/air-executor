@@ -1,7 +1,6 @@
 """Language adapter interface."""
 
 from abc import ABC, abstractmethod
-from typing import List
 
 from ..models import AnalysisResult, ToolValidationResult
 
@@ -27,12 +26,12 @@ class ILanguageAdapter(ABC):
 
     @property
     @abstractmethod
-    def project_markers(self) -> List[str]:
+    def project_markers(self) -> list[str]:
         """Files that indicate a project of this language."""
         pass
 
     @abstractmethod
-    def detect_projects(self, root_path: str) -> List[str]:
+    def detect_projects(self, root_path: str) -> list[str]:
         """
         Find all projects of this language in a monorepo.
 
@@ -98,7 +97,7 @@ class ILanguageAdapter(ABC):
         pass
 
     @abstractmethod
-    def validate_tools(self) -> List[ToolValidationResult]:
+    def validate_tools(self) -> list[ToolValidationResult]:
         """
         Validate all required tools are available.
 
@@ -108,7 +107,7 @@ class ILanguageAdapter(ABC):
         pass
 
     @abstractmethod
-    def parse_errors(self, output: str, phase: str) -> List[dict]:
+    def parse_errors(self, output: str, phase: str) -> list[dict]:
         """
         Parse language-specific error format.
 

@@ -8,9 +8,8 @@ invalidation based on configuration file changes, deletions, and staleness.
 import hashlib
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Tuple
 
 import yaml
 
@@ -64,7 +63,7 @@ class ProjectStateManager:
 
         # Compute config hash
         config_hash = self._get_config_hash(phase)
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.now(UTC).isoformat()
 
         # Build and write state file
         state_file = self.state_dir / f"{phase}_state.md"
@@ -142,7 +141,7 @@ config_hash: {config_hash}
                 temp_file.unlink()
             raise
 
-    def should_reconfigure(self, phase: str) -> Tuple[bool, str]:
+    def should_reconfigure(self, phase: str) -> tuple[bool, str]:
         """
         Check if reconfiguration needed (state missing/stale/invalidated).
 
@@ -198,7 +197,7 @@ config_hash: {config_hash}
         # All checks passed - no reconfiguration needed
         return self._build_success_message(phase, generated)
 
-    def _check_existing_hooks_config(self, phase: str, state_file: Path) -> Tuple[bool, str] | None:
+    def _check_existing_hooks_config(self, phase: str, state_file: Path) -> tuple[bool, str] | None:
         """Check for existing hooks configuration in filesystem."""
         if phase != "hooks" or state_file.exists():
             return None
@@ -213,7 +212,7 @@ config_hash: {config_hash}
         self.logger.debug("Detected existing %s hooks in filesystem, skipping setup", framework)
         return (False, f"{framework} hooks already configured")
 
-    def _build_success_message(self, phase: str, generated: str) -> Tuple[bool, str]:
+    def _build_success_message(self, phase: str, generated: str) -> tuple[bool, str]:
         """Build success message with age information."""
         generated_time = self._parse_timestamp(generated)
         if generated_time is None:
@@ -393,7 +392,7 @@ config_hash: {config_hash}
         content = gitignore.read_text(encoding="utf-8")
         return content.splitlines()
 
-    def _check_external_cache(self, phase: str) -> Tuple[bool, str]:
+    def _check_external_cache(self, phase: str) -> tuple[bool, str]:
         """
         Check external cache for backward compatibility.
 

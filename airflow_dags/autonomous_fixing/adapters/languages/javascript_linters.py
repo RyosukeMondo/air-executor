@@ -1,7 +1,6 @@
 """JavaScript/TypeScript linter execution utilities."""
 
 import subprocess
-from typing import Dict, List
 
 from ..error_parser import ErrorParserStrategy
 
@@ -10,7 +9,7 @@ class JavaScriptLinters:
     """Handles execution of JavaScript/TypeScript linting tools."""
 
     @staticmethod
-    def run_eslint(project_path: str) -> List[Dict]:
+    def run_eslint(project_path: str) -> list[dict]:
         """Run ESLint and parse errors using centralized parser."""
         try:
             print("   → Running ESLint...", flush=True)
@@ -33,7 +32,7 @@ class JavaScriptLinters:
             return []
 
     @staticmethod
-    def run_tsc(project_path: str) -> List[Dict]:
+    def run_tsc(project_path: str) -> list[dict]:
         """Run TypeScript compiler and parse errors using centralized parser."""
         try:
             print("   → Running TypeScript compiler...", flush=True)

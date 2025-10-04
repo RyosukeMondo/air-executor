@@ -11,25 +11,28 @@ Philosophy: Only enforce what has been proven to pass.
 """
 
 from pathlib import Path
-from typing import Dict
 
 import yaml
+
+from ..config.hook_level_config import HookLevelConfig
 
 
 class HookLevelManager:
     """Manages progressive pre-commit hook enforcement."""
 
-    def __init__(self, config_path: str = "config/hook-levels.yaml"):
+    def __init__(self, config: HookLevelConfig | None = None):
         """
         Initialize hook level manager.
 
         Args:
-            config_path: Path to hook levels configuration
+            config: Optional HookLevelConfig. If not provided, uses default paths.
         """
-        self.config_path = Path(config_path)
+        self.hook_config = config or HookLevelConfig()
+        self.config_path = self.hook_config.config_path
+        self.cache_dir = self.hook_config.cache_dir
         self.config = self._load_config()
 
-    def _load_config(self) -> Dict:
+    def _load_config(self) -> dict:
         """Load hook levels configuration."""
         if self.config_path.exists():
             with open(self.config_path, encoding="utf-8") as f:
@@ -177,7 +180,7 @@ class HookLevelManager:
         print(f"      ✅ Updated {level_file.relative_to(project)}")
         return True
 
-    def _display_enforced_checks(self, level_config: Dict):
+    def _display_enforced_checks(self, level_config: dict):
         """Display what checks are now enforced (SRP)."""
         print("\n   📋 Now enforcing:")
         for check in level_config.get("checks", []):
@@ -211,11 +214,10 @@ class HookLevelManager:
     def _get_cache_file_path(self, project_path: str) -> Path:
         """Get metadata cache file path (SRP)."""
         project_name = Path(project_path).name
-        cache_dir = Path("config/precommit-cache")
-        cache_dir.mkdir(parents=True, exist_ok=True)
-        return cache_dir / f"{project_name}-hooks.yaml"
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        return self.cache_dir / f"{project_name}-hooks.yaml"
 
-    def _load_or_create_cache(self, cache_file: Path, project_path: str, language: str) -> Dict:
+    def _load_or_create_cache(self, cache_file: Path, project_path: str, language: str) -> dict:
         """Load existing cache or create new one (SRP)."""
         if cache_file.exists():
             with open(cache_file, encoding="utf-8") as f:
@@ -228,7 +230,7 @@ class HookLevelManager:
             "progression_history": [],
         }
 
-    def _update_cache_data(self, cache: Dict, level: int, level_config: Dict):
+    def _update_cache_data(self, cache: dict, level: int, level_config: dict):
         """Update cache data structure with new level (SRP)."""
         from datetime import datetime
 
@@ -247,7 +249,7 @@ class HookLevelManager:
         )
 
     def _update_metadata_cache(
-        self, project_path: str, language: str, level: int, level_config: Dict
+        self, project_path: str, language: str, level: int, level_config: dict
     ):
         """Update hook metadata cache with new level."""
         cache_file = self._get_cache_file_path(project_path)
@@ -367,11 +369,11 @@ class HookLevelManager:
 
         return False
 
-    def get_level_info(self, level: int) -> Dict:
+    def get_level_info(self, level: int) -> dict:
         """Get configuration info for a hook level."""
         return self.config["levels"].get(level, {})
 
-    def _format_summary_header(self, current_level: int, level_info: Dict) -> str:
+    def _format_summary_header(self, current_level: int, level_info: dict) -> str:
         """Format summary header section (SRP)."""
         summary = "\n📊 Pre-Commit Hook Enforcement Status\n"
         summary += f"{'='*60}\n"
@@ -379,7 +381,7 @@ class HookLevelManager:
         summary += f"Description: {level_info.get('description', 'N/A')}\n\n"
         return summary
 
-    def _format_enforcement_details(self, current_level: int, level_info: Dict) -> str:
+    def _format_enforcement_details(self, current_level: int, level_info: dict) -> str:
         """Format enforcement details section (SRP)."""
         if current_level == 0:
             return "⏭️  No enforcement yet (learning mode)\n   Hooks will be enabled as quality gates pass\n"

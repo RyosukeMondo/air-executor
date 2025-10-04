@@ -1,7 +1,6 @@
 """State store interfaces."""
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional
 
 from ..models import Task
 
@@ -20,7 +19,7 @@ class ITaskRepository(ABC):
         pass
 
     @abstractmethod
-    def get_next_tasks(self, count: int = 5) -> List[Task]:
+    def get_next_tasks(self, count: int = 5) -> list[Task]:
         """
         Get highest priority tasks.
 
@@ -54,7 +53,7 @@ class ITaskRepository(ABC):
         pass
 
     @abstractmethod
-    def get_task_status(self, task_id: str) -> Optional[str]:
+    def get_task_status(self, task_id: str) -> str | None:
         """
         Get task status.
 
@@ -71,7 +70,7 @@ class IStateStore(ABC):
     """Interface for general state storage."""
 
     @abstractmethod
-    def store_session_summary(self, phase: str, summary: Dict) -> None:
+    def store_session_summary(self, phase: str, summary: dict) -> None:
         """
         Store session summary.
 
@@ -82,7 +81,7 @@ class IStateStore(ABC):
         pass
 
     @abstractmethod
-    def get_session_summary(self, phase: str) -> Optional[Dict]:
+    def get_session_summary(self, phase: str) -> dict | None:
         """
         Get session summary.
 
@@ -95,7 +94,7 @@ class IStateStore(ABC):
         pass
 
     @abstractmethod
-    def record_run_result(self, run_id: str, metrics: Dict) -> None:
+    def record_run_result(self, run_id: str, metrics: dict) -> None:
         """
         Record orchestrator run result.
 
@@ -106,7 +105,7 @@ class IStateStore(ABC):
         pass
 
     @abstractmethod
-    def get_run_history(self, count: int = 10) -> List[Dict]:
+    def get_run_history(self, count: int = 10) -> list[dict]:
         """
         Get recent run history.
 
@@ -119,7 +118,7 @@ class IStateStore(ABC):
         pass
 
     @abstractmethod
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """
         Get statistics.
 

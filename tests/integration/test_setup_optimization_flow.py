@@ -8,11 +8,15 @@ import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 import yaml
 
+from airflow_dags.autonomous_fixing.config import (
+    PreflightConfig,
+    SetupTrackerConfig,
+    StateConfig,
+)
 from airflow_dags.autonomous_fixing.core.setup_tracker import SetupTracker
 from airflow_dags.autonomous_fixing.core.validators.preflight import PreflightValidator
 
@@ -52,23 +56,15 @@ def temp_state_dir():
 
 
 @pytest.fixture
-def cache_dirs():
-    """Create and cleanup cache directories."""
-    hook_cache_dir = Path("config/precommit-cache")
-    test_cache_dir = Path("config/test-cache")
+def cache_dirs(tmp_path):
+    """Create isolated cache directories for tests."""
+    hook_cache_dir = tmp_path / "hook-cache"
+    test_cache_dir = tmp_path / "test-cache"
 
     hook_cache_dir.mkdir(parents=True, exist_ok=True)
     test_cache_dir.mkdir(parents=True, exist_ok=True)
 
     yield hook_cache_dir, test_cache_dir
-
-    # Cleanup after test
-    for cache_file in hook_cache_dir.glob("*.yaml"):
-        if "test_project" in cache_file.name:
-            cache_file.unlink()
-    for cache_file in test_cache_dir.glob("*.yaml"):
-        if "test_project" in cache_file.name:
-            cache_file.unlink()
 
 
 class TestSetupOptimizationFlowFilesystem:
@@ -78,10 +74,16 @@ class TestSetupOptimizationFlowFilesystem:
         """Test full flow: clean project → cache miss → AI call → cache creation → cache hit → skip."""
         hook_cache_dir, test_cache_dir = cache_dirs
 
-        # Setup tracker and validator (no Redis)
-        with patch.object(SetupTracker, "STATE_DIR", temp_state_dir):
-            tracker = SetupTracker(redis_config=None)
-            validator = PreflightValidator(tracker)
+        # Setup tracker and validator with isolated configs (no Redis)
+        tracker_config = SetupTrackerConfig(state_dir=temp_state_dir, redis_config=None)
+        tracker = SetupTracker(config=tracker_config)
+
+        # Create state config with isolated cache directories
+        state_config = StateConfig(
+            external_hook_cache_dir=hook_cache_dir, external_test_cache_dir=test_cache_dir
+        )
+        preflight_config = PreflightConfig()
+        validator = PreflightValidator(tracker, config=preflight_config, state_config=state_config)
 
         # === PHASE 1: Cache miss (first run) ===
 
@@ -163,9 +165,13 @@ repos:
         """Test that stale cache (>7 days) is invalidated."""
         hook_cache_dir, test_cache_dir = cache_dirs
 
-        with patch.object(SetupTracker, "STATE_DIR", temp_state_dir):
-            tracker = SetupTracker(redis_config=None)
-            validator = PreflightValidator(tracker)
+        tracker_config = SetupTrackerConfig(state_dir=temp_state_dir, redis_config=None)
+        tracker = SetupTracker(config=tracker_config)
+
+        state_config = StateConfig(
+            external_hook_cache_dir=hook_cache_dir, external_test_cache_dir=test_cache_dir
+        )
+        validator = PreflightValidator(tracker, state_config=state_config)
 
         # New implementation: ProjectStateManager checks for .ai-state/ directory
         # No state files created = no valid state
@@ -180,9 +186,13 @@ repos:
         """Test graceful handling of missing/corrupted state (new behavior: state-based)."""
         hook_cache_dir, test_cache_dir = cache_dirs
 
-        with patch.object(SetupTracker, "STATE_DIR", temp_state_dir):
-            tracker = SetupTracker(redis_config=None)
-            validator = PreflightValidator(tracker)
+        tracker_config = SetupTrackerConfig(state_dir=temp_state_dir, redis_config=None)
+        tracker = SetupTracker(config=tracker_config)
+
+        state_config = StateConfig(
+            external_hook_cache_dir=hook_cache_dir, external_test_cache_dir=test_cache_dir
+        )
+        validator = PreflightValidator(tracker, state_config=state_config)
 
         # New implementation uses ProjectStateManager which checks .ai-state/ directory
         # No state files created = no valid state
@@ -197,9 +207,13 @@ repos:
         """Test that missing state files trigger reconfiguration (new behavior)."""
         hook_cache_dir, test_cache_dir = cache_dirs
 
-        with patch.object(SetupTracker, "STATE_DIR", temp_state_dir):
-            tracker = SetupTracker(redis_config=None)
-            validator = PreflightValidator(tracker)
+        tracker_config = SetupTrackerConfig(state_dir=temp_state_dir, redis_config=None)
+        tracker = SetupTracker(config=tracker_config)
+
+        state_config = StateConfig(
+            external_hook_cache_dir=hook_cache_dir, external_test_cache_dir=test_cache_dir
+        )
+        validator = PreflightValidator(tracker, state_config=state_config)
 
         # New implementation: ProjectStateManager checks for .ai-state/ directory and state files
         # No state created = setup required
@@ -275,9 +289,13 @@ class TestSetupOptimizationFlowWithRedis:
         hook_cache_dir, test_cache_dir = cache_dirs
 
         # Setup tracker with real Redis
-        with patch.object(SetupTracker, "STATE_DIR", temp_state_dir):
-            tracker = SetupTracker(redis_config=redis_container)
-            validator = PreflightValidator(tracker)
+        tracker_config = SetupTrackerConfig(state_dir=temp_state_dir, redis_config=redis_container)
+        tracker = SetupTracker(config=tracker_config)
+
+        state_config = StateConfig(
+            external_hook_cache_dir=hook_cache_dir, external_test_cache_dir=test_cache_dir
+        )
+        validator = PreflightValidator(tracker, state_config=state_config)
 
         # Verify Redis connection
         assert tracker.redis_client is not None
@@ -307,9 +325,10 @@ class TestSetupOptimizationFlowWithRedis:
         # === PHASE 3: Second run (cache hit from Redis) ===
 
         # Create NEW tracker instance (simulating restart)
-        with patch.object(SetupTracker, "STATE_DIR", temp_state_dir):
-            tracker2 = SetupTracker(redis_config=redis_container)
-            validator2 = PreflightValidator(tracker2)
+        tracker_config2 = SetupTrackerConfig(state_dir=temp_state_dir, redis_config=redis_container)
+        tracker2 = SetupTracker(config=tracker_config2)
+
+        validator2 = PreflightValidator(tracker2, state_config=state_config)
 
         # Should be able to skip now (state persisted in Redis)
         can_skip_hooks, reason = validator2.can_skip_hook_config(temp_project)
@@ -327,9 +346,13 @@ class TestSetupOptimizationFlowWithRedis:
         # Try to connect to non-existent Redis
         redis_config = {"redis_host": "localhost", "redis_port": 9999, "namespace": "test"}
 
-        with patch.object(SetupTracker, "STATE_DIR", temp_state_dir):
-            tracker = SetupTracker(redis_config=redis_config)
-            validator = PreflightValidator(tracker)
+        tracker_config = SetupTrackerConfig(state_dir=temp_state_dir, redis_config=redis_config)
+        tracker = SetupTracker(config=tracker_config)
+
+        state_config = StateConfig(
+            external_hook_cache_dir=hook_cache_dir, external_test_cache_dir=test_cache_dir
+        )
+        validator = PreflightValidator(tracker, state_config=state_config)
 
         # Should fallback to filesystem (redis_client should be None)
         assert tracker.redis_client is None
@@ -358,8 +381,8 @@ class TestConcurrentAccess:
 
     def test_concurrent_marker_writes(self, temp_project, temp_state_dir):
         """Test that concurrent marker writes don't corrupt state."""
-        with patch.object(SetupTracker, "STATE_DIR", temp_state_dir):
-            tracker = SetupTracker(redis_config=None)
+        tracker_config = SetupTrackerConfig(state_dir=temp_state_dir, redis_config=None)
+        tracker = SetupTracker(config=tracker_config)
 
         # Simulate rapid concurrent writes
         import threading
@@ -386,9 +409,13 @@ class TestPerformanceIntegration:
         """Test validation performance on realistic project setup."""
         hook_cache_dir, test_cache_dir = cache_dirs
 
-        with patch.object(SetupTracker, "STATE_DIR", temp_state_dir):
-            tracker = SetupTracker(redis_config=None)
-            validator = PreflightValidator(tracker)
+        tracker_config = SetupTrackerConfig(state_dir=temp_state_dir, redis_config=None)
+        tracker = SetupTracker(config=tracker_config)
+
+        state_config = StateConfig(
+            external_hook_cache_dir=hook_cache_dir, external_test_cache_dir=test_cache_dir
+        )
+        validator = PreflightValidator(tracker, state_config=state_config)
 
         # Setup complete project
         hook_cache_file = hook_cache_dir / f"{temp_project.name}-hooks.yaml"
@@ -426,9 +453,13 @@ class TestPerformanceIntegration:
         """Test accurate time savings reporting."""
         hook_cache_dir, test_cache_dir = cache_dirs
 
-        with patch.object(SetupTracker, "STATE_DIR", temp_state_dir):
-            tracker = SetupTracker(redis_config=None)
-            validator = PreflightValidator(tracker)
+        tracker_config = SetupTrackerConfig(state_dir=temp_state_dir, redis_config=None)
+        tracker = SetupTracker(config=tracker_config)
+
+        state_config = StateConfig(
+            external_hook_cache_dir=hook_cache_dir, external_test_cache_dir=test_cache_dir
+        )
+        validator = PreflightValidator(tracker, state_config=state_config)
 
         # Setup project with both caches
         hook_cache_file = hook_cache_dir / f"{temp_project.name}-hooks.yaml"

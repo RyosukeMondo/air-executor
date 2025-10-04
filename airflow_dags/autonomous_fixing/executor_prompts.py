@@ -4,8 +4,6 @@ Prompt generation for executor_runner.py
 Extracted to reduce file size and improve maintainability.
 """
 
-from typing import Dict, Optional
-
 
 class PromptGenerator:
     """Generates prompts for different types of fix tasks"""
@@ -92,7 +90,7 @@ class PromptGenerator:
         return "fix", f"{batch_type} across {files_count} files"
 
     @staticmethod
-    def batch_fix_prompt(task, summary: Optional[Dict]) -> str:
+    def batch_fix_prompt(task, summary: dict | None) -> str:
         """Generate prompt for batch fix"""
         batch_type = task.batch_type if hasattr(task, "batch_type") else "issues"
         related_issues = task.related_issues if hasattr(task, "related_issues") else []
@@ -141,7 +139,7 @@ DO NOT skip any issues. DO NOT skip the commit step.
         return prompt
 
     @staticmethod
-    def mega_batch_prompt(task, summary: Optional[Dict]) -> str:
+    def mega_batch_prompt(task, summary: dict | None) -> str:
         """Generate prompt for mega batch (all issues in phase)"""
         related_issues = task.related_issues if hasattr(task, "related_issues") else []
 
@@ -183,7 +181,7 @@ DO NOT skip any issues. DO NOT skip the commit step.
         return prompt
 
     @staticmethod
-    def build_fix_prompt(task, summary: Optional[Dict]) -> str:
+    def build_fix_prompt(task, summary: dict | None) -> str:
         """Generate prompt for build error fix"""
         commit_msg = task.message[:60].replace('"', "'").replace("\n", " ")
 
@@ -220,7 +218,7 @@ DO NOT skip the commit step. Changes must be committed before finishing.
         return prompt
 
     @staticmethod
-    def test_fix_prompt(task, summary: Optional[Dict]) -> str:
+    def test_fix_prompt(task, summary: dict | None) -> str:
         """Generate prompt for test failure fix
 
         Uses --no-verify during test fixing to avoid pre-commit hook circular dependency:
@@ -268,7 +266,7 @@ Fix the root cause, not the symptoms. DO NOT skip the commit step.
         return prompt
 
     @staticmethod
-    def lint_fix_prompt(task, summary: Optional[Dict]) -> str:
+    def lint_fix_prompt(task, summary: dict | None) -> str:
         """Generate prompt for lint issue fix"""
         commit_msg = task.message[:60].replace('"', "'").replace("\n", " ")
 
@@ -304,7 +302,7 @@ Follow Flutter style guide exactly. DO NOT skip the commit step.
         return prompt
 
     @staticmethod
-    def generic_fix_prompt(task, summary: Optional[Dict]) -> str:
+    def generic_fix_prompt(task, summary: dict | None) -> str:
         """Generic fix prompt"""
         commit_msg = task.message[:60].replace('"', "'").replace("\n", " ")
 

@@ -6,7 +6,6 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
-from typing import Dict, List
 
 from ...domain.exceptions import ConfigurationError
 from ...domain.models import AnalysisResult, ToolValidationResult
@@ -24,10 +23,10 @@ class JavaScriptAdapter(LanguageAdapter):
         return "javascript"
 
     @property
-    def project_markers(self) -> List[str]:
+    def project_markers(self) -> list[str]:
         return ["package.json"]
 
-    def detect_projects(self, root_path: str) -> List[str]:
+    def detect_projects(self, root_path: str) -> list[str]:
         """Find all JS/TS projects by package.json."""
         projects = []
         root = Path(root_path)
@@ -259,7 +258,7 @@ class JavaScriptAdapter(LanguageAdapter):
 
         return result
 
-    def parse_errors(self, output: str, phase: str) -> List[Dict]:
+    def parse_errors(self, output: str, phase: str) -> list[dict]:
         """Parse JS/TS error messages using centralized parser (SOLID: SRP)."""
         # Use centralized error parser for all phases
         return ErrorParserStrategy.parse(language="javascript", output=output, phase=phase)
@@ -293,7 +292,7 @@ class JavaScriptAdapter(LanguageAdapter):
     def _simple_complexity(self, file_path: str) -> int:
         """Simple complexity heuristic."""
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
 
             complexity = 1
@@ -311,7 +310,7 @@ class JavaScriptAdapter(LanguageAdapter):
         except Exception:
             return 0
 
-    def _get_source_files(self, project_path: Path) -> List[Path]:
+    def _get_source_files(self, project_path: Path) -> list[Path]:
         """Get all JS/TS source files using centralized exclusion (SOLID: DRY)."""
         source_files = []
         for pattern in ["**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx"]:
@@ -319,7 +318,7 @@ class JavaScriptAdapter(LanguageAdapter):
 
         return self._filter_excluded_paths(source_files)
 
-    def _parse_coverage_json(self, coverage_file: Path) -> Dict:
+    def _parse_coverage_json(self, coverage_file: Path) -> dict:
         """Parse Jest/Vitest coverage JSON."""
         try:
             with open(coverage_file) as f:
@@ -357,7 +356,7 @@ class JavaScriptAdapter(LanguageAdapter):
         except Exception:
             return {"percentage": 0, "gaps": []}
 
-    def validate_tools(self) -> List[ToolValidationResult]:
+    def validate_tools(self) -> list[ToolValidationResult]:
         """Validate JavaScript/TypeScript toolchain availability."""
         results = []
 
@@ -519,12 +518,11 @@ class JavaScriptAdapter(LanguageAdapter):
         except FileNotFoundError as e:
             # TypeScript/tsc not installed - fail fast
             raise ConfigurationError(
-                f"TypeScript not found: {e}\n"
-                f"Install with: npm install --save-dev typescript"
+                f"TypeScript not found: {e}\n" f"Install with: npm install --save-dev typescript"
             ) from e
         except Exception as e:
             result.success = False
-            result.errors = [{"message": f"Unexpected type check error: {str(e)}"}]
+            result.errors = [{"message": f"Unexpected type check error: {e!s}"}]
             result.execution_time = time.time() - start_time
 
         result.execution_time = time.time() - start_time
@@ -580,18 +578,16 @@ class JavaScriptAdapter(LanguageAdapter):
         except FileNotFoundError as e:
             # npm not installed - fail fast
             raise ConfigurationError(
-                f"npm not found: {e}\n"
-                f"Install Node.js and npm: https://nodejs.org/"
+                f"npm not found: {e}\n" f"Install Node.js and npm: https://nodejs.org/"
             ) from e
         except json.JSONDecodeError as e:
             # package.json malformed - fail fast
             raise ConfigurationError(
-                f"Invalid package.json: {e}\n"
-                f"Fix package.json format"
+                f"Invalid package.json: {e}\n" f"Fix package.json format"
             ) from e
         except Exception as e:
             result.success = False
-            result.error_message = f"Unexpected build error: {str(e)}"
+            result.error_message = f"Unexpected build error: {e!s}"
             result.errors = [{"message": result.error_message}]
             result.execution_time = time.time() - start_time
 

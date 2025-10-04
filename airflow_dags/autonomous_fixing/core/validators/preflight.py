@@ -7,13 +7,14 @@ setup phases can be skipped, preventing redundant AI calls.
 
 import logging
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator, Optional, Tuple
 
 import yaml
 
 from ...config.preflight_config import PreflightConfig
+from ...config.state_config import StateConfig
 from ..setup_tracker import SetupTracker
 from ..state_manager import ProjectStateManager
 
@@ -39,13 +40,20 @@ class PreflightValidator:
     HOOK_CACHE_DIR = Path("config/precommit-cache")
     TEST_CACHE_DIR = Path("config/test-cache")
 
-    def __init__(self, setup_tracker: SetupTracker, config: Optional[PreflightConfig] = None):
+    def __init__(
+        self,
+        setup_tracker: SetupTracker,
+        config: PreflightConfig | None = None,
+        state_config: StateConfig | None = None,
+    ):
         """
         Initialize validator with setup state tracker.
 
         Args:
             setup_tracker: SetupTracker instance for querying setup completion
-            config: Optional configuration object. If None, uses default configuration.
+            config: Optional PreflightConfig. If None, uses default configuration.
+            state_config: Optional StateConfig for ProjectStateManager.
+                If None, uses default paths.
 
         Example:
             >>> # Default configuration
@@ -53,11 +61,13 @@ class PreflightValidator:
 
             >>> # Custom configuration for tests
             >>> test_config = PreflightConfig.for_testing(tmp_path)
-            >>> validator = PreflightValidator(tracker, config=test_config)
+            >>> state_config = StateConfig.for_testing(tmp_path)
+            >>> validator = PreflightValidator(tracker, config=test_config, state_config=state_config)
         """
         self.logger = logging.getLogger(__name__)
         self.setup_tracker = setup_tracker
         self.config = config or PreflightConfig()
+        self.state_config = state_config or StateConfig()
 
     @contextmanager
     def _measure_validation(
@@ -84,7 +94,7 @@ class PreflightValidator:
 
     def _check_setup_state(
         self, project_path: Path, phase: str, start_time: float
-    ) -> Optional[Tuple[bool, str]]:
+    ) -> tuple[bool, str] | None:
         """
         Check if setup state is tracked as complete.
 
@@ -107,7 +117,7 @@ class PreflightValidator:
 
     def _check_cache_freshness(
         self, cache_path: Path, project_name: str, phase: str, start_time: float
-    ) -> Optional[Tuple[bool, str]]:
+    ) -> tuple[bool, str] | None:
         """
         Check if cache file exists and is fresh (<7 days).
 
@@ -157,7 +167,7 @@ class PreflightValidator:
 
     def _check_hook_cache_validity(
         self, cache_path: Path, project_name: str, start_time: float
-    ) -> Optional[Tuple[bool, str]]:
+    ) -> tuple[bool, str] | None:
         """
         Check if hook cache is valid and complete.
 
@@ -180,7 +190,7 @@ class PreflightValidator:
 
     def _check_hook_files_exist(
         self, project_path: Path, project_name: str, start_time: float
-    ) -> Optional[Tuple[bool, str]]:
+    ) -> tuple[bool, str] | None:
         """
         Check if hook files exist on filesystem.
 
@@ -213,7 +223,7 @@ class PreflightValidator:
 
     def _check_test_cache_validity(
         self, cache_path: Path, project_name: str, start_time: float
-    ) -> Optional[Tuple[bool, str]]:
+    ) -> tuple[bool, str] | None:
         """
         Check if test cache is valid and complete.
 
@@ -234,7 +244,7 @@ class PreflightValidator:
             return (False, f"cache invalid: {reason}")
         return None
 
-    def can_skip_hook_config(self, project_path: Path) -> Tuple[bool, str]:
+    def can_skip_hook_config(self, project_path: Path) -> tuple[bool, str]:
         """
         Check if pre-commit hooks setup can be skipped.
 
@@ -252,7 +262,7 @@ class PreflightValidator:
         project_name = project_path.name
 
         # Check 1: Use ProjectStateManager for state validation (checks filesystem + cache)
-        state_manager = ProjectStateManager(project_path)
+        state_manager = ProjectStateManager(project_path, config=self.state_config)
         should_reconfig, reason = state_manager.should_reconfigure("hooks")
 
         elapsed = (time.time() - start_time) * 1000
@@ -273,7 +283,7 @@ class PreflightValidator:
         )
         return (True, f"{reason} (saved 60s + $0.50)")
 
-    def can_skip_test_discovery(self, project_path: Path) -> Tuple[bool, str]:
+    def can_skip_test_discovery(self, project_path: Path) -> tuple[bool, str]:
         """
         Check if test discovery can be skipped.
 
@@ -295,7 +305,7 @@ class PreflightValidator:
             return result
 
         # Check 2: Use ProjectStateManager for state validation
-        state_manager = ProjectStateManager(project_path)
+        state_manager = ProjectStateManager(project_path, config=self.state_config)
         should_reconfig, reason = state_manager.should_reconfigure("tests")
 
         elapsed = (time.time() - start_time) * 1000
@@ -311,7 +321,7 @@ class PreflightValidator:
         )
         return (True, f"{reason} (saved 90s + $0.60)")
 
-    def _validate_hook_cache(self, cache_path: Path) -> Tuple[bool, str]:
+    def _validate_hook_cache(self, cache_path: Path) -> tuple[bool, str]:
         """
         Validate hook configuration cache integrity.
 
@@ -351,7 +361,7 @@ class PreflightValidator:
             self.logger.error("Unexpected error validating hook cache %s: %s", cache_path, e)
             return (False, f"unexpected error: {e}")
 
-    def _validate_test_cache(self, cache_path: Path) -> Tuple[bool, str]:
+    def _validate_test_cache(self, cache_path: Path) -> tuple[bool, str]:
         """
         Validate test discovery cache integrity.
 

@@ -9,7 +9,6 @@ import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional
 
 from executor_prompts import PromptGenerator
 from executor_utils import extract_file_context, extract_structure  # noqa: F401
@@ -48,7 +47,7 @@ class AirExecutorRunner:
         if not self.wrapper_path.exists():
             raise FileNotFoundError(f"claude_wrapper.py not found: {self.wrapper_path}")
 
-    def run_task(self, task: Task, session_summary: Optional[Dict] = None) -> ExecutionResult:
+    def run_task(self, task: Task, session_summary: dict | None = None) -> ExecutionResult:
         """Execute a single fix task"""
         print(f"\n🚀 Running task: {task.type} ({task.id})")
 
@@ -70,7 +69,7 @@ class AirExecutorRunner:
         self._print_result(execution_result)
         return execution_result
 
-    def _build_prompt(self, task: Task, session_summary: Optional[Dict]) -> str:
+    def _build_prompt(self, task: Task, session_summary: dict | None) -> str:
         """Build prompt based on task type"""
         is_batch = BatchTask and isinstance(task, BatchTask)
 
@@ -185,9 +184,7 @@ class AirExecutorRunner:
             args=cmd, returncode=proc.returncode, stdout=stdout, stderr=stderr
         )
 
-    def _handle_timeout(
-        self, proc: subprocess.Popen, cmd: list
-    ) -> subprocess.CompletedProcess:
+    def _handle_timeout(self, proc: subprocess.Popen, cmd: list) -> subprocess.CompletedProcess:
         """Handle timeout exception"""
         proc.kill()
         return subprocess.CompletedProcess(

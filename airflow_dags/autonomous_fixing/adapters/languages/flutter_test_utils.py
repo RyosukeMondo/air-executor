@@ -3,14 +3,13 @@
 import re
 import shutil
 from pathlib import Path
-from typing import Dict
 
 
 class FlutterTestUtils:
     """Utilities for Flutter test execution and discovery."""
 
     @staticmethod
-    def extract_test_counts(output: str) -> Dict[str, int]:
+    def extract_test_counts(output: str) -> dict[str, int]:
         """Extract test pass/fail counts from output."""
         # Flutter test output: "All tests passed!" or "Some tests failed."
         # Also: "+5 passed, -2 failed"

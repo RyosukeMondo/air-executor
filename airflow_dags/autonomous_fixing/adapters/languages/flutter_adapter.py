@@ -4,7 +4,6 @@ import re
 import subprocess
 import time
 from pathlib import Path
-from typing import Dict, List
 
 from ...domain.models import AnalysisResult, ToolValidationResult
 from ..error_parser import ErrorParserStrategy
@@ -20,10 +19,10 @@ class FlutterAdapter(LanguageAdapter):
         return "flutter"
 
     @property
-    def project_markers(self) -> List[str]:
+    def project_markers(self) -> list[str]:
         return ["pubspec.yaml"]
 
-    def detect_projects(self, root_path: str) -> List[str]:
+    def detect_projects(self, root_path: str) -> list[str]:
         """Find all Flutter projects by looking for pubspec.yaml."""
         projects = []
         root = Path(root_path)
@@ -135,27 +134,23 @@ class FlutterAdapter(LanguageAdapter):
         result.tests_failed = 0
         result.success = test_count > 0
         result.execution_time = time.time() - start_time
-        result.error_message = (
-            f"Flutter not in PATH, counted {test_count} test files directly"
-        )
+        result.error_message = f"Flutter not in PATH, counted {test_count} test files directly"
         return result
 
-    def _build_test_command(self, flutter_cmd: str, strategy: str) -> tuple[List[str], int]:
+    def _build_test_command(self, flutter_cmd: str, strategy: str) -> tuple[list[str], int]:
         """Build test command and timeout based on strategy."""
         if strategy == "minimal":
             return [flutter_cmd, "test", "test/unit/", "--no-pub"], 300
-        elif strategy == "selective":
+        if strategy == "selective":
             return [flutter_cmd, "test", "--exclude-tags=integration", "--no-pub"], 900
-        else:  # comprehensive
-            return [flutter_cmd, "test", "--no-pub"], 1800
+        # comprehensive
+        return [flutter_cmd, "test", "--no-pub"], 1800
 
     def _populate_test_result(
         self, result: AnalysisResult, test_result: subprocess.CompletedProcess, project_path: str
     ) -> None:
         """Populate result with test outcomes."""
-        result.test_failures = self.parse_errors(
-            test_result.stdout + test_result.stderr, "tests"
-        )
+        result.test_failures = self.parse_errors(test_result.stdout + test_result.stderr, "tests")
 
         counts = FlutterTestUtils.extract_test_counts(test_result.stdout)
         result.tests_passed = counts["passed"]
@@ -250,14 +245,14 @@ class FlutterAdapter(LanguageAdapter):
 
         return result
 
-    def parse_errors(self, output: str, phase: str) -> List[Dict]:
+    def parse_errors(self, output: str, phase: str) -> list[dict]:
         """Parse Flutter error messages using centralized parser (SOLID: SRP)."""
         return ErrorParserStrategy.parse(language="flutter", output=output, phase=phase)
 
     def calculate_complexity(self, file_path: str) -> int:
         """Calculate cyclomatic complexity using simple heuristic."""
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
 
             # Count decision points: if, for, while, case, catch, &&, ||, ??
@@ -276,7 +271,7 @@ class FlutterAdapter(LanguageAdapter):
         except Exception:
             return 0
 
-    def _get_source_files(self, project_path: Path) -> List[Path]:
+    def _get_source_files(self, project_path: Path) -> list[Path]:
         """Get all Dart source files using centralized exclusion (SOLID: DRY)."""
         lib_dir = project_path / "lib"
         if not lib_dir.exists():
@@ -284,7 +279,7 @@ class FlutterAdapter(LanguageAdapter):
         source_files = list(lib_dir.rglob("*.dart"))
         return self._filter_excluded_paths(source_files)
 
-    def validate_tools(self) -> List[ToolValidationResult]:
+    def validate_tools(self) -> list[ToolValidationResult]:
         """Validate Flutter toolchain availability."""
         results = []
 
@@ -434,7 +429,7 @@ class FlutterAdapter(LanguageAdapter):
                 error_message=f"Dart found but failed to run: {e}",
             )
 
-    def _parse_lcov(self, coverage_file: Path) -> Dict:
+    def _parse_lcov(self, coverage_file: Path) -> dict:
         """Parse lcov.info coverage file."""
         try:
             with open(coverage_file) as f:

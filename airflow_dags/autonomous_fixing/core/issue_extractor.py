@@ -4,14 +4,12 @@ Issue Extractor - Extracts issues from analysis results.
 Separates issue extraction logic from fixing logic.
 """
 
-from typing import Dict, List
-
 
 class IssueExtractor:
     """Extracts and prioritizes issues from analysis results."""
 
     @staticmethod
-    def extract_static_issues(results_by_project: Dict, max_issues: int) -> List[Dict]:
+    def extract_static_issues(results_by_project: dict, max_issues: int) -> list[dict]:
         """Extract top static issues from analysis results."""
         all_issues = []
 
@@ -47,7 +45,7 @@ class IssueExtractor:
         return all_issues[:max_issues]
 
     @staticmethod
-    def extract_test_failures(results_by_project: Dict, max_projects: int) -> List[Dict]:
+    def extract_test_failures(results_by_project: dict, max_projects: int) -> list[dict]:
         """Extract failing tests from analysis results."""
         failing_tests = []
 
@@ -67,7 +65,7 @@ class IssueExtractor:
         return failing_tests[:max_projects]
 
     @staticmethod
-    def extract_projects_needing_tests(results_by_project: Dict) -> List[Dict]:
+    def extract_projects_needing_tests(results_by_project: dict) -> list[dict]:
         """Find projects with no tests or low coverage."""
         projects_needing_tests = []
 

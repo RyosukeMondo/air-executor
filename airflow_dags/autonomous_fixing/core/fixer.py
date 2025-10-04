@@ -5,8 +5,6 @@ Clean, focused module that ONLY handles calling claude_wrapper to fix issues.
 No analysis, no scoring, no iteration logic - just fixing.
 """
 
-from typing import Dict
-
 from ..adapters.ai.claude_client import ClaudeClient
 from ..domain.enums import IssueType
 from ..domain.models import FixResult
@@ -32,7 +30,7 @@ class IssueFixer:
     - Manage iterations (that's IterationEngine's job)
     """
 
-    def __init__(self, config: Dict, debug_logger=None):
+    def __init__(self, config: dict, debug_logger=None):
         """
         Args:
             config: Configuration dict with wrapper settings
@@ -142,7 +140,7 @@ class IssueFixer:
             success=fixes_applied > 0,
         )
 
-    def _fix_single_issue(self, issue: Dict) -> bool:
+    def _fix_single_issue(self, issue: dict) -> bool:
         """Fix a single static issue using claude_wrapper."""
         # Get HEAD commit before fix
         before_commit = self.commit_verifier.get_head_commit(issue["project"])
@@ -171,7 +169,7 @@ class IssueFixer:
 
         return False
 
-    def _fix_failing_tests(self, test_info: Dict) -> bool:
+    def _fix_failing_tests(self, test_info: dict) -> bool:
         """Fix failing tests for a project using claude_wrapper."""
         # Get HEAD commit before fix
         before_commit = self.commit_verifier.get_head_commit(test_info["project"])
@@ -193,7 +191,7 @@ class IssueFixer:
 
         return False
 
-    def analyze_static(self, project_path: str, language: str) -> Dict:
+    def analyze_static(self, project_path: str, language: str) -> dict:
         """
         ANALYSIS PHASE: Static code quality analysis via claude_wrapper.
 
@@ -266,7 +264,7 @@ class IssueFixer:
             success=tests_created > 0,
         )
 
-    def _create_tests_for_project(self, project_info: Dict) -> bool:
+    def _create_tests_for_project(self, project_info: dict) -> bool:
         """Create tests for a single project using claude_wrapper."""
         # Get HEAD commit before test creation
         before_commit = self.commit_verifier.get_head_commit(project_info["project"])
@@ -305,9 +303,8 @@ class IssueFixer:
                     print("         Consider running fix_failing_tests phase")
                     # Still return True - tests exist, they just need fixing
                     return True
-                else:
-                    print(f"      ✅ Tests validated: {test_result.tests_passed} passing")
-                    return True
+                print(f"      ✅ Tests validated: {test_result.tests_passed} passing")
+                return True
 
             return True
 
@@ -320,15 +317,15 @@ class IssueFixer:
                 from ..adapters.languages.python_adapter import PythonAdapter
 
                 return PythonAdapter({})
-            elif language == "javascript":
+            if language == "javascript":
                 from ..adapters.languages.javascript_adapter import JavaScriptAdapter
 
                 return JavaScriptAdapter({})
-            elif language == "flutter":
+            if language == "flutter":
                 from ..adapters.languages.flutter_adapter import FlutterAdapter
 
                 return FlutterAdapter({})
-            elif language == "go":
+            if language == "go":
                 from ..adapters.languages.go_adapter import GoAdapter
 
                 return GoAdapter({})

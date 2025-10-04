@@ -1,8 +1,8 @@
 """Centralized error handling for language adapters (SSOT)."""
 
 import subprocess
+from collections.abc import Callable
 from functools import wraps
-from typing import Callable
 
 from ..domain.exceptions import ConfigurationError
 
@@ -22,10 +22,12 @@ def handle_analysis_errors(phase_name: str, tool_name: str = None, install_comma
     - Catches unexpected errors and logs them
     - Always sets result.execution_time
     """
+
     def decorator(func: Callable):
         @wraps(func)
         def wrapper(self, project_path: str, *args, **kwargs):
             import time
+
             start_time = time.time()
 
             try:
@@ -35,17 +37,18 @@ def handle_analysis_errors(phase_name: str, tool_name: str = None, install_comma
 
             except subprocess.TimeoutExpired as e:
                 # Timeout is expected - set result to failed
-                result = func.__annotations__.get('return')  # Get AnalysisResult type
+                result = func.__annotations__.get("return")  # Get AnalysisResult type
                 if result:
                     # Create minimal result
                     from ...domain.models import AnalysisResult
+
                     result = AnalysisResult(
-                        language=self.language_name,
-                        phase=phase_name,
-                        project_path=project_path
+                        language=self.language_name, phase=phase_name, project_path=project_path
                     )
                     result.success = False
-                    result.error_message = f"{phase_name.capitalize()} timed out after {e.timeout} seconds"
+                    result.error_message = (
+                        f"{phase_name.capitalize()} timed out after {e.timeout} seconds"
+                    )
                     result.execution_time = time.time() - start_time
                     return result
                 raise
@@ -54,12 +57,10 @@ def handle_analysis_errors(phase_name: str, tool_name: str = None, install_comma
                 # Tool not installed - fail fast with helpful message
                 if tool_name and install_command:
                     raise ConfigurationError(
-                        f"{tool_name} not found: {e}\n"
-                        f"Install with: {install_command}"
+                        f"{tool_name} not found: {e}\n" f"Install with: {install_command}"
                     ) from e
                 raise ConfigurationError(
-                    f"Tool not found for {phase_name}: {e}\n"
-                    f"Check tool installation"
+                    f"Tool not found for {phase_name}: {e}\n" f"Check tool installation"
                 ) from e
 
             except ConfigurationError:
@@ -73,10 +74,9 @@ def handle_analysis_errors(phase_name: str, tool_name: str = None, install_comma
             except Exception as e:
                 # Unexpected errors - create failed result
                 from ...domain.models import AnalysisResult
+
                 result = AnalysisResult(
-                    language=self.language_name,
-                    phase=phase_name,
-                    project_path=project_path
+                    language=self.language_name, phase=phase_name, project_path=project_path
                 )
                 result.success = False
                 result.error_message = f"Unexpected error in {phase_name}: {e}"
@@ -84,6 +84,7 @@ def handle_analysis_errors(phase_name: str, tool_name: str = None, install_comma
                 return result
 
         return wrapper
+
     return decorator
 
 
@@ -93,14 +94,16 @@ def with_execution_time(func: Callable):
     Simpler decorator for methods that already handle their own errors
     but need execution time tracking.
     """
+
     @wraps(func)
     def wrapper(self, *args, **kwargs):
         import time
+
         start_time = time.time()
 
         try:
             result = func(self, *args, **kwargs)
-            if hasattr(result, 'execution_time') and result.execution_time is None:
+            if hasattr(result, "execution_time") and result.execution_time is None:
                 result.execution_time = time.time() - start_time
             return result
         except Exception:

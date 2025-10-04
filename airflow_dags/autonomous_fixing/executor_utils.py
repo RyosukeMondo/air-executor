@@ -8,7 +8,7 @@ Extracted to reduce file size and improve maintainability.
 def extract_file_context(filepath: str, error_line: int = None, context_lines: int = 10) -> str:
     """Extract minimal relevant context from a file"""
     try:
-        with open(filepath, "r", encoding="utf-8") as f:
+        with open(filepath, encoding="utf-8") as f:
             lines = f.readlines()
 
         if error_line is not None and error_line > 0:
@@ -27,7 +27,7 @@ def extract_file_context(filepath: str, error_line: int = None, context_lines: i
         return extract_structure(lines)
 
     except Exception as e:
-        return f"Could not read file: {str(e)}"
+        return f"Could not read file: {e!s}"
 
 
 def extract_structure(lines: list) -> str:

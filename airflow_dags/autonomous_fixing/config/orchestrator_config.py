@@ -7,7 +7,7 @@ supporting both YAML loading (existing behavior) and programmatic configuration
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import yaml
 
@@ -63,12 +63,12 @@ class OrchestratorConfig:
     """
 
     # Project settings
-    projects: List[Dict[str, str]] = field(default_factory=list)
-    languages: Dict[str, Any] = field(default_factory=lambda: {"enabled": ["python", "javascript"]})
+    projects: list[dict[str, str]] = field(default_factory=list)
+    languages: dict[str, Any] = field(default_factory=lambda: {"enabled": ["python", "javascript"]})
 
     # Execution strategy
-    priorities: Dict[str, Any] = field(default_factory=dict)
-    execution: Dict[str, Any] = field(
+    priorities: dict[str, Any] = field(default_factory=dict)
+    execution: dict[str, Any] = field(
         default_factory=lambda: {
             "parallel_languages": True,
             "max_concurrent_projects": 5,
@@ -80,7 +80,7 @@ class OrchestratorConfig:
     )
 
     # Issue handling
-    issue_grouping: Dict[str, Any] = field(
+    issue_grouping: dict[str, Any] = field(
         default_factory=lambda: {
             "enabled": True,
             "mega_batch_mode": False,
@@ -88,7 +88,7 @@ class OrchestratorConfig:
             "max_location_batch_size": 15,
         }
     )
-    batch_sizes: Dict[str, int] = field(
+    batch_sizes: dict[str, int] = field(
         default_factory=lambda: {
             "p1_fixes": 2,
             "p2_fixes": 1,
@@ -98,7 +98,7 @@ class OrchestratorConfig:
     )
 
     # Health and scoring
-    health_check: Dict[str, Any] = field(
+    health_check: dict[str, Any] = field(
         default_factory=lambda: {
             "method": "priority_based",
             "static_only_threshold": 0.60,
@@ -107,9 +107,9 @@ class OrchestratorConfig:
     )
 
     # External integrations
-    wrapper: Dict[str, Any] = field(default_factory=dict)
-    state_manager: Dict[str, Any] = field(default_factory=dict)
-    logging: Dict[str, Any] = field(
+    wrapper: dict[str, Any] = field(default_factory=dict)
+    state_manager: dict[str, Any] = field(default_factory=dict)
+    logging: dict[str, Any] = field(
         default_factory=lambda: {
             "level": "INFO",
             "format": "%(asctime)s - %(levelname)s - %(message)s",
@@ -117,7 +117,7 @@ class OrchestratorConfig:
     )
 
     # Git automation
-    git: Dict[str, Any] = field(
+    git: dict[str, Any] = field(
         default_factory=lambda: {
             "auto_commit": True,
             "commit_prefix": "fix",
@@ -126,7 +126,7 @@ class OrchestratorConfig:
     )
 
     # Coverage and testing
-    coverage_prompts: Dict[str, Any] = field(
+    coverage_prompts: dict[str, Any] = field(
         default_factory=lambda: {
             "generate_tests": True,
             "focus_areas": [
@@ -138,7 +138,7 @@ class OrchestratorConfig:
     )
 
     # Safety and validation
-    safety: Dict[str, Any] = field(
+    safety: dict[str, Any] = field(
         default_factory=lambda: {
             "create_backup": False,
             "dry_run": False,
@@ -148,7 +148,7 @@ class OrchestratorConfig:
     )
 
     # Path exclusions
-    exclusions: Dict[str, List[str]] = field(
+    exclusions: dict[str, list[str]] = field(
         default_factory=lambda: {
             "patterns": [
                 "node_modules",
@@ -165,10 +165,10 @@ class OrchestratorConfig:
     )
 
     # Per-project overrides
-    project_overrides: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    project_overrides: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     # Notifications
-    notifications: Dict[str, Any] = field(
+    notifications: dict[str, Any] = field(
         default_factory=lambda: {
             "enabled": False,
             "on_completion": False,
@@ -201,7 +201,7 @@ class OrchestratorConfig:
             >>> config = OrchestratorConfig.from_yaml(Path("config/warps.yaml"))
             >>> orchestrator = MultiLanguageOrchestrator(config)
         """
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
 
         # Create sub-configs (use defaults for now, could be extended)
@@ -230,7 +230,7 @@ class OrchestratorConfig:
         )
 
     @classmethod
-    def from_dict(cls, config_dict: Dict[str, Any]) -> "OrchestratorConfig":
+    def from_dict(cls, config_dict: dict[str, Any]) -> "OrchestratorConfig":
         """Create configuration from dictionary.
 
         Provides backward compatibility for code that passes dict configs.
@@ -269,8 +269,8 @@ class OrchestratorConfig:
     def for_testing(
         cls,
         tmp_path: Path,
-        projects: Optional[List[str]] = None,
-        languages: Optional[List[str]] = None,
+        projects: list[str] | None = None,
+        languages: list[str] | None = None,
         **overrides,
     ) -> "OrchestratorConfig":
         """Create isolated test configuration.
@@ -343,7 +343,7 @@ class OrchestratorConfig:
 
         return config
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert configuration to dictionary.
 
         Useful for backward compatibility with code expecting dict configs.

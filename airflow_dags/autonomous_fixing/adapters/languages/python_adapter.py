@@ -7,7 +7,6 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List
 
 from ...domain.exceptions import ConfigurationError
 from ...domain.models import AnalysisResult, ToolValidationResult
@@ -25,10 +24,10 @@ class PythonAdapter(LanguageAdapter):
         return "python"
 
     @property
-    def project_markers(self) -> List[str]:
+    def project_markers(self) -> list[str]:
         return ["setup.py", "pyproject.toml", "requirements.txt", "setup.cfg"]
 
-    def detect_projects(self, root_path: str) -> List[str]:
+    def detect_projects(self, root_path: str) -> list[str]:
         """Find all Python projects."""
         projects = []
         root = Path(root_path)
@@ -148,8 +147,7 @@ class PythonAdapter(LanguageAdapter):
         except FileNotFoundError as e:
             # pytest not installed or not in PATH - fail fast
             raise ConfigurationError(
-                f"pytest not found: {e}\n"
-                f"Install with: pip install pytest"
+                f"pytest not found: {e}\n" f"Install with: pip install pytest"
             ) from e
         except Exception as e:
             # Unexpected errors
@@ -193,8 +191,7 @@ class PythonAdapter(LanguageAdapter):
         except FileNotFoundError as e:
             # pytest-cov not installed - fail fast
             raise ConfigurationError(
-                f"pytest-cov not found: {e}\n"
-                f"Install with: pip install pytest-cov"
+                f"pytest-cov not found: {e}\n" f"Install with: pip install pytest-cov"
             ) from e
         except Exception as e:
             # Unexpected errors
@@ -235,8 +232,7 @@ class PythonAdapter(LanguageAdapter):
         except FileNotFoundError as e:
             # pytest not available - fail fast
             raise ConfigurationError(
-                f"pytest not found for E2E tests: {e}\n"
-                f"Install with: pip install pytest"
+                f"pytest not found for E2E tests: {e}\n" f"Install with: pip install pytest"
             ) from e
         except Exception as e:
             # Unexpected errors
@@ -246,7 +242,7 @@ class PythonAdapter(LanguageAdapter):
 
         return result
 
-    def parse_errors(self, output: str, phase: str) -> List[Dict]:
+    def parse_errors(self, output: str, phase: str) -> list[dict]:
         """Parse Python error messages using centralized parser (SOLID: SRP)."""
         # Use centralized error parser for all phases
         return ErrorParserStrategy.parse(language="python", output=output, phase=phase)
@@ -292,7 +288,7 @@ class PythonAdapter(LanguageAdapter):
     def _simple_complexity(self, file_path: str) -> int:
         """Simple complexity heuristic (fallback)."""
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
 
             complexity = 1
@@ -308,7 +304,7 @@ class PythonAdapter(LanguageAdapter):
         except Exception:
             return 0
 
-    def _get_source_files(self, project_path: Path) -> List[Path]:
+    def _get_source_files(self, project_path: Path) -> list[Path]:
         """Get all Python source files."""
         source_files = []
         for pattern in ["**/*.py"]:
@@ -317,7 +313,7 @@ class PythonAdapter(LanguageAdapter):
         # Use base class exclusion filtering (COMMON_EXCLUSIONS)
         return self._filter_excluded_paths(source_files)
 
-    def _parse_coverage_json(self, coverage_file: Path) -> Dict:
+    def _parse_coverage_json(self, coverage_file: Path) -> dict:
         """Parse coverage.json file."""
         try:
             with open(coverage_file) as f:
@@ -346,7 +342,7 @@ class PythonAdapter(LanguageAdapter):
         except Exception:
             return {"percentage": 0, "gaps": []}
 
-    def validate_tools(self) -> List[ToolValidationResult]:
+    def validate_tools(self) -> list[ToolValidationResult]:
         """Validate Python toolchain availability."""
         results = []
 
@@ -497,13 +493,12 @@ class PythonAdapter(LanguageAdapter):
         except FileNotFoundError as e:
             # mypy not installed - fail fast
             raise ConfigurationError(
-                f"mypy not found: {e}\n"
-                f"Install with: pip install mypy"
+                f"mypy not found: {e}\n" f"Install with: pip install mypy"
             ) from e
         except Exception as e:
             # Unexpected errors
             result.success = False
-            result.errors = [{"message": f"Unexpected type check error: {str(e)}"}]
+            result.errors = [{"message": f"Unexpected type check error: {e!s}"}]
             result.execution_time = time.time() - start_time
 
         result.execution_time = time.time() - start_time
@@ -543,13 +538,12 @@ class PythonAdapter(LanguageAdapter):
         except FileNotFoundError as e:
             # Python not available - fail fast
             raise ConfigurationError(
-                f"Python not found for syntax check: {e}\n"
-                f"Python installation may be corrupted"
+                f"Python not found for syntax check: {e}\n" f"Python installation may be corrupted"
             ) from e
         except Exception as e:
             # Unexpected errors
             result.success = False
-            result.error_message = f"Unexpected build check error: {str(e)}"
+            result.error_message = f"Unexpected build check error: {e!s}"
             result.errors = [{"message": result.error_message}]
 
         result.execution_time = time.time() - start_time

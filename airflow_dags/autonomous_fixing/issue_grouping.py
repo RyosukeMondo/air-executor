@@ -8,7 +8,6 @@ import re
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List
 
 from state_manager import Task, generate_task_id
 
@@ -16,7 +15,8 @@ from state_manager import Task, generate_task_id
 @dataclass
 class BatchTask(Task):
     """Task representing a batch of similar issues"""
-    related_issues: List[Dict] = None  # List of {file, line, message}
+
+    related_issues: list[dict] = None  # List of {file, line, message}
     batch_type: str = None  # Type of batch (unused_imports, type_errors, etc.)
 
     def __post_init__(self):
@@ -29,48 +29,53 @@ class IssueGrouper:
 
     # Issue patterns to group together
     BATCH_PATTERNS = {
-        'unused_imports': [
+        "unused_imports": [
             r"Unused import",
             r"import.*isn't used",
         ],
-        'missing_imports': [
+        "missing_imports": [
             r"Undefined (name|class|method)",
             r"The (function|method|getter|setter) '.*' isn't defined",
         ],
-        'type_mismatches': [
+        "type_mismatches": [
             r"type '.*' isn't a subtype of type",
             r"The argument type.*can't be assigned to the parameter type",
         ],
-        'null_safety': [
+        "null_safety": [
             r"can't be assigned to a variable of type.*because.*nullable",
             r"The value 'null'.*can't be returned from",
             r"A value of type.*can't be assigned.*nullable",
         ],
-        'missing_overrides': [
+        "missing_overrides": [
             r"Missing.*override",
             r"doesn't override.*inherited",
         ],
-        'formatting': [
+        "formatting": [
             r"Line is longer than",
             r"Prefer.*final.*for",
             r"Sort.*directives",
-        ]
+        ],
     }
 
     # Cleanup issues: Fix ALL at once (human: "I'll clean up all X today")
     CLEANUP_PATTERNS = [
-        'unused_imports',
-        'formatting',
+        "unused_imports",
+        "formatting",
     ]
 
     # Location-based: Group by directory/screen if multiple issues in same area
     LOCATION_BASED_PATTERNS = [
-        'type_mismatches',
-        'null_safety',
-        'missing_imports',
+        "type_mismatches",
+        "null_safety",
+        "missing_imports",
     ]
 
-    def __init__(self, max_cleanup_batch_size: int = 50, max_location_batch_size: int = 20, mega_batch_mode: bool = False):
+    def __init__(
+        self,
+        max_cleanup_batch_size: int = 50,
+        max_location_batch_size: int = 20,
+        mega_batch_mode: bool = False,
+    ):
         """
         Args:
             max_cleanup_batch_size: Max issues in cleanup batch (unused imports, etc.)
@@ -81,7 +86,7 @@ class IssueGrouper:
         self.max_location_batch_size = max_location_batch_size
         self.mega_batch_mode = mega_batch_mode
 
-    def group_tasks(self, tasks: List[Task]) -> List[Task]:
+    def group_tasks(self, tasks: list[Task]) -> list[Task]:
         """
         Group tasks for human-reviewable commits with clear separation of concerns.
 
@@ -123,8 +128,8 @@ class IssueGrouper:
                 result_tasks.extend(task_list)
 
         # Add uncategorized tasks
-        if 'uncategorized' in categorized:
-            result_tasks.extend(categorized['uncategorized'])
+        if "uncategorized" in categorized:
+            result_tasks.extend(categorized["uncategorized"])
 
         print("\n📦 Grouping results:")
         print(f"   Input tasks: {len(tasks)}")
@@ -136,7 +141,7 @@ class IssueGrouper:
 
         return result_tasks
 
-    def _create_mega_batch(self, tasks: List[Task]) -> List[Task]:
+    def _create_mega_batch(self, tasks: list[Task]) -> list[Task]:
         """
         Mega batch mode: Create ONE comprehensive task with ALL issues.
 
@@ -147,8 +152,7 @@ class IssueGrouper:
 
         # Group all tasks into one mega batch
         related_issues = [
-            {'file': t.file, 'line': t.line, 'message': t.message, 'type': t.type}
-            for t in tasks
+            {"file": t.file, "line": t.line, "message": t.message, "type": t.type} for t in tasks
         ]
 
         unique_files = list(set(t.file for t in tasks if t.file))
@@ -158,14 +162,14 @@ class IssueGrouper:
         for t in tasks:
             msg = t.message
             # Categorize
-            if 'import' in msg.lower():
-                by_type['unused_imports'].append(t)
-            elif 'type' in msg.lower():
-                by_type['type_errors'].append(t)
-            elif 'null' in msg.lower():
-                by_type['null_safety'].append(t)
+            if "import" in msg.lower():
+                by_type["unused_imports"].append(t)
+            elif "type" in msg.lower():
+                by_type["type_errors"].append(t)
+            elif "null" in msg.lower():
+                by_type["null_safety"].append(t)
             else:
-                by_type['other'].append(t)
+                by_type["other"].append(t)
 
         context_parts = [f"Fix ALL issues comprehensively ({len(tasks)} total):"]
         context_parts.append(f"\nAffected files: {len(unique_files)}")
@@ -185,10 +189,10 @@ class IssueGrouper:
             phase=tasks[0].phase if tasks else "build",
             file="project-wide",
             message=f"Fix all issues comprehensively ({len(tasks)} issues, {len(unique_files)} files)",
-            context='\n'.join(context_parts),
+            context="\n".join(context_parts),
             created_at=datetime.now().isoformat(),
             related_issues=related_issues,
-            batch_type="mega_comprehensive"
+            batch_type="mega_comprehensive",
         )
 
         print("\n📦 Mega Batch Mode:")
@@ -197,7 +201,7 @@ class IssueGrouper:
 
         return [mega_task]
 
-    def _categorize_tasks(self, tasks: List[Task]) -> Dict[str, List[Task]]:
+    def _categorize_tasks(self, tasks: list[Task]) -> dict[str, list[Task]]:
         """Categorize tasks by issue pattern"""
         categorized = defaultdict(list)
 
@@ -215,11 +219,11 @@ class IssueGrouper:
                     break
 
             if not matched:
-                categorized['uncategorized'].append(task)
+                categorized["uncategorized"].append(task)
 
         return dict(categorized)
 
-    def _create_cleanup_batches(self, tasks: List[Task], batch_type: str) -> List[Task]:
+    def _create_cleanup_batches(self, tasks: list[Task], batch_type: str) -> list[Task]:
         """
         Create cleanup batches: Fix ALL issues of this type (split only if >50 files).
 
@@ -229,12 +233,9 @@ class IssueGrouper:
 
         # Split only if really necessary (>max_cleanup_batch_size)
         for i in range(0, len(tasks), self.max_cleanup_batch_size):
-            chunk = tasks[i:i + self.max_cleanup_batch_size]
+            chunk = tasks[i : i + self.max_cleanup_batch_size]
 
-            related_issues = [
-                {'file': t.file, 'line': t.line, 'message': t.message}
-                for t in chunk
-            ]
+            related_issues = [{"file": t.file, "line": t.line, "message": t.message} for t in chunk]
 
             unique_files = list(set(t.file for t in chunk if t.file))
             context_summary = self._create_context_summary(chunk)
@@ -249,14 +250,14 @@ class IssueGrouper:
                 context=context_summary,
                 created_at=datetime.now().isoformat(),
                 related_issues=related_issues,
-                batch_type=batch_type
+                batch_type=batch_type,
             )
 
             batches.append(batch_task)
 
         return batches
 
-    def _create_location_batches(self, tasks: List[Task], batch_type: str) -> List[Task]:
+    def _create_location_batches(self, tasks: list[Task], batch_type: str) -> list[Task]:
         """
         Create location-based batches: Group by directory/screen.
 
@@ -267,14 +268,14 @@ class IssueGrouper:
         for task in tasks:
             if task.file:
                 # Extract directory (e.g., lib/screens/home/ from lib/screens/home/home_screen.dart)
-                parts = task.file.split('/')
+                parts = task.file.split("/")
                 if len(parts) > 2:
-                    directory = '/'.join(parts[:-1])  # Remove filename
+                    directory = "/".join(parts[:-1])  # Remove filename
                 else:
-                    directory = parts[0] if parts else 'root'
+                    directory = parts[0] if parts else "root"
                 by_directory[directory].append(task)
             else:
-                by_directory['unknown'].append(task)
+                by_directory["unknown"].append(task)
 
         batches = []
         individual = []
@@ -284,18 +285,17 @@ class IssueGrouper:
             if len(dir_tasks) >= 3:
                 # Split if too many
                 for i in range(0, len(dir_tasks), self.max_location_batch_size):
-                    chunk = dir_tasks[i:i + self.max_location_batch_size]
+                    chunk = dir_tasks[i : i + self.max_location_batch_size]
 
                     related_issues = [
-                        {'file': t.file, 'line': t.line, 'message': t.message}
-                        for t in chunk
+                        {"file": t.file, "line": t.line, "message": t.message} for t in chunk
                     ]
 
                     unique_files = list(set(t.file for t in chunk if t.file))
                     context_summary = self._create_context_summary(chunk)
 
                     # Create friendly name for directory
-                    dir_name = directory.split('/')[-1] if '/' in directory else directory
+                    dir_name = directory.split("/")[-1] if "/" in directory else directory
 
                     batch_task = BatchTask(
                         id=generate_task_id(),
@@ -307,7 +307,7 @@ class IssueGrouper:
                         context=context_summary,
                         created_at=datetime.now().isoformat(),
                         related_issues=related_issues,
-                        batch_type=f"{batch_type}_in_{dir_name}"
+                        batch_type=f"{batch_type}_in_{dir_name}",
                     )
 
                     batches.append(batch_task)
@@ -317,7 +317,7 @@ class IssueGrouper:
 
         return batches + individual
 
-    def _create_context_summary(self, tasks: List[Task]) -> str:
+    def _create_context_summary(self, tasks: list[Task]) -> str:
         """Create summarized context for batch task"""
         # Group by file
         by_file = defaultdict(list)
@@ -338,7 +338,7 @@ class IssueGrouper:
         if len(by_file) > 5:
             summary_parts.append(f"\n... and {len(by_file) - 5} more files")
 
-        return '\n'.join(summary_parts)
+        return "\n".join(summary_parts)
 
 
 def main():
@@ -356,7 +356,7 @@ def main():
             line=i * 10,
             message="Unused import: 'package:flutter/material.dart'",
             context="import 'package:flutter/material.dart';",
-            created_at=datetime.now().isoformat()
+            created_at=datetime.now().isoformat(),
         )
         for i in range(5)
     ]
@@ -373,7 +373,7 @@ def main():
                 line=i * 20,
                 message="The argument type 'String' can't be assigned to the parameter type 'int'",
                 context="function(myString);",
-                created_at=datetime.now().isoformat()
+                created_at=datetime.now().isoformat(),
             )
         )
 

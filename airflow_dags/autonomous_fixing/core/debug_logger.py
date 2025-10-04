@@ -13,23 +13,25 @@ import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 @dataclass
 class WrapperCall:
     """Track a claude_wrapper invocation."""
+
     timestamp: str
     project: str
     prompt_type: str  # 'analysis', 'fix_error', 'fix_test', 'create_test'
     duration: float
     success: bool
-    error: Optional[str] = None
+    error: str | None = None
 
 
 @dataclass
 class IterationMetrics:
     """Track iteration timing and results."""
+
     iteration: int
     start_time: str
     end_time: str
@@ -56,7 +58,7 @@ class DebugLogger:
     - Make decisions (just records what happens)
     """
 
-    def __init__(self, config: Dict, project_name: str):
+    def __init__(self, config: dict, project_name: str):
         """
         Initialize debug logger.
 
@@ -66,58 +68,61 @@ class DebugLogger:
         """
         self.config = config
         self.project_name = project_name
-        self.debug_config = config.get('debug', {})
-        self.enabled = self.debug_config.get('enabled', True)
+        self.debug_config = config.get("debug", {})
+        self.enabled = self.debug_config.get("enabled", True)
 
         if not self.enabled:
             self.logger = None
             return
 
         # Setup logging directory
-        log_dir = Path(self.debug_config.get('log_dir', 'logs/debug'))
+        log_dir = Path(self.debug_config.get("log_dir", "logs/debug"))
         log_dir.mkdir(parents=True, exist_ok=True)
 
         # Create session log file
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        log_file = log_dir / f'{project_name}_{timestamp}.jsonl'
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_file = log_dir / f"{project_name}_{timestamp}.jsonl"
 
         # Configure logger
-        self.logger = logging.getLogger(f'debug.{project_name}')
+        self.logger = logging.getLogger(f"debug.{project_name}")
         self.logger.setLevel(logging.DEBUG)
 
         # JSON handler
         handler = logging.FileHandler(log_file)
-        handler.setFormatter(logging.Formatter('%(message)s'))
+        handler.setFormatter(logging.Formatter("%(message)s"))
         self.logger.addHandler(handler)
 
         # Metrics tracking
         self.metrics = {
-            'wrapper_calls': [],
-            'iterations': [],
-            'fixes': {'attempted': 0, 'successful': 0},
-            'tests': {'created': 0, 'fixed': 0},
-            'setup_skips': {'hooks': {}, 'tests': {}}
+            "wrapper_calls": [],
+            "iterations": [],
+            "fixes": {"attempted": 0, "successful": 0},
+            "tests": {"created": 0, "fixed": 0},
+            "setup_skips": {"hooks": {}, "tests": {}},
         }
 
-        self.log_event('session_start', {
-            'project': project_name,
-            'timestamp': datetime.now().isoformat(),
-            'config': {
-                'max_iterations': config.get('execution', {}).get('max_iterations'),
-                'debug_enabled': True
-            }
-        })
+        self.log_event(
+            "session_start",
+            {
+                "project": project_name,
+                "timestamp": datetime.now().isoformat(),
+                "config": {
+                    "max_iterations": config.get("execution", {}).get("max_iterations"),
+                    "debug_enabled": True,
+                },
+            },
+        )
 
-    def log_event(self, event_type: str, data: Dict[str, Any]):
+    def log_event(self, event_type: str, data: dict[str, Any]):
         """Log a structured event."""
         if not self.enabled or not self.logger:
             return
 
         event = {
-            'timestamp': datetime.now().isoformat(),
-            'event': event_type,
-            'project': self.project_name,
-            **data
+            "timestamp": datetime.now().isoformat(),
+            "event": event_type,
+            "project": self.project_name,
+            **data,
         }
 
         self.logger.debug(json.dumps(event))
@@ -128,8 +133,8 @@ class DebugLogger:
         project: str,
         duration: float,
         success: bool,
-        error: Optional[str] = None,
-        response: Optional[Dict] = None
+        error: str | None = None,
+        response: dict | None = None,
     ):
         """Log a claude_wrapper call."""
         if not self.enabled:
@@ -141,35 +146,29 @@ class DebugLogger:
             prompt_type=prompt_type,
             duration=duration,
             success=success,
-            error=error
+            error=error,
         )
 
-        self.metrics['wrapper_calls'].append(asdict(call))
+        self.metrics["wrapper_calls"].append(asdict(call))
 
         event_data = asdict(call)
-        if response and self.debug_config.get('log_levels', {}).get('wrapper_responses'):
-            event_data['response'] = response
+        if response and self.debug_config.get("log_levels", {}).get("wrapper_responses"):
+            event_data["response"] = response
 
-        self.log_event('wrapper_call', event_data)
+        self.log_event("wrapper_call", event_data)
 
     def log_iteration_start(self, iteration: int, phase: str):
         """Log iteration start."""
         if not self.enabled:
             return
 
-        self.log_event('iteration_start', {
-            'iteration': iteration,
-            'phase': phase,
-            'timestamp': datetime.now().isoformat()
-        })
+        self.log_event(
+            "iteration_start",
+            {"iteration": iteration, "phase": phase, "timestamp": datetime.now().isoformat()},
+        )
 
     def log_iteration_end(
-        self,
-        iteration: int,
-        phase: str,
-        duration: float,
-        success: bool,
-        **kwargs
+        self, iteration: int, phase: str, duration: float, success: bool, **kwargs
     ):
         """Log iteration end with metrics."""
         if not self.enabled:
@@ -182,12 +181,12 @@ class DebugLogger:
             duration=duration,
             phase=phase,
             success=success,
-            **kwargs
+            **kwargs,
         )
 
-        self.metrics['iterations'].append(asdict(metrics))
+        self.metrics["iterations"].append(asdict(metrics))
 
-        self.log_event('iteration_end', asdict(metrics))
+        self.log_event("iteration_end", asdict(metrics))
 
     def log_fix_result(
         self,
@@ -195,27 +194,27 @@ class DebugLogger:
         target: str,
         success: bool,
         duration: float,
-        details: Optional[Dict] = None
+        details: dict | None = None,
     ):
         """Log a fix attempt result."""
         if not self.enabled:
             return
 
-        self.metrics['fixes']['attempted'] += 1
+        self.metrics["fixes"]["attempted"] += 1
         if success:
-            self.metrics['fixes']['successful'] += 1
+            self.metrics["fixes"]["successful"] += 1
 
         event_data = {
-            'fix_type': fix_type,
-            'target': target,
-            'success': success,
-            'duration': duration
+            "fix_type": fix_type,
+            "target": target,
+            "success": success,
+            "duration": duration,
         }
 
         if details:
-            event_data['details'] = details
+            event_data["details"] = details
 
-        self.log_event('fix_result', event_data)
+        self.log_event("fix_result", event_data)
 
     def log_test_creation(self, project: str, success: bool, tests_created: int = 0):
         """Log test creation attempt."""
@@ -223,21 +222,15 @@ class DebugLogger:
             return
 
         if success:
-            self.metrics['tests']['created'] += tests_created
+            self.metrics["tests"]["created"] += tests_created
 
-        self.log_event('test_creation', {
-            'project': project,
-            'success': success,
-            'tests_created': tests_created
-        })
+        self.log_event(
+            "test_creation",
+            {"project": project, "success": success, "tests_created": tests_created},
+        )
 
     def log_setup_skip_stats(
-        self,
-        phase: str,
-        skipped: int,
-        total: int,
-        time_saved: float,
-        cost_saved: float
+        self, phase: str, skipped: int, total: int, time_saved: float, cost_saved: float
     ):
         """
         Log setup skip statistics.
@@ -253,48 +246,46 @@ class DebugLogger:
             return
 
         stats = {
-            'skipped': skipped,
-            'total': total,
-            'time_saved': time_saved,
-            'cost_saved': cost_saved,
-            'skip_rate': skipped / total if total > 0 else 0.0
+            "skipped": skipped,
+            "total": total,
+            "time_saved": time_saved,
+            "cost_saved": cost_saved,
+            "skip_rate": skipped / total if total > 0 else 0.0,
         }
 
-        self.metrics['setup_skips'][phase] = stats
+        self.metrics["setup_skips"][phase] = stats
 
-        self.log_event('setup_skip_stats', {
-            'phase': phase,
-            **stats
-        })
+        self.log_event("setup_skip_stats", {"phase": phase, **stats})
 
-    def get_metrics(self) -> Dict:
+    def get_metrics(self) -> dict:
         """Get current metrics snapshot."""
         # Calculate total setup savings
         total_time_saved = sum(
-            stats.get('time_saved', 0)
-            for stats in self.metrics['setup_skips'].values()
+            stats.get("time_saved", 0) for stats in self.metrics["setup_skips"].values()
         )
         total_cost_saved = sum(
-            stats.get('cost_saved', 0)
-            for stats in self.metrics['setup_skips'].values()
+            stats.get("cost_saved", 0) for stats in self.metrics["setup_skips"].values()
         )
 
         return {
             **self.metrics,
-            'summary': {
-                'total_wrapper_calls': len(self.metrics['wrapper_calls']),
-                'total_iterations': len(self.metrics['iterations']),
-                'fix_success_rate': (
-                    self.metrics['fixes']['successful'] / self.metrics['fixes']['attempted']
-                    if self.metrics['fixes']['attempted'] > 0 else 0.0
+            "summary": {
+                "total_wrapper_calls": len(self.metrics["wrapper_calls"]),
+                "total_iterations": len(self.metrics["iterations"]),
+                "fix_success_rate": (
+                    self.metrics["fixes"]["successful"] / self.metrics["fixes"]["attempted"]
+                    if self.metrics["fixes"]["attempted"] > 0
+                    else 0.0
                 ),
-                'avg_wrapper_duration': (
-                    sum(c['duration'] for c in self.metrics['wrapper_calls']) / len(self.metrics['wrapper_calls'])
-                    if self.metrics['wrapper_calls'] else 0.0
+                "avg_wrapper_duration": (
+                    sum(c["duration"] for c in self.metrics["wrapper_calls"])
+                    / len(self.metrics["wrapper_calls"])
+                    if self.metrics["wrapper_calls"]
+                    else 0.0
                 ),
-                'total_time_saved': total_time_saved,
-                'total_cost_saved': total_cost_saved
-            }
+                "total_time_saved": total_time_saved,
+                "total_cost_saved": total_cost_saved,
+            },
         }
 
     def log_session_end(self, reason: str):
@@ -302,7 +293,4 @@ class DebugLogger:
         if not self.enabled:
             return
 
-        self.log_event('session_end', {
-            'reason': reason,
-            'metrics': self.get_metrics()
-        })
+        self.log_event("session_end", {"reason": reason, "metrics": self.get_metrics()})

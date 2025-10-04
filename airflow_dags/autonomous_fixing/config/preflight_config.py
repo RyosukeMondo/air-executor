@@ -70,11 +70,10 @@ class PreflightConfig:
                 test_cache_dir=tmp_path / "test-cache",
                 validation_timeout_ms=50,  # Even faster for tests
             )
-        else:
-            return cls(
-                cache_max_age_days=1,
-                validation_timeout_ms=50,
-            )
+        return cls(
+            cache_max_age_days=1,
+            validation_timeout_ms=50,
+        )
 
     def get_hook_cache_dir(self) -> Path:
         """Get hook cache directory (custom or default).

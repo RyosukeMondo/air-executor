@@ -1,7 +1,6 @@
 """Analysis result models - unified across all components."""
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
 
 from ..enums import Phase
 
@@ -12,10 +11,10 @@ class ToolValidationResult:
 
     tool_name: str
     available: bool
-    version: Optional[str] = None
-    path: Optional[str] = None
-    error_message: Optional[str] = None
-    fix_suggestion: Optional[str] = None
+    version: str | None = None
+    path: str | None = None
+    error_message: str | None = None
+    fix_suggestion: str | None = None
 
 
 @dataclass
@@ -32,26 +31,26 @@ class AnalysisResult:
     project_path: str
 
     # Static analysis results
-    errors: List[Dict] = field(default_factory=list)
-    complexity_violations: List[Dict] = field(default_factory=list)
-    file_size_violations: List[Dict] = field(default_factory=list)
+    errors: list[dict] = field(default_factory=list)
+    complexity_violations: list[dict] = field(default_factory=list)
+    file_size_violations: list[dict] = field(default_factory=list)
 
     # Test results
-    test_failures: List[Dict] = field(default_factory=list)
+    test_failures: list[dict] = field(default_factory=list)
     tests_passed: int = 0
     tests_failed: int = 0
 
     # Coverage results
-    coverage_gaps: List[Dict] = field(default_factory=list)
+    coverage_gaps: list[dict] = field(default_factory=list)
     coverage_percentage: float = 0.0
 
     # E2E results
-    runtime_errors: List[Dict] = field(default_factory=list)
+    runtime_errors: list[dict] = field(default_factory=list)
 
     # Metadata
     execution_time: float = 0.0
     success: bool = True
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
     def compute_quality_check(self) -> bool:
         """
@@ -70,20 +69,19 @@ class AnalysisResult:
                 and len(self.file_size_violations) == 0
                 and len(self.complexity_violations) == 0
             )
-        elif self.phase == str(Phase.TESTS):
+        if self.phase == str(Phase.TESTS):
             # Tests: no test failures
             return len(self.test_failures) == 0 and self.tests_failed == 0
-        elif self.phase == str(Phase.COVERAGE):
+        if self.phase == str(Phase.COVERAGE):
             # Coverage: no significant gaps (can be customized)
             return len(self.coverage_gaps) == 0
-        elif self.phase == str(Phase.E2E):
+        if self.phase == str(Phase.E2E):
             # E2E: no runtime errors
             return len(self.runtime_errors) == 0
-        else:
-            # Unknown phase - default to error check
-            return len(self.errors) == 0
+        # Unknown phase - default to error check
+        return len(self.errors) == 0
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert to dictionary for serialization."""
         return {
             "language": self.language,
@@ -104,6 +102,6 @@ class AnalysisResult:
         }
 
     @staticmethod
-    def from_dict(data: Dict) -> "AnalysisResult":
+    def from_dict(data: dict) -> "AnalysisResult":
         """Create from dictionary."""
         return AnalysisResult(**data)

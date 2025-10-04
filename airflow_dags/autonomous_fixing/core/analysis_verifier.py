@@ -6,15 +6,15 @@ Follows SOLID principles - focused, testable, composable.
 """
 
 from dataclasses import dataclass
-from typing import Dict, List
 
 
 @dataclass
 class VerificationResult:
     """Result of verifying an analysis."""
+
     is_valid: bool
-    issues_found: List[str] = None
-    warnings: List[str] = None
+    issues_found: list[str] = None
+    warnings: list[str] = None
     error_count: int = 0
     execution_time: float = 0.0
 
@@ -41,7 +41,7 @@ class AnalysisVerifier:
     - Score results (that's HealthScorer's job)
     """
 
-    def __init__(self, config: Dict):
+    def __init__(self, config: dict):
         """
         Args:
             config: Configuration dict with verification settings
@@ -63,11 +63,10 @@ class AnalysisVerifier:
             VerificationResult indicating if analysis is trustworthy
         """
         verification = VerificationResult(
-            is_valid=True,
-            error_count=len(getattr(result, 'errors', []))
+            is_valid=True, error_count=len(getattr(result, "errors", []))
         )
 
-        exec_time = getattr(result, 'execution_time', 0.0)
+        exec_time = getattr(result, "execution_time", 0.0)
         verification.execution_time = exec_time
 
         # Run all validation checks
@@ -86,9 +85,7 @@ class AnalysisVerifier:
                 f"⚠️  SILENT FAILURE: Analysis completed in {exec_time:.3f}s "
                 f"(< {self.min_execution_time}s threshold)"
             )
-            verification.issues_found.append(
-                "   This indicates the analysis didn't actually run"
-            )
+            verification.issues_found.append("   This indicates the analysis didn't actually run")
 
     def _check_silent_failure(self, verification: VerificationResult, result, exec_time: float):
         """Check for zero findings with zero time (classic silent failure)."""
@@ -96,23 +93,21 @@ class AnalysisVerifier:
 
         if total_findings == 0 and exec_time < self.min_execution_time:
             verification.is_valid = False
-            verification.issues_found.append(
-                "⚠️  SUSPICIOUS: 0 issues found in near-zero time"
-            )
+            verification.issues_found.append("⚠️  SUSPICIOUS: 0 issues found in near-zero time")
             verification.issues_found.append(
                 "   Real analysis should find something or take time - looks cached/skipped"
             )
 
     def _count_total_findings(self, result) -> int:
         """Count all types of findings in result."""
-        error_count = len(getattr(result, 'errors', []))
-        complexity_count = len(getattr(result, 'complexity_violations', []))
-        file_size_count = len(getattr(result, 'file_size_violations', []))
+        error_count = len(getattr(result, "errors", []))
+        complexity_count = len(getattr(result, "complexity_violations", []))
+        file_size_count = len(getattr(result, "file_size_violations", []))
         return error_count + complexity_count + file_size_count
 
     def _check_required_fields(self, verification: VerificationResult, result):
         """Check if result has required fields."""
-        required_fields = ['errors', 'success', 'execution_time']
+        required_fields = ["errors", "success", "execution_time"]
         missing_fields = [f for f in required_fields if not hasattr(result, f)]
 
         if missing_fields:
@@ -123,17 +118,10 @@ class AnalysisVerifier:
 
     def _check_execution_errors(self, verification: VerificationResult, result):
         """Check for execution errors in result."""
-        if hasattr(result, 'error_message') and result.error_message:
-            verification.warnings.append(
-                f"⚠️  Analysis reported error: {result.error_message}"
-            )
+        if hasattr(result, "error_message") and result.error_message:
+            verification.warnings.append(f"⚠️  Analysis reported error: {result.error_message}")
 
-    def compare_results(
-        self,
-        before: any,
-        after: any,
-        project_path: str
-    ) -> Dict:
+    def compare_results(self, before: any, after: any, project_path: str) -> dict:
         """
         Compare analysis results before and after fixing.
 
@@ -145,8 +133,8 @@ class AnalysisVerifier:
         Returns:
             Dict with comparison metrics and improvement verification
         """
-        before_errors = len(getattr(before, 'errors', []))
-        after_errors = len(getattr(after, 'errors', []))
+        before_errors = len(getattr(before, "errors", []))
+        after_errors = len(getattr(after, "errors", []))
         errors_fixed = before_errors - after_errors
 
         comparison = self._build_comparison_metrics(
@@ -159,56 +147,42 @@ class AnalysisVerifier:
         return comparison
 
     def _build_comparison_metrics(
-        self,
-        project_path: str,
-        before_errors: int,
-        after_errors: int,
-        errors_fixed: int
-    ) -> Dict:
+        self, project_path: str, before_errors: int, after_errors: int, errors_fixed: int
+    ) -> dict:
         """Build basic comparison metrics."""
-        improvement_pct = (
-            (errors_fixed / before_errors * 100) if before_errors > 0 else 0
-        )
+        improvement_pct = (errors_fixed / before_errors * 100) if before_errors > 0 else 0
 
         return {
-            'project': project_path,
-            'before_errors': before_errors,
-            'after_errors': after_errors,
-            'errors_fixed': errors_fixed,
-            'improvement_pct': improvement_pct,
-            'actually_improved': errors_fixed > 0,
-            'got_worse': errors_fixed < 0,
-            'no_change': errors_fixed == 0
+            "project": project_path,
+            "before_errors": before_errors,
+            "after_errors": after_errors,
+            "errors_fixed": errors_fixed,
+            "improvement_pct": improvement_pct,
+            "actually_improved": errors_fixed > 0,
+            "got_worse": errors_fixed < 0,
+            "no_change": errors_fixed == 0,
         }
 
-    def _add_verification_status(
-        self,
-        comparison: Dict,
-        errors_fixed: int,
-        before_errors: int
-    ):
+    def _add_verification_status(self, comparison: dict, errors_fixed: int, before_errors: int):
         """Add verification status and message to comparison."""
         if errors_fixed <= 0 and before_errors > 0:
-            comparison['false_success'] = True
-            comparison['message'] = (
+            comparison["false_success"] = True
+            comparison["message"] = (
                 f"⚠️  VERIFICATION FAILED: "
                 f"Claimed fixes but errors unchanged "
                 f"({comparison['before_errors']} → {comparison['after_errors']})"
             )
         elif errors_fixed > 0:
-            comparison['false_success'] = False
-            comparison['message'] = (
+            comparison["false_success"] = False
+            comparison["message"] = (
                 f"✅ VERIFIED: Fixed {errors_fixed} errors "
                 f"({comparison['improvement_pct']:.1f}% improvement)"
             )
         else:
-            comparison['false_success'] = False
-            comparison['message'] = "✓ No errors before or after (already clean)"
+            comparison["false_success"] = False
+            comparison["message"] = "✓ No errors before or after (already clean)"
 
-    def verify_batch_results(
-        self,
-        results_by_project: Dict[str, any]
-    ) -> Dict:
+    def verify_batch_results(self, results_by_project: dict[str, any]) -> dict:
         """
         Verify a batch of analysis results (from ProjectAnalysisResult).
 
@@ -225,32 +199,27 @@ class AnalysisVerifier:
 
         return batch_verification
 
-    def _init_batch_verification(self, results_by_project: Dict) -> Dict:
+    def _init_batch_verification(self, results_by_project: dict) -> dict:
         """Initialize batch verification structure."""
         return {
-            'all_valid': True,
-            'total_projects': len(results_by_project),
-            'valid_projects': 0,
-            'invalid_projects': 0,
-            'silent_failures': [],
-            'warnings': [],
-            'per_project': {}
+            "all_valid": True,
+            "total_projects": len(results_by_project),
+            "valid_projects": 0,
+            "invalid_projects": 0,
+            "silent_failures": [],
+            "warnings": [],
+            "per_project": {},
         }
 
-    def _process_project_verification(
-        self,
-        batch_verification: Dict,
-        key: str,
-        result: any
-    ):
+    def _process_project_verification(self, batch_verification: dict, key: str, result: any):
         """Process verification for a single project."""
-        project_path = key.split(':', 1)[1]  # Extract path from "lang:path"
+        project_path = key.split(":", 1)[1]  # Extract path from "lang:path"
         verification = self.verify_analysis_result(result, project_path)
 
-        batch_verification['per_project'][key] = verification
+        batch_verification["per_project"][key] = verification
 
         if verification.is_valid:
-            batch_verification['valid_projects'] += 1
+            batch_verification["valid_projects"] += 1
         else:
             self._record_invalid_project(batch_verification, key, verification)
 
@@ -258,39 +227,30 @@ class AnalysisVerifier:
             self._record_warnings(batch_verification, key, verification)
 
     def _record_invalid_project(
-        self,
-        batch_verification: Dict,
-        key: str,
-        verification: VerificationResult
+        self, batch_verification: dict, key: str, verification: VerificationResult
     ):
         """Record invalid project in batch results."""
-        batch_verification['invalid_projects'] += 1
-        batch_verification['all_valid'] = False
-        batch_verification['silent_failures'].append({
-            'project': key,
-            'issues': verification.issues_found
-        })
+        batch_verification["invalid_projects"] += 1
+        batch_verification["all_valid"] = False
+        batch_verification["silent_failures"].append(
+            {"project": key, "issues": verification.issues_found}
+        )
 
     def _record_warnings(
-        self,
-        batch_verification: Dict,
-        key: str,
-        verification: VerificationResult
+        self, batch_verification: dict, key: str, verification: VerificationResult
     ):
         """Record warnings from verification."""
-        batch_verification['warnings'].extend([
-            f"{key}: {w}" for w in verification.warnings
-        ])
+        batch_verification["warnings"].extend([f"{key}: {w}" for w in verification.warnings])
 
-    def print_verification_report(self, verification: Dict):
+    def print_verification_report(self, verification: dict):
         """Print a human-readable verification report."""
         self._print_verification_summary(verification)
         self._print_silent_failures(verification)
         self._print_warnings(verification)
 
-    def _print_verification_summary(self, verification: Dict):
+    def _print_verification_summary(self, verification: dict):
         """Print overall verification summary."""
-        if verification['all_valid']:
+        if verification["all_valid"]:
             print(
                 f"\n✅ VERIFICATION: All {verification['total_projects']} "
                 f"analysis results are valid"
@@ -302,21 +262,21 @@ class AnalysisVerifier:
                 f"projects have issues"
             )
 
-    def _print_silent_failures(self, verification: Dict):
+    def _print_silent_failures(self, verification: dict):
         """Print details of silent failures."""
-        if not verification.get('silent_failures'):
+        if not verification.get("silent_failures"):
             return
 
-        for failure in verification['silent_failures']:
+        for failure in verification["silent_failures"]:
             print(f"\n⚠️  {failure['project']}:")
-            for issue in failure['issues']:
+            for issue in failure["issues"]:
                 print(f"   {issue}")
 
-    def _print_warnings(self, verification: Dict):
+    def _print_warnings(self, verification: dict):
         """Print warnings (limited to 5)."""
-        if not verification.get('warnings'):
+        if not verification.get("warnings"):
             return
 
         print(f"\n⚠️  Warnings ({len(verification['warnings'])}):")
-        for warning in verification['warnings'][:5]:  # Limit to 5
+        for warning in verification["warnings"][:5]:  # Limit to 5
             print(f"   {warning}")

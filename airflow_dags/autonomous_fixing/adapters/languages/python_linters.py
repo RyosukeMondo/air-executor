@@ -5,14 +5,13 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Dict, List
 
 
 class PythonLinters:
     """Handles execution of Python linting tools."""
 
     @staticmethod
-    def run_ruff(project_path: str) -> List[Dict]:
+    def run_ruff(project_path: str) -> list[dict]:
         """Run ruff and parse errors."""
         try:
             # Find ruff executable (may be in venv)
@@ -58,7 +57,7 @@ class PythonLinters:
         return []
 
     @staticmethod
-    def run_pylint(project_path: str) -> List[Dict]:
+    def run_pylint(project_path: str) -> list[dict]:
         """Run pylint and parse errors."""
         try:
             result = subprocess.run(
@@ -91,7 +90,7 @@ class PythonLinters:
         return []
 
     @staticmethod
-    def run_mypy(project_path: str) -> List[Dict]:
+    def run_mypy(project_path: str) -> list[dict]:
         """Run mypy and parse errors."""
         try:
             result = subprocess.run(

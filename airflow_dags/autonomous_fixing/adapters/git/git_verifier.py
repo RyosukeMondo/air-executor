@@ -6,7 +6,6 @@ Prevents wasteful iterations where Claude says "success" but nothing was actuall
 
 import logging
 import subprocess
-from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +28,7 @@ class GitVerifier:
         """Initialize git verifier."""
         pass
 
-    def get_head_commit(self, project_path: str) -> Optional[str]:
+    def get_head_commit(self, project_path: str) -> str | None:
         """
         Get current HEAD commit hash.
 
@@ -41,10 +40,10 @@ class GitVerifier:
         """
         try:
             result = subprocess.run(
-                ['git', '-C', project_path, 'rev-parse', 'HEAD'],
+                ["git", "-C", project_path, "rev-parse", "HEAD"],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
             )
 
             if result.returncode == 0:
@@ -56,11 +55,8 @@ class GitVerifier:
             return None
 
     def verify_commit_made(
-        self,
-        project_path: str,
-        before_commit: Optional[str],
-        operation: str
-    ) -> Dict:
+        self, project_path: str, before_commit: str | None, operation: str
+    ) -> dict:
         """
         Verify that a new commit was made.
 
@@ -86,10 +82,10 @@ class GitVerifier:
         if before_commit is None:
             logger.warning(f"No initial commit hash available for {project_path}")
             return {
-                'verified': False,
-                'commit_made': False,
-                'new_commit': None,
-                'message': 'Could not get initial commit hash'
+                "verified": False,
+                "commit_made": False,
+                "new_commit": None,
+                "message": "Could not get initial commit hash",
             }
 
         # Get current HEAD
@@ -99,10 +95,10 @@ class GitVerifier:
         if after_commit is None:
             logger.warning(f"Could not get post-fix commit hash for {project_path}")
             return {
-                'verified': False,
-                'commit_made': False,
-                'new_commit': None,
-                'message': 'Could not get post-fix commit hash'
+                "verified": False,
+                "commit_made": False,
+                "new_commit": None,
+                "message": "Could not get post-fix commit hash",
             }
 
         # Check if commit changed
@@ -112,10 +108,10 @@ class GitVerifier:
                 f"(before={before_commit[:8]}, after={after_commit[:8]})"
             )
             return {
-                'verified': False,
-                'commit_made': False,
-                'new_commit': None,
-                'message': f'No commit detected after {operation}'
+                "verified": False,
+                "commit_made": False,
+                "new_commit": None,
+                "message": f"No commit detected after {operation}",
             }
 
         # Success - commit was made
@@ -124,13 +120,13 @@ class GitVerifier:
             f"{before_commit[:8]} → {after_commit[:8]}"
         )
         return {
-            'verified': True,
-            'commit_made': True,
-            'new_commit': after_commit,
-            'message': f'Commit verified: {after_commit[:8]}'
+            "verified": True,
+            "commit_made": True,
+            "new_commit": after_commit,
+            "message": f"Commit verified: {after_commit[:8]}",
         }
 
-    def get_commit_message(self, project_path: str, commit_hash: str) -> Optional[str]:
+    def get_commit_message(self, project_path: str, commit_hash: str) -> str | None:
         """
         Get commit message for a commit.
 
@@ -143,10 +139,10 @@ class GitVerifier:
         """
         try:
             result = subprocess.run(
-                ['git', '-C', project_path, 'log', '-1', '--format=%s', commit_hash],
+                ["git", "-C", project_path, "log", "-1", "--format=%s", commit_hash],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
             )
 
             if result.returncode == 0:

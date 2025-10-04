@@ -5,8 +5,6 @@ Clean, focused module that ONLY handles scoring logic.
 No analysis, no fixing, no iteration logic - just scoring.
 """
 
-from typing import Dict
-
 
 class HealthScorer:
     """
@@ -24,7 +22,7 @@ class HealthScorer:
     - Manage iterations (that's IterationEngine's job)
     """
 
-    def __init__(self, config: Dict):
+    def __init__(self, config: dict):
         """
         Args:
             config: Configuration dict with priority thresholds
@@ -32,7 +30,7 @@ class HealthScorer:
         self.config = config
         self.priority_config = config.get("priorities", {})
 
-    def score_static_analysis(self, analysis_result) -> Dict:
+    def score_static_analysis(self, analysis_result) -> dict:
         """
         Calculate P1 score from static analysis results.
 
@@ -69,7 +67,7 @@ class HealthScorer:
             "phase": "p1_static",
         }
 
-    def score_tests(self, analysis_result) -> Dict:
+    def score_tests(self, analysis_result) -> dict:
         """
         Calculate P2 score from test results.
 
@@ -130,7 +128,6 @@ class HealthScorer:
         """
         if p1_score < 0.30:
             return "minimal"
-        elif p1_score < 0.60:
+        if p1_score < 0.60:
             return "selective"
-        else:
-            return "comprehensive"
+        return "comprehensive"

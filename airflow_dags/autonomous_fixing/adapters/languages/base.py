@@ -3,8 +3,8 @@
 import subprocess
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Dict, List
 
 from ...domain.exceptions import ConfigurationError
 from ...domain.interfaces import ILanguageAdapter
@@ -49,7 +49,7 @@ class LanguageAdapter(ILanguageAdapter, ABC):
         "scripts",  # Utility scripts
     }
 
-    def __init__(self, config: Dict):
+    def __init__(self, config: dict):
         self.config = config
         self.complexity_threshold = config.get("complexity_threshold", 10)
         self.max_file_lines = config.get("max_file_lines", 500)
@@ -60,7 +60,7 @@ class LanguageAdapter(ILanguageAdapter, ABC):
         phase: str,
         project_path: str,
         tool_name: str = None,
-        install_cmd: str = None
+        install_cmd: str = None,
     ) -> AnalysisResult:
         """SSOT: Centralized error handling for all analysis operations.
 
@@ -82,20 +82,18 @@ class LanguageAdapter(ILanguageAdapter, ABC):
         try:
             result = operation()
             # Ensure execution time is set
-            if not hasattr(result, 'execution_time') or result.execution_time == 0:
+            if not hasattr(result, "execution_time") or result.execution_time == 0:
                 result.execution_time = time.time() - start_time
             return result
 
         except subprocess.TimeoutExpired as e:
             # Timeout - expected, return failed result
             result = AnalysisResult(
-                language=self.language_name,
-                phase=phase,
-                project_path=project_path
+                language=self.language_name, phase=phase, project_path=project_path
             )
             result.success = False
             timeout_msg = f"{phase.capitalize()} timed out"
-            if hasattr(e, 'timeout'):
+            if hasattr(e, "timeout"):
                 timeout_msg += f" after {e.timeout} seconds"
             result.error_message = timeout_msg
             result.execution_time = time.time() - start_time
@@ -115,9 +113,7 @@ class LanguageAdapter(ILanguageAdapter, ABC):
         except RuntimeError as e:
             # Other runtime errors - create failed result
             result = AnalysisResult(
-                language=self.language_name,
-                phase=phase,
-                project_path=project_path
+                language=self.language_name, phase=phase, project_path=project_path
             )
             result.success = False
             result.error_message = str(e)
@@ -127,9 +123,7 @@ class LanguageAdapter(ILanguageAdapter, ABC):
         except Exception as e:
             # Unexpected errors - return failed result
             result = AnalysisResult(
-                language=self.language_name,
-                phase=phase,
-                project_path=project_path
+                language=self.language_name, phase=phase, project_path=project_path
             )
             result.success = False
             result.error_message = f"Unexpected error in {phase}: {type(e).__name__}: {e}"
@@ -144,12 +138,12 @@ class LanguageAdapter(ILanguageAdapter, ABC):
 
     @property
     @abstractmethod
-    def project_markers(self) -> List[str]:
+    def project_markers(self) -> list[str]:
         """Files that indicate a project of this language (e.g., 'package.json')."""
         pass
 
     @abstractmethod
-    def detect_projects(self, root_path: str) -> List[str]:
+    def detect_projects(self, root_path: str) -> list[str]:
         """
         Find all projects of this language in a monorepo.
 
@@ -222,7 +216,7 @@ class LanguageAdapter(ILanguageAdapter, ABC):
         pass
 
     @abstractmethod
-    def parse_errors(self, output: str, phase: str) -> List[Dict]:
+    def parse_errors(self, output: str, phase: str) -> list[dict]:
         """
         Parse language-specific error format.
 
@@ -251,7 +245,7 @@ class LanguageAdapter(ILanguageAdapter, ABC):
         """
         pass
 
-    def check_file_sizes(self, project_path: str) -> List[Dict]:
+    def check_file_sizes(self, project_path: str) -> list[dict]:
         """
         Check for files exceeding max_file_lines threshold.
 
@@ -266,7 +260,7 @@ class LanguageAdapter(ILanguageAdapter, ABC):
 
         for file_path in self._get_source_files(project):
             try:
-                with open(file_path, "r", encoding="utf-8") as f:
+                with open(file_path, encoding="utf-8") as f:
                     line_count = sum(1 for _ in f)
 
                 if line_count > self.max_file_lines:
@@ -283,7 +277,7 @@ class LanguageAdapter(ILanguageAdapter, ABC):
 
         return violations
 
-    def check_complexity(self, project_path: str) -> List[Dict]:
+    def check_complexity(self, project_path: str) -> list[dict]:
         """
         Check for high complexity files (SSOT - was duplicated in all adapters).
 
@@ -348,13 +342,13 @@ class LanguageAdapter(ILanguageAdapter, ABC):
         return violations
 
     @abstractmethod
-    def _get_source_files(self, project_path: Path) -> List[Path]:
+    def _get_source_files(self, project_path: Path) -> list[Path]:
         """Get list of source files for this language."""
         pass
 
     def _filter_excluded_paths(
-        self, files: List[Path], additional_exclusions: set = None
-    ) -> List[Path]:
+        self, files: list[Path], additional_exclusions: set = None
+    ) -> list[Path]:
         """
         Filter out excluded paths (SSOT - was duplicated across adapters).
 
@@ -372,7 +366,7 @@ class LanguageAdapter(ILanguageAdapter, ABC):
         return [f for f in files if not any(e in f.parts for e in exclusions)]
 
     @abstractmethod
-    def validate_tools(self) -> List[ToolValidationResult]:
+    def validate_tools(self) -> list[ToolValidationResult]:
         """
         Validate all required tools are available.
 

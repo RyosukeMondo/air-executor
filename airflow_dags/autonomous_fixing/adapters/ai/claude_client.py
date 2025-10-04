@@ -7,7 +7,6 @@ Provides simple interface to claude_wrapper's streaming JSON protocol.
 import json
 import subprocess
 import time
-from typing import Dict, Optional
 
 from .response_parser import ResponseParser
 from .wrapper_history import WrapperHistoryLogger
@@ -38,7 +37,7 @@ class ClaudeClient:
         self.response_parser = ResponseParser()
 
     @staticmethod
-    def _format_event(event: Dict) -> str:
+    def _format_event(event: dict) -> str:
         """Format event for logging - simple and informative."""
         event_type = event.get("event")
         timestamp = event.get("timestamp", "")[-12:-4] if event.get("timestamp") else ""  # HH:MM:SS
@@ -62,19 +61,19 @@ class ClaudeClient:
                     return f"[{timestamp}] {event_type} (tool: {tool_name})"
 
                 # Tool result
-                elif "tool_use_id" in first_item and "content" in first_item:
+                if "tool_use_id" in first_item and "content" in first_item:
                     result_preview = str(first_item.get("content", ""))[:30]
                     return f"[{timestamp}] {event_type} (result: {result_preview}...)"
 
                 # Text content
-                elif "text" in first_item:
+                if "text" in first_item:
                     text_preview = first_item.get("text", "")[:40]
                     return f"[{timestamp}] {event_type} (text: {text_preview}...)"
 
             return f"[{timestamp}] {event_type} (unknown)"
 
         # For completion events, include outcome if available
-        elif event_type == "run_completed":
+        if event_type == "run_completed":
             outcome = event.get("outcome", "")[:50]
             return (
                 f"[{timestamp}] {event_type} ({outcome})"
@@ -84,7 +83,7 @@ class ClaudeClient:
 
         return f"[{timestamp}] {event_type}" if timestamp else event_type
 
-    def _build_command(self, prompt: str, project_path: str, session_id: Optional[str]) -> str:
+    def _build_command(self, prompt: str, project_path: str, session_id: str | None) -> str:
         """Build JSON command for wrapper (SRP, SSOT)"""
         command = {
             "action": "prompt",
@@ -204,25 +203,24 @@ class ClaudeClient:
             event_type = event.get("event")
             if event_type == "run_completed":
                 return {"success": True, "outcome": event.get("outcome"), "events": events}
-            elif event_type == "run_failed":
+            if event_type == "run_failed":
                 return {
                     "success": False,
                     "error": event.get("error", "Run failed"),
                     "events": events,
                 }
-            elif event_type == "done":
+            if event_type == "done":
                 return {"success": True, "outcome": event.get("outcome"), "events": events}
 
         # No events - use process exit code
         if process.returncode == 0:
             return {"success": True, "events": events}
-        else:
-            return {
-                "success": False,
-                "error": f"Process exited with code {process.returncode}",
-                "stderr": stderr,
-                "events": events,
-            }
+        return {
+            "success": False,
+            "error": f"Process exited with code {process.returncode}",
+            "stderr": stderr,
+            "events": events,
+        }
 
     def _log_result(
         self, prompt: str, project_path: str, prompt_type: str, result: dict, duration: float
@@ -253,9 +251,9 @@ class ClaudeClient:
         prompt: str,
         project_path: str,
         timeout: int = 600,
-        session_id: Optional[str] = None,
+        session_id: str | None = None,
         prompt_type: str = "generic",
-    ) -> Dict:
+    ) -> dict:
         """
         Send prompt to Claude via wrapper.
 

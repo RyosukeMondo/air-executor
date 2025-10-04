@@ -7,7 +7,6 @@ No fixing, no scoring, no iteration logic - just analysis.
 
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List
 
 from ..domain.exceptions import ConfigurationError
 
@@ -17,7 +16,7 @@ class ProjectAnalysisResult:
     """Result from analyzing multiple projects (collection of results)."""
 
     phase: str  # 'p1_static', 'p2_tests', etc.
-    results_by_project: Dict[str, any] = field(
+    results_by_project: dict[str, any] = field(
         default_factory=dict
     )  # Maps "lang:path" -> AnalysisResult
     execution_time: float = 0.0
@@ -39,7 +38,7 @@ class ProjectAnalyzer:
     - Manage iterations (that's IterationEngine's job)
     """
 
-    def __init__(self, language_adapters: Dict, config: Dict):
+    def __init__(self, language_adapters: dict, config: dict):
         """
         Args:
             language_adapters: Dict of {language_name: adapter_instance}
@@ -48,7 +47,7 @@ class ProjectAnalyzer:
         self.adapters = language_adapters
         self.config = config
 
-    def analyze_static(self, projects_by_language: Dict[str, List[str]]) -> ProjectAnalysisResult:
+    def analyze_static(self, projects_by_language: dict[str, list[str]]) -> ProjectAnalysisResult:
         """
         Run P1 static analysis on all projects sequentially (for real-time logging and Ctrl+C).
 
@@ -111,7 +110,7 @@ class ProjectAnalyzer:
         return result
 
     def analyze_tests(
-        self, projects_by_language: Dict[str, List[str]], strategy: str
+        self, projects_by_language: dict[str, list[str]], strategy: str
     ) -> ProjectAnalysisResult:
         """
         Run P2 test analysis on all projects sequentially (for real-time logging and Ctrl+C).

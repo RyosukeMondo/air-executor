@@ -8,7 +8,6 @@ import sys
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 from code_metrics import LightweightCodeMetrics
 from domain.enums import AnalysisStatus
@@ -68,7 +67,7 @@ class SmartHealthMetrics:
     """Combined metrics with execution info"""
 
     static: StaticHealthMetrics
-    dynamic: Optional[DynamicHealthMetrics]
+    dynamic: DynamicHealthMetrics | None
 
     overall_health_score: float
     is_healthy: bool
@@ -279,7 +278,7 @@ class SmartHealthMonitor:
         return round(score, 2)
 
     def _calculate_overall_score(
-        self, static: StaticHealthMetrics, dynamic: Optional[DynamicHealthMetrics]
+        self, static: StaticHealthMetrics, dynamic: DynamicHealthMetrics | None
     ) -> float:
         """Calculate overall health score"""
         if not dynamic:

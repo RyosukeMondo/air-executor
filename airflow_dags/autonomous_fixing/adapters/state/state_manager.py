@@ -7,7 +7,6 @@ Manages task queue, session summaries, and run history.
 import json
 import uuid
 from datetime import datetime
-from typing import Dict, List, Optional
 
 import redis
 
@@ -22,10 +21,7 @@ class StateManager(IStateStore, ITaskRepository):
 
     def __init__(self, redis_host: str = "localhost", redis_port: int = 6379, redis_db: int = 0):
         self.redis = redis.Redis(
-            host=redis_host,
-            port=redis_port,
-            db=redis_db,
-            decode_responses=True
+            host=redis_host, port=redis_port, db=redis_db, decode_responses=True
         )
         self.prefix = "autonomous_fix:"
 
@@ -44,7 +40,7 @@ class StateManager(IStateStore, ITaskRepository):
 
         print(f"📝 Queued task: {task.type} (priority {task.priority})")
 
-    def get_next_tasks(self, count: int = 5) -> List[Task]:
+    def get_next_tasks(self, count: int = 5) -> list[Task]:
         """Get highest priority tasks"""
         queue_key = f"{self.prefix}task_queue"
 
@@ -122,14 +118,14 @@ class StateManager(IStateStore, ITaskRepository):
 
     # Session Summary Management
 
-    def store_session_summary(self, phase: str, summary: Dict):
+    def store_session_summary(self, phase: str, summary: dict):
         """Store summary of what was fixed in last session"""
         key = f"{self.prefix}summary:{phase}"
-        summary['timestamp'] = datetime.now().isoformat()
+        summary["timestamp"] = datetime.now().isoformat()
         self.redis.setex(key, 3600, json.dumps(summary))  # 1 hour TTL
         print(f"💾 Stored session summary for phase: {phase}")
 
-    def get_session_summary(self, phase: str) -> Optional[Dict]:
+    def get_session_summary(self, phase: str) -> dict | None:
         """Get last session summary for context"""
         key = f"{self.prefix}summary:{phase}"
         data = self.redis.get(key)
@@ -137,14 +133,10 @@ class StateManager(IStateStore, ITaskRepository):
 
     # Run History Management
 
-    def record_run_result(self, run_id: str, metrics: Dict):
+    def record_run_result(self, run_id: str, metrics: dict):
         """Record results of orchestrator run"""
         key = f"{self.prefix}run_history"
-        run_data = {
-            'run_id': run_id,
-            'timestamp': datetime.now().isoformat(),
-            'metrics': metrics
-        }
+        run_data = {"run_id": run_id, "timestamp": datetime.now().isoformat(), "metrics": metrics}
 
         # Add to list (newest first)
         self.redis.lpush(key, json.dumps(run_data))
@@ -154,13 +146,13 @@ class StateManager(IStateStore, ITaskRepository):
 
         print(f"📊 Recorded run: {run_id}")
 
-    def get_run_history(self, count: int = 10) -> List[Dict]:
+    def get_run_history(self, count: int = 10) -> list[dict]:
         """Get recent run history"""
         key = f"{self.prefix}run_history"
         history = self.redis.lrange(key, 0, count - 1)
         return [json.loads(h) for h in history]
 
-    def get_latest_run(self) -> Optional[Dict]:
+    def get_latest_run(self) -> dict | None:
         """Get most recent run"""
         history = self.get_run_history(count=1)
         return history[0] if history else None
@@ -175,7 +167,7 @@ class StateManager(IStateStore, ITaskRepository):
         else:
             self.redis.set(state_key, json.dumps(value))
 
-    def get_project_state(self, key: str) -> Optional[any]:
+    def get_project_state(self, key: str) -> any | None:
         """Get project state"""
         state_key = f"{self.prefix}state:{key}"
         data = self.redis.get(state_key)
@@ -206,13 +198,13 @@ class StateManager(IStateStore, ITaskRepository):
 
     # Utility Methods
 
-    def get_stats(self) -> Dict:
+    def get_stats(self) -> dict:
         """Get overall state statistics"""
         return {
             "queue_size": self.get_queue_size(),
             "failure_count": self.get_failure_count(),
             "run_count": len(self.get_run_history()),
-            "latest_run": self.get_latest_run()
+            "latest_run": self.get_latest_run(),
         }
 
     def clear_all(self):
@@ -261,7 +253,7 @@ def main():
             file="lib/main.dart",
             message="Undefined name 'foo'",
             context="// code context here",
-            created_at=datetime.now().isoformat()
+            created_at=datetime.now().isoformat(),
         )
 
         task2 = Task(
@@ -270,7 +262,7 @@ def main():
             priority=3,
             phase="test",
             message="Expected 5 but got 3",
-            created_at=datetime.now().isoformat()
+            created_at=datetime.now().isoformat(),
         )
 
         # Queue tasks
@@ -284,16 +276,10 @@ def main():
             print(f"  - {task.type} (priority {task.priority})")
 
         # Store session summary
-        mgr.store_session_summary("build", {
-            "fixed_count": 5,
-            "total_count": 10
-        })
+        mgr.store_session_summary("build", {"fixed_count": 5, "total_count": 10})
 
         # Record run
-        mgr.record_run_result("test_run_1", {
-            "build_status": "pass",
-            "test_pass_rate": 0.9
-        })
+        mgr.record_run_result("test_run_1", {"build_status": "pass", "test_pass_rate": 0.9})
 
         # Show stats
         stats = mgr.get_stats()

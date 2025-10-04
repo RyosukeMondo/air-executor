@@ -6,7 +6,7 @@ and custom state directory configurations.
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass
@@ -52,7 +52,7 @@ class SetupTrackerConfig:
 
     state_dir: Path = Path(".ai-state")
     ttl_days: int = 30
-    redis_config: Optional[dict[str, Any]] = None
+    redis_config: dict[str, Any] | None = None
 
     @property
     def ttl_seconds(self) -> int:
@@ -70,7 +70,7 @@ class SetupTrackerConfig:
 
     @classmethod
     def for_testing(
-        cls, tmp_path: Optional[Path] = None, with_redis: bool = False
+        cls, tmp_path: Path | None = None, with_redis: bool = False
     ) -> "SetupTrackerConfig":
         """Create configuration optimized for testing.
 
@@ -106,12 +106,11 @@ class SetupTrackerConfig:
                 ttl_days=1,  # Fast TTL for tests
                 redis_config=redis_cfg,
             )
-        else:
-            return cls(
-                state_dir=Path(".ai-state"),
-                ttl_days=1,  # Fast TTL for tests
-                redis_config=redis_cfg,
-            )
+        return cls(
+            state_dir=Path(".ai-state"),
+            ttl_days=1,  # Fast TTL for tests
+            redis_config=redis_cfg,
+        )
 
     def with_state_dir(self, state_dir: Path) -> "SetupTrackerConfig":
         """Create config with custom state directory.

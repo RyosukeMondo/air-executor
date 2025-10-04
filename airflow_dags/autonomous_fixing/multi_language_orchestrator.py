@@ -11,7 +11,6 @@ All actual work is delegated to specialized modules:
 
 import sys
 from pathlib import Path
-from typing import Dict, List, Union
 
 import yaml
 
@@ -58,7 +57,7 @@ class MultiLanguageOrchestrator:
 
     def __init__(
         self,
-        config: Union[OrchestratorConfig, Dict],
+        config: OrchestratorConfig | dict,
         project_name: str = "multi-project",
     ):
         """
@@ -88,7 +87,7 @@ class MultiLanguageOrchestrator:
             self.analyzer, self.fixer, self.scorer, self.config, project_name
         )
 
-    def execute(self) -> Dict:
+    def execute(self) -> dict:
         """
         Execute autonomous fixing - just coordinate, don't do the work.
 
@@ -130,7 +129,7 @@ class MultiLanguageOrchestrator:
         # Delegate to iteration engine (it does all the work)
         return self.iteration_engine.run_improvement_loop(projects_by_language)
 
-    def _create_language_adapters(self) -> Dict:
+    def _create_language_adapters(self) -> dict:
         """Create language adapters from config."""
         adapters = {}
         languages = self.config.get("languages", {})
@@ -149,7 +148,7 @@ class MultiLanguageOrchestrator:
 
         return adapters
 
-    def _get_projects_from_config(self) -> Dict[str, List[str]]:
+    def _get_projects_from_config(self) -> dict[str, list[str]]:
         """Get explicit project list from config, organized by language."""
         projects_by_language = {}
 
@@ -164,7 +163,7 @@ class MultiLanguageOrchestrator:
 
         return projects_by_language
 
-    def _print_project_summary(self, projects_by_language: Dict[str, List[str]]):
+    def _print_project_summary(self, projects_by_language: dict[str, list[str]]):
         """Print detected projects summary."""
         print("\n📦 Detected Projects:")
         for lang, projects in projects_by_language.items():
@@ -185,7 +184,7 @@ def main():
 
     # Load configuration
     try:
-        with open(config_path, "r", encoding="utf-8") as f:
+        with open(config_path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
     except FileNotFoundError:
         print(f"❌ Config file not found: {config_path}")

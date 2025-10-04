@@ -18,7 +18,6 @@ import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass
@@ -42,7 +41,7 @@ class TestResultParser(ABC):
     """Abstract base for test result parsers."""
 
     @abstractmethod
-    def parse(self, output: str, output_file: Optional[Path] = None) -> Optional[TestCounts]:
+    def parse(self, output: str, output_file: Path | None = None) -> TestCounts | None:
         """
         Parse test output and return counts.
 
@@ -64,7 +63,7 @@ class TestResultParser(ABC):
 class JestJSONParser(TestResultParser):
     """Parse Jest JSON output - PREFERRED."""
 
-    def parse(self, output: str, output_file: Optional[Path] = None) -> Optional[TestCounts]:
+    def parse(self, output: str, output_file: Path | None = None) -> TestCounts | None:
         """Parse Jest --json output."""
         try:
             # Try file first (cleanest)
@@ -98,7 +97,7 @@ class JestJSONParser(TestResultParser):
 class JestTextParser(TestResultParser):
     """Parse Jest text output - FALLBACK."""
 
-    def parse(self, output: str, output_file: Optional[Path] = None) -> Optional[TestCounts]:
+    def parse(self, output: str, output_file: Path | None = None) -> TestCounts | None:
         """Parse Jest text summary with regex."""
         try:
             # Jest final summary: "Tests: 28 failed, 5 skipped, 64 passed, 97 total"
@@ -124,7 +123,7 @@ class JestTextParser(TestResultParser):
 class VitestJSONParser(TestResultParser):
     """Parse Vitest JSON output."""
 
-    def parse(self, output: str, output_file: Optional[Path] = None) -> Optional[TestCounts]:
+    def parse(self, output: str, output_file: Path | None = None) -> TestCounts | None:
         """Parse Vitest --reporter=json output."""
         try:
             if output_file and output_file.exists():
@@ -153,7 +152,7 @@ class VitestJSONParser(TestResultParser):
 class PytestJUnitXMLParser(TestResultParser):
     """Parse pytest JUnit XML output - PREFERRED."""
 
-    def parse(self, output: str, output_file: Optional[Path] = None) -> Optional[TestCounts]:
+    def parse(self, output: str, output_file: Path | None = None) -> TestCounts | None:
         """Parse pytest --junitxml output."""
         try:
             if not output_file or not output_file.exists():
@@ -178,7 +177,7 @@ class PytestJUnitXMLParser(TestResultParser):
 class PytestTextParser(TestResultParser):
     """Parse pytest text output - FALLBACK."""
 
-    def parse(self, output: str, output_file: Optional[Path] = None) -> Optional[TestCounts]:
+    def parse(self, output: str, output_file: Path | None = None) -> TestCounts | None:
         """Parse pytest text summary."""
         try:
             # pytest: "= 42 passed, 3 failed, 1 skipped in 1.23s ="
@@ -207,7 +206,7 @@ class PytestTextParser(TestResultParser):
 class GoTestJSONParser(TestResultParser):
     """Parse Go test -json output - PREFERRED."""
 
-    def parse(self, output: str, output_file: Optional[Path] = None) -> Optional[TestCounts]:
+    def parse(self, output: str, output_file: Path | None = None) -> TestCounts | None:
         """Parse go test -json output (NDJSON format)."""
         try:
             passed = 0
@@ -246,7 +245,7 @@ class GoTestJSONParser(TestResultParser):
 class GoTestTextParser(TestResultParser):
     """Parse Go test text output - FALLBACK."""
 
-    def parse(self, output: str, output_file: Optional[Path] = None) -> Optional[TestCounts]:
+    def parse(self, output: str, output_file: Path | None = None) -> TestCounts | None:
         """Parse go test text output."""
         try:
             # Count PASS/FAIL lines
@@ -270,7 +269,7 @@ class GoTestTextParser(TestResultParser):
 class FlutterTestJSONParser(TestResultParser):
     """Parse Flutter test --machine output - PREFERRED."""
 
-    def parse(self, output: str, output_file: Optional[Path] = None) -> Optional[TestCounts]:
+    def parse(self, output: str, output_file: Path | None = None) -> TestCounts | None:
         """Parse flutter test --machine output."""
         try:
             passed = 0
@@ -336,7 +335,7 @@ class TestResultParserStrategy:
     }
 
     @classmethod
-    def parse(cls, language: str, output: str, output_file: Optional[Path] = None) -> TestCounts:
+    def parse(cls, language: str, output: str, output_file: Path | None = None) -> TestCounts:
         """
         Parse test output using best available parser.
 

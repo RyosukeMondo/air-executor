@@ -1,7 +1,6 @@
 """Issue discovery interface."""
 
 from abc import ABC, abstractmethod
-from typing import List
 
 from ..models import Task
 
@@ -14,7 +13,7 @@ class IIssueDiscoverer(ABC):
     """
 
     @abstractmethod
-    def discover_build_issues(self) -> List[Task]:
+    def discover_build_issues(self) -> list[Task]:
         """
         Discover build/compilation issues.
 
@@ -24,7 +23,7 @@ class IIssueDiscoverer(ABC):
         pass
 
     @abstractmethod
-    def discover_test_failures(self) -> List[Task]:
+    def discover_test_failures(self) -> list[Task]:
         """
         Discover test failures.
 
@@ -34,7 +33,7 @@ class IIssueDiscoverer(ABC):
         pass
 
     @abstractmethod
-    def discover_lint_issues(self) -> List[Task]:
+    def discover_lint_issues(self) -> list[Task]:
         """
         Discover linting/style issues.
 
@@ -44,7 +43,7 @@ class IIssueDiscoverer(ABC):
         pass
 
     @abstractmethod
-    def discover_coverage_gaps(self) -> List[Task]:
+    def discover_coverage_gaps(self) -> list[Task]:
         """
         Discover test coverage gaps.
 

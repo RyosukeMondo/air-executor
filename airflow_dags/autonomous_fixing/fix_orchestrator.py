@@ -8,7 +8,6 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import List
 
 import yaml
 from adapters.state.state_manager import StateManager
@@ -226,7 +225,7 @@ class FixOrchestrator:
 
         return "build"  # Default
 
-    def _discover_issues(self, phase: str) -> List[Task]:
+    def _discover_issues(self, phase: str) -> list[Task]:
         """Discover issues for the given phase and group them"""
         # Discover raw issues
         if phase == "build":
@@ -245,7 +244,7 @@ class FixOrchestrator:
 
         return raw_tasks
 
-    def _queue_tasks(self, tasks: List[Task], phase: str):
+    def _queue_tasks(self, tasks: list[Task], phase: str):
         """Queue discovered tasks"""
         # Limit batch size
         batch_size = self.batch_sizes.get(f"{phase}_fixes", 5)

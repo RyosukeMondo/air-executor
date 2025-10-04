@@ -102,8 +102,7 @@ class StateConfig:
                 external_hook_cache_dir=tmp_path / "hook-cache",
                 external_test_cache_dir=tmp_path / "test-cache",
             )
-        else:
-            return cls(
-                state_dir_name=".ai-state",
-                max_age_days=1,  # Fast staleness for tests
-            )
+        return cls(
+            state_dir_name=".ai-state",
+            max_age_days=1,  # Fast staleness for tests
+        )

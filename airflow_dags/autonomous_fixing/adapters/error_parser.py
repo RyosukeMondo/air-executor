@@ -17,7 +17,6 @@ import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
 
 
 @dataclass
@@ -29,16 +28,14 @@ class ParsedError:
     column: int
     severity: str  # 'error' | 'warning' | 'info'
     message: str
-    code: Optional[str] = None
+    code: str | None = None
 
 
 class ErrorParser(ABC):
     """Abstract base for error parsers."""
 
     @abstractmethod
-    def parse(
-        self, output: str, phase: str, output_file: Optional[Path] = None
-    ) -> List[ParsedError]:
+    def parse(self, output: str, phase: str, output_file: Path | None = None) -> list[ParsedError]:
         """
         Parse error output and return structured errors.
 
@@ -61,9 +58,7 @@ class ErrorParser(ABC):
 class ESLintJSONParser(ErrorParser):
     """Parse ESLint JSON output - PREFERRED."""
 
-    def parse(
-        self, output: str, phase: str, output_file: Optional[Path] = None
-    ) -> List[ParsedError]:
+    def parse(self, output: str, phase: str, output_file: Path | None = None) -> list[ParsedError]:
         """Parse ESLint --format json output."""
         errors = []
 
@@ -100,9 +95,7 @@ class ESLintJSONParser(ErrorParser):
 class ESLintTextParser(ErrorParser):
     """Parse ESLint text output - FALLBACK."""
 
-    def parse(
-        self, output: str, phase: str, output_file: Optional[Path] = None
-    ) -> List[ParsedError]:
+    def parse(self, output: str, phase: str, output_file: Path | None = None) -> list[ParsedError]:
         """Parse ESLint stylish/compact format."""
         errors = []
 
@@ -131,9 +124,7 @@ class ESLintTextParser(ErrorParser):
 class TypeScriptParser(ErrorParser):
     """Parse TypeScript compiler (tsc) output."""
 
-    def parse(
-        self, output: str, phase: str, output_file: Optional[Path] = None
-    ) -> List[ParsedError]:
+    def parse(self, output: str, phase: str, output_file: Path | None = None) -> list[ParsedError]:
         """Parse tsc error format."""
         errors = []
 
@@ -162,9 +153,7 @@ class TypeScriptParser(ErrorParser):
 class JestTestErrorParser(ErrorParser):
     """Parse Jest/Vitest test failures."""
 
-    def parse(
-        self, output: str, phase: str, output_file: Optional[Path] = None
-    ) -> List[ParsedError]:
+    def parse(self, output: str, phase: str, output_file: Path | None = None) -> list[ParsedError]:
         """Parse Jest test failure output."""
         errors = []
 
@@ -198,9 +187,7 @@ class JestTestErrorParser(ErrorParser):
 class PylintJSONParser(ErrorParser):
     """Parse pylint JSON output - PREFERRED."""
 
-    def parse(
-        self, output: str, phase: str, output_file: Optional[Path] = None
-    ) -> List[ParsedError]:
+    def parse(self, output: str, phase: str, output_file: Path | None = None) -> list[ParsedError]:
         """Parse pylint --output-format=json."""
         errors = []
 
@@ -234,9 +221,7 @@ class PylintJSONParser(ErrorParser):
 class PylintTextParser(ErrorParser):
     """Parse pylint text output - FALLBACK."""
 
-    def parse(
-        self, output: str, phase: str, output_file: Optional[Path] = None
-    ) -> List[ParsedError]:
+    def parse(self, output: str, phase: str, output_file: Path | None = None) -> list[ParsedError]:
         """Parse pylint parseable format."""
         errors = []
 
@@ -273,9 +258,7 @@ class PylintTextParser(ErrorParser):
 class MypyParser(ErrorParser):
     """Parse mypy type checker output."""
 
-    def parse(
-        self, output: str, phase: str, output_file: Optional[Path] = None
-    ) -> List[ParsedError]:
+    def parse(self, output: str, phase: str, output_file: Path | None = None) -> list[ParsedError]:
         """Parse mypy error format."""
         errors = []
 
@@ -304,9 +287,7 @@ class MypyParser(ErrorParser):
 class PytestErrorParser(ErrorParser):
     """Parse pytest test failures."""
 
-    def parse(
-        self, output: str, phase: str, output_file: Optional[Path] = None
-    ) -> List[ParsedError]:
+    def parse(self, output: str, phase: str, output_file: Path | None = None) -> list[ParsedError]:
         """Parse pytest failure output."""
         errors = []
 
@@ -340,9 +321,7 @@ class PytestErrorParser(ErrorParser):
 class GoVetParser(ErrorParser):
     """Parse go vet output."""
 
-    def parse(
-        self, output: str, phase: str, output_file: Optional[Path] = None
-    ) -> List[ParsedError]:
+    def parse(self, output: str, phase: str, output_file: Path | None = None) -> list[ParsedError]:
         """Parse go vet error format."""
         errors = []
 
@@ -371,9 +350,7 @@ class GoVetParser(ErrorParser):
 class GoTestErrorParser(ErrorParser):
     """Parse go test failures."""
 
-    def parse(
-        self, output: str, phase: str, output_file: Optional[Path] = None
-    ) -> List[ParsedError]:
+    def parse(self, output: str, phase: str, output_file: Path | None = None) -> list[ParsedError]:
         """Parse go test error format."""
         errors = []
 
@@ -407,9 +384,7 @@ class GoTestErrorParser(ErrorParser):
 class FlutterAnalyzeParser(ErrorParser):
     """Parse flutter analyze output."""
 
-    def parse(
-        self, output: str, phase: str, output_file: Optional[Path] = None
-    ) -> List[ParsedError]:
+    def parse(self, output: str, phase: str, output_file: Path | None = None) -> list[ParsedError]:
         """Parse flutter analyze format."""
         errors = []
 
@@ -481,8 +456,8 @@ class ErrorParserStrategy:
 
     @classmethod
     def parse(
-        cls, language: str, output: str, phase: str, output_file: Optional[Path] = None
-    ) -> List[Dict]:
+        cls, language: str, output: str, phase: str, output_file: Path | None = None
+    ) -> list[dict]:
         """
         Parse error output using all available parsers.
 

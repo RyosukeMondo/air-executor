@@ -6,7 +6,6 @@ Distinguishes real errors from benign warnings in stderr, preventing false failu
 
 import logging
 import os
-from typing import Dict, List, Optional
 
 import yaml
 
@@ -36,7 +35,7 @@ logger = logging.getLogger(__name__)
 class ResponseParser:
     """Intelligent parser for AI wrapper responses with noise filtering."""
 
-    def __init__(self, config_path: Optional[str] = None):
+    def __init__(self, config_path: str | None = None):
         """
         Initialize response parser with optional config file.
 
@@ -57,7 +56,7 @@ class ResponseParser:
             return
 
         try:
-            with open(self.config_path, "r", encoding="utf-8") as f:
+            with open(self.config_path, encoding="utf-8") as f:
                 config = yaml.safe_load(f)
 
             if not config:
@@ -85,7 +84,7 @@ class ResponseParser:
         except Exception as e:
             logger.warning(f"Failed to load config from {self.config_path}: {e}, using defaults")
 
-    def parse(self, response: Dict, operation_type: str = "unknown") -> Dict:
+    def parse(self, response: dict, operation_type: str = "unknown") -> dict:
         """
         Parse wrapper response with intelligent error detection.
 
@@ -120,7 +119,7 @@ class ResponseParser:
         # Fallback: unknown error
         return self._create_unknown_error(operation_type)
 
-    def _parse_stderr(self, stderr: str, operation_type: str) -> Optional[Dict]:
+    def _parse_stderr(self, stderr: str, operation_type: str) -> dict | None:
         """
         Parse stderr content for real errors.
 
@@ -143,7 +142,7 @@ class ResponseParser:
 
     def _parse_generic_error(
         self, generic_error: str, stderr: str, operation_type: str
-    ) -> Optional[Dict]:
+    ) -> dict | None:
         """
         Parse generic error field.
 
@@ -163,7 +162,7 @@ class ResponseParser:
             "errors": [generic_error],
         }
 
-    def _create_unknown_error(self, operation_type: str) -> Dict:
+    def _create_unknown_error(self, operation_type: str) -> dict:
         """Create error dict for unknown failures."""
         return {
             "success": False,
@@ -171,7 +170,7 @@ class ResponseParser:
             "errors": [],
         }
 
-    def _extract_real_errors(self, stderr: str) -> List[str]:
+    def _extract_real_errors(self, stderr: str) -> list[str]:
         """
         Extract real error lines from stderr, filtering out noise.
 

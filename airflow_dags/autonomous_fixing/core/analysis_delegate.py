@@ -6,11 +6,11 @@ Delegates analysis and configuration tasks to Claude.
 
 import time
 from pathlib import Path
-from typing import Dict
 
 import yaml
 
 from ..adapters.ai.claude_client import ClaudeClient
+from ..config.analysis_delegate_config import AnalysisDelegateConfig
 from ..domain.models import FixResult
 from .prompt_manager import PromptManager
 
@@ -18,17 +18,29 @@ from .prompt_manager import PromptManager
 class AnalysisDelegate:
     """Delegates analysis and setup operations to Claude."""
 
-    def __init__(self, config: Dict, debug_logger=None):
+    def __init__(
+        self,
+        config: dict,
+        debug_logger=None,
+        delegate_config: AnalysisDelegateConfig | None = None,
+    ):
         """
         Initialize analysis delegate.
 
         Args:
-            config: Configuration dict with wrapper settings
+            config: Configuration dict with wrapper settings (backward compat)
             debug_logger: Optional DebugLogger instance
+            delegate_config: Optional AnalysisDelegateConfig for paths
         """
         self.config = config
-        wrapper_path = config.get("wrapper", {}).get("path", "scripts/claude_wrapper.py")
-        python_exec = config.get("wrapper", {}).get("python_executable", "python")
+        self.delegate_config = delegate_config or AnalysisDelegateConfig()
+
+        # Get wrapper settings from delegate_config or fallback to config dict
+        wrapper_settings = self.delegate_config.wrapper_settings
+        wrapper_path = config.get("wrapper", {}).get("path", wrapper_settings["path"])
+        python_exec = config.get("wrapper", {}).get(
+            "python_executable", wrapper_settings["python_executable"]
+        )
 
         # Initialize Claude client
         self.claude = ClaudeClient(wrapper_path, python_exec, debug_logger)
@@ -36,7 +48,7 @@ class AnalysisDelegate:
         # Initialize prompt manager
         self.prompt_manager = PromptManager()
 
-    def analyze_static(self, project_path: str, language: str) -> Dict:
+    def analyze_static(self, project_path: str, language: str) -> dict:
         """
         ANALYSIS PHASE: Static code quality analysis via claude_wrapper.
 
@@ -53,7 +65,7 @@ class AnalysisDelegate:
         Returns: Dict with analysis results (from YAML)
         """
         project_name = Path(project_path).name
-        cache_path = Path("config/analysis-cache") / f"{project_name}-static.yaml"
+        cache_path = self.delegate_config.analysis_cache_dir / f"{project_name}-static.yaml"
 
         # Check if recently analyzed (< 5 min old)
         if cache_path.exists():
@@ -104,10 +116,10 @@ class AnalysisDelegate:
         Returns: True if hooks configured successfully
         """
         project_name = Path(project_path).name
-        cache_path = Path("config/precommit-cache") / f"{project_name}-hooks.yaml"
+        cache_path = self.delegate_config.hook_cache_dir / f"{project_name}-hooks.yaml"
 
         # Ensure cache directory exists
-        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        self.delegate_config.hook_cache_dir.mkdir(parents=True, exist_ok=True)
 
         # Check if already configured (< 7 days old)
         if cache_path.exists():
@@ -134,18 +146,17 @@ class AnalysisDelegate:
         if result["success"] and cache_path.exists():
             print(f"   ✓ Pre-commit hooks configured and saved to {cache_path}")
             return True
-        elif result["success"] and not cache_path.exists():
+        if result["success"] and not cache_path.exists():
             # Wrapper succeeded but didn't create cache file
             # (likely timeout without completion event)
             error_msg = "Wrapper completed but output file not created (possible timeout)"
             print(f"   ⚠️  Hook configuration failed: {error_msg}")
             print("   Continuing without pre-commit enforcement (less robust)")
             return False
-        else:
-            error_msg = result.get("error_message") or result.get("error", "Unknown error")
-            print(f"   ⚠️  Hook configuration failed: {error_msg}")
-            print("   Continuing without pre-commit enforcement (less robust)")
-            return False
+        error_msg = result.get("error_message") or result.get("error", "Unknown error")
+        print(f"   ⚠️  Hook configuration failed: {error_msg}")
+        print("   Continuing without pre-commit enforcement (less robust)")
+        return False
 
     def discover_test_config(self, project_path: str, language: str) -> FixResult:
         """
@@ -164,7 +175,7 @@ class AnalysisDelegate:
         Returns: FixResult with stats
         """
         project_name = Path(project_path).name
-        cache_path = Path("config/test-cache") / f"{project_name}-tests.yaml"
+        cache_path = self.delegate_config.test_cache_dir / f"{project_name}-tests.yaml"
 
         # Check if already discovered
         if cache_path.exists():
@@ -187,7 +198,6 @@ class AnalysisDelegate:
         if result["success"] and cache_path.exists():
             print(f"   ✓ Test config discovered and saved to {cache_path}")
             return FixResult(fixes_applied=1, fixes_attempted=1, success=True)
-        else:
-            error_msg = result.get("error_message") or result.get("error", "Unknown error")
-            print(f"   ✗ Test discovery failed: {error_msg}")
-            return FixResult(fixes_applied=0, fixes_attempted=1, success=False)
+        error_msg = result.get("error_message") or result.get("error", "Unknown error")
+        print(f"   ✗ Test discovery failed: {error_msg}")
+        return FixResult(fixes_applied=0, fixes_attempted=1, success=False)

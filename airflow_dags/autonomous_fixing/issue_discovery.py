@@ -8,7 +8,6 @@ import re
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
 
 from executor_runner import extract_file_context
 from state_manager import Task, generate_task_id
@@ -32,10 +31,7 @@ class IssueDiscovery:
             return flutter
 
         # Try common locations
-        locations = [
-            os.path.expanduser("~/flutter/bin/flutter"),
-            "/usr/local/bin/flutter"
-        ]
+        locations = [os.path.expanduser("~/flutter/bin/flutter"), "/usr/local/bin/flutter"]
 
         for location in locations:
             if os.path.exists(location):
@@ -43,7 +39,7 @@ class IssueDiscovery:
 
         return "flutter"  # Fall back to assuming it's in PATH
 
-    def discover_build_issues(self) -> List[Task]:
+    def discover_build_issues(self) -> list[Task]:
         """Discover build/analysis errors"""
         print("🔍 Discovering build issues...")
 
@@ -53,7 +49,7 @@ class IssueDiscovery:
                 cwd=self.project_path,
                 capture_output=True,
                 text=True,
-                timeout=120
+                timeout=120,
             )
 
             tasks = []
@@ -70,7 +66,7 @@ class IssueDiscovery:
             print(f"  ❌ Error discovering build issues: {e}")
             return []
 
-    def discover_test_failures(self) -> List[Task]:
+    def discover_test_failures(self) -> list[Task]:
         """Discover test failures"""
         print("🔍 Discovering test failures...")
 
@@ -80,7 +76,7 @@ class IssueDiscovery:
                 cwd=self.project_path,
                 capture_output=True,
                 text=True,
-                timeout=300
+                timeout=300,
             )
 
             tasks = []
@@ -89,7 +85,7 @@ class IssueDiscovery:
             for line in result.stdout.splitlines():
                 try:
                     event = json.loads(line)
-                    if event.get('type') == 'testDone' and event.get('result') != 'success':
+                    if event.get("type") == "testDone" and event.get("result") != "success":
                         task = self._parse_test_failure(event)
                         if task:
                             tasks.append(task)
@@ -103,7 +99,7 @@ class IssueDiscovery:
             print(f"  ❌ Error discovering test failures: {e}")
             return []
 
-    def discover_lint_issues(self) -> List[Task]:
+    def discover_lint_issues(self) -> list[Task]:
         """Discover lint warnings (lower priority)"""
         print("🔍 Discovering lint issues...")
 
@@ -113,7 +109,7 @@ class IssueDiscovery:
                 cwd=self.project_path,
                 capture_output=True,
                 text=True,
-                timeout=120
+                timeout=120,
             )
 
             tasks = []
@@ -137,7 +133,7 @@ class IssueDiscovery:
 
         try:
             # Extract location (file:line:col)
-            location_match = re.search(r'•\s+([\w/._-]+):(\d+):\d+\s+•', line)
+            location_match = re.search(r"•\s+([\w/._-]+):(\d+):\d+\s+•", line)
             if not location_match:
                 return None
 
@@ -145,7 +141,7 @@ class IssueDiscovery:
             line_num = int(location_match.group(2))
 
             # Extract message (between first and second •)
-            message_match = re.search(r'(error|warning|info)\s+•\s+([^•]+)\s+•', line)
+            message_match = re.search(r"(error|warning|info)\s+•\s+([^•]+)\s+•", line)
             if not message_match:
                 return None
 
@@ -165,33 +161,35 @@ class IssueDiscovery:
 
             return Task(
                 id=generate_task_id(),
-                type=f"fix_{issue_type}_error" if issue_type == "build" else f"fix_{issue_type}_issue",
+                type=f"fix_{issue_type}_error"
+                if issue_type == "build"
+                else f"fix_{issue_type}_issue",
                 priority=priority,
                 phase=phase,
                 file=file_path,
                 line=line_num,
                 message=message,
                 context=context,
-                created_at=datetime.now().isoformat()
+                created_at=datetime.now().isoformat(),
             )
 
         except Exception as e:
             print(f"  ⚠️ Failed to parse line: {line[:100]}... ({e})")
             return None
 
-    def _parse_test_failure(self, event: Dict) -> Task:
+    def _parse_test_failure(self, event: dict) -> Task:
         """Parse test failure event into Task"""
         try:
-            test = event.get('test', {})
-            test_name = test.get('name', 'Unknown test')
-            test_url = test.get('url', '')
+            test = event.get("test", {})
+            test_name = test.get("name", "Unknown test")
+            test_url = test.get("url", "")
 
             # Extract file from URL
-            file_match = re.search(r'file://[^:]+/([^:]+)', test_url)
+            file_match = re.search(r"file://[^:]+/([^:]+)", test_url)
             file_path = file_match.group(1) if file_match else None
 
             # Extract error message
-            error_message = event.get('error', 'Test failed')
+            error_message = event.get("error", "Test failed")
 
             # Get context if we have file path
             context = ""
@@ -208,7 +206,7 @@ class IssueDiscovery:
                 file=file_path,
                 message=f"{test_name}: {error_message}",
                 context=context or "// Test context not available",
-                created_at=datetime.now().isoformat()
+                created_at=datetime.now().isoformat(),
             )
 
         except Exception as e:

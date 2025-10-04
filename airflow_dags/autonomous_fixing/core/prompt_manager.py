@@ -5,21 +5,32 @@ Handles loading prompts from YAML config and building prompt strings.
 """
 
 from pathlib import Path
-from typing import Dict
 
 import yaml
+
+from ..config.prompt_manager_config import PromptManagerConfig
 
 
 class PromptManager:
     """Manages prompt templates and configuration."""
 
-    def __init__(self):
-        """Initialize prompt manager and load prompts from config."""
+    def __init__(self, config: PromptManagerConfig | None = None):
+        """Initialize prompt manager and load prompts from config.
+
+        Args:
+            config: Optional PromptManagerConfig. If not provided, uses default path.
+        """
+        self.config = config or PromptManagerConfig()
         self.prompts = self._load_prompts()
 
-    def _load_prompts(self) -> Dict:
+    def _load_prompts(self) -> dict:
         """Load prompts from centralized config file."""
-        # Try to find prompts.yaml in config directory
+        # First try the configured path
+        if self.config.prompts_config_path.exists():
+            with open(self.config.prompts_config_path, encoding="utf-8") as f:
+                return yaml.safe_load(f)
+
+        # Fallback: Try to find prompts.yaml in standard locations
         possible_paths = [
             Path(__file__).parent.parent.parent / "config" / "prompts.yaml",  # From core/
             Path("config/prompts.yaml"),  # From project root
@@ -28,14 +39,14 @@ class PromptManager:
 
         for path in possible_paths:
             if path.exists():
-                with open(path, "r", encoding="utf-8") as f:
+                with open(path, encoding="utf-8") as f:
                     return yaml.safe_load(f)
 
         # Fallback: return minimal default prompts if config not found
         print("⚠️  Warning: prompts.yaml not found, using fallback prompts")
         return self._get_fallback_prompts()
 
-    def _get_fallback_prompts(self) -> Dict:
+    def _get_fallback_prompts(self) -> dict:
         """Return fallback prompts if config file not found."""
         return {
             "static_issues": {
@@ -83,28 +94,28 @@ class PromptManager:
             },
         }
 
-    def build_error_prompt(self, issue: Dict) -> str:
+    def build_error_prompt(self, issue: dict) -> str:
         """Build prompt for fixing an error."""
         template = self.prompts["static_issues"]["error"]["template"]
         return template.format(
             language=issue["language"], file=issue["file"], message=issue["message"]
         )
 
-    def build_complexity_prompt(self, issue: Dict) -> str:
+    def build_complexity_prompt(self, issue: dict) -> str:
         """Build prompt for fixing complexity."""
         template = self.prompts["static_issues"]["complexity"]["template"]
         return template.format(
             file=issue["file"], complexity=issue["complexity"], threshold=issue["threshold"]
         )
 
-    def build_test_failure_prompt(self, test_info: Dict) -> str:
+    def build_test_failure_prompt(self, test_info: dict) -> str:
         """Build prompt for fixing test failures."""
         template = self.prompts["tests"]["fix_failures"]["template"]
         return template.format(
             language=test_info["language"], failed=test_info["failed"], total=test_info["total"]
         )
 
-    def build_create_tests_prompt(self, project_info: Dict) -> str:
+    def build_create_tests_prompt(self, project_info: dict) -> str:
         """Build prompt for creating tests."""
         template = self.prompts["tests"]["create_tests"]["template"]
         prompt = template.format(language=project_info["language"])
