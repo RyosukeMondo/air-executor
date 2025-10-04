@@ -146,6 +146,18 @@ config_hash: {config_hash}
         """
         state_file = self.state_dir / f"{phase}_state.md"
 
+        # Check 0: For hooks, detect existing configuration in filesystem
+        if phase == "hooks" and not state_file.exists():
+            husky_dir = self.project_path / ".husky"
+            precommit_config = self.project_path / ".pre-commit-config.yaml"
+
+            if husky_dir.exists() or precommit_config.exists():
+                framework = "husky" if husky_dir.exists() else "pre-commit"
+                self.logger.debug(
+                    f"Detected existing {framework} hooks in filesystem, skipping setup"
+                )
+                return (False, f"{framework} hooks already configured")
+
         # Check 1: Does project state exist?
         if not state_file.exists():
             self.logger.debug(f"Project state missing for {phase}: {state_file}")

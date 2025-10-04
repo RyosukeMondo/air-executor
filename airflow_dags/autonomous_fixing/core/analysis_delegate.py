@@ -79,7 +79,7 @@ class AnalysisDelegate:
             with open(cache_path) as f:
                 return yaml.safe_load(f)
         else:
-            error_msg = result.get("error", "Unknown error")
+            error_msg = result.get("error_message") or result.get("error", "Unknown error")
             print(f"   ✗ Analysis failed: {error_msg}")
             # Return empty analysis
             return {
@@ -134,8 +134,14 @@ class AnalysisDelegate:
         if result["success"] and cache_path.exists():
             print(f"   ✓ Pre-commit hooks configured and saved to {cache_path}")
             return True
+        elif result["success"] and not cache_path.exists():
+            # Wrapper succeeded but didn't create cache file (likely timeout without completion event)
+            error_msg = "Wrapper completed but output file not created (possible timeout)"
+            print(f"   ⚠️  Hook configuration failed: {error_msg}")
+            print("   Continuing without pre-commit enforcement (less robust)")
+            return False
         else:
-            error_msg = result.get("error", "Unknown error")
+            error_msg = result.get("error_message") or result.get("error", "Unknown error")
             print(f"   ⚠️  Hook configuration failed: {error_msg}")
             print("   Continuing without pre-commit enforcement (less robust)")
             return False
@@ -181,6 +187,6 @@ class AnalysisDelegate:
             print(f"   ✓ Test config discovered and saved to {cache_path}")
             return FixResult(fixes_applied=1, fixes_attempted=1, success=True)
         else:
-            error_msg = result.get("error", "Unknown error")
+            error_msg = result.get("error_message") or result.get("error", "Unknown error")
             print(f"   ✗ Test discovery failed: {error_msg}")
             return FixResult(fixes_applied=0, fixes_attempted=1, success=False)

@@ -47,8 +47,8 @@ class IssueFixer:
         self.commit_verifier = CommitVerifier()
         self.issue_extractor = IssueExtractor()
 
-        # Initialize Claude client with debug logger
-        self.claude = ClaudeClient(wrapper_path, python_exec, debug_logger)
+        # Initialize Claude client with debug logger and config
+        self.claude = ClaudeClient(wrapper_path, python_exec, debug_logger, config)
 
         # Initialize analysis delegate
         self.analysis_delegate = AnalysisDelegate(config, debug_logger)

@@ -34,8 +34,8 @@ class PreflightValidator:
     """
 
     CACHE_MAX_AGE_SECONDS = 7 * 24 * 60 * 60  # 7 days
-    HOOK_CACHE_DIR = Path('config/precommit-cache')
-    TEST_CACHE_DIR = Path('config/test-cache')
+    HOOK_CACHE_DIR = Path("config/precommit-cache")
+    TEST_CACHE_DIR = Path("config/test-cache")
 
     def __init__(self, setup_tracker: SetupTracker):
         """
@@ -48,7 +48,9 @@ class PreflightValidator:
         self.setup_tracker = setup_tracker
 
     @contextmanager
-    def _measure_validation(self, project_name: str, phase: str, start_time: float) -> Iterator[None]:
+    def _measure_validation(
+        self, project_name: str, phase: str, start_time: float
+    ) -> Iterator[None]:
         """
         Context manager for validation timing measurement.
 
@@ -64,13 +66,12 @@ class PreflightValidator:
             yield
         finally:
             elapsed = (time.time() - start_time) * 1000
-            self.logger.debug(f"PreflightValidator: {phase.title()} validation for {project_name} ({elapsed:.0f}ms)")
+            self.logger.debug(
+                f"PreflightValidator: {phase.title()} validation for {project_name} ({elapsed:.0f}ms)"
+            )
 
     def _check_setup_state(
-        self,
-        project_path: Path,
-        phase: str,
-        start_time: float
+        self, project_path: Path, phase: str, start_time: float
     ) -> Optional[Tuple[bool, str]]:
         """
         Check if setup state is tracked as complete.
@@ -93,11 +94,7 @@ class PreflightValidator:
         return None
 
     def _check_cache_freshness(
-        self,
-        cache_path: Path,
-        project_name: str,
-        phase: str,
-        start_time: float
+        self, cache_path: Path, project_name: str, phase: str, start_time: float
     ) -> Optional[Tuple[bool, str]]:
         """
         Check if cache file exists and is fresh (<7 days).
@@ -114,7 +111,9 @@ class PreflightValidator:
         # Check existence
         if not cache_path.exists():
             elapsed = (time.time() - start_time) * 1000
-            self.logger.debug(f"PreflightValidator: {phase.title()} cache missing for {project_name} ({elapsed:.0f}ms)")
+            self.logger.debug(
+                f"PreflightValidator: {phase.title()} cache missing for {project_name} ({elapsed:.0f}ms)"
+            )
             return (False, "cache file missing")
 
         # Check freshness
@@ -144,10 +143,7 @@ class PreflightValidator:
         return int(cache_age / 86400)
 
     def _check_hook_cache_validity(
-        self,
-        cache_path: Path,
-        project_name: str,
-        start_time: float
+        self, cache_path: Path, project_name: str, start_time: float
     ) -> Optional[Tuple[bool, str]]:
         """
         Check if hook cache is valid and complete.
@@ -170,10 +166,7 @@ class PreflightValidator:
         return None
 
     def _check_hook_files_exist(
-        self,
-        project_path: Path,
-        project_name: str,
-        start_time: float
+        self, project_path: Path, project_name: str, start_time: float
     ) -> Optional[Tuple[bool, str]]:
         """
         Check if hook files exist on filesystem.
@@ -186,8 +179,8 @@ class PreflightValidator:
         Returns:
             (False, reason) if files missing, None if files exist (continue checks)
         """
-        precommit_config = project_path / '.pre-commit-config.yaml'
-        git_hook = project_path / '.git' / 'hooks' / 'pre-commit'
+        precommit_config = project_path / ".pre-commit-config.yaml"
+        git_hook = project_path / ".git" / "hooks" / "pre-commit"
 
         if not precommit_config.exists():
             elapsed = (time.time() - start_time) * 1000
@@ -206,10 +199,7 @@ class PreflightValidator:
         return None
 
     def _check_test_cache_validity(
-        self,
-        cache_path: Path,
-        project_name: str,
-        start_time: float
+        self, cache_path: Path, project_name: str, start_time: float
     ) -> Optional[Tuple[bool, str]]:
         """
         Check if test cache is valid and complete.
@@ -248,21 +238,26 @@ class PreflightValidator:
         start_time = time.time()
         project_name = project_path.name
 
-        # Check 1: Is setup tracked as complete?
-        if result := self._check_setup_state(project_path, 'hooks', start_time):
-            return result
-
-        # Check 2: Use ProjectStateManager for state validation
+        # Check 1: Use ProjectStateManager for state validation (checks filesystem + cache)
         state_manager = ProjectStateManager(project_path)
-        should_reconfig, reason = state_manager.should_reconfigure('hooks')
+        should_reconfig, reason = state_manager.should_reconfigure("hooks")
 
         elapsed = (time.time() - start_time) * 1000
 
         if should_reconfig:
-            self.logger.debug(f"PreflightValidator: Hooks need reconfiguration for {project_name}: {reason} ({elapsed:.0f}ms)")
+            self.logger.debug(
+                f"PreflightValidator: Hooks need reconfiguration for {project_name}: {reason} ({elapsed:.0f}ms)"
+            )
             return (False, reason)
 
-        self.logger.debug(f"PreflightValidator: Hooks can be skipped for {project_name}: {reason} ({elapsed:.0f}ms)")
+        # Check 2: Is setup tracked as complete in memory? (faster check for subsequent runs)
+        if self._check_setup_state(project_path, "hooks", start_time):
+            # Setup tracker says not complete, but state_manager says it is - trust state_manager
+            pass
+
+        self.logger.debug(
+            f"PreflightValidator: Hooks can be skipped for {project_name}: {reason} ({elapsed:.0f}ms)"
+        )
         return (True, f"{reason} (saved 60s + $0.50)")
 
     def can_skip_test_discovery(self, project_path: Path) -> Tuple[bool, str]:
@@ -283,20 +278,24 @@ class PreflightValidator:
         project_name = project_path.name
 
         # Check 1: Is setup tracked as complete?
-        if result := self._check_setup_state(project_path, 'tests', start_time):
+        if result := self._check_setup_state(project_path, "tests", start_time):
             return result
 
         # Check 2: Use ProjectStateManager for state validation
         state_manager = ProjectStateManager(project_path)
-        should_reconfig, reason = state_manager.should_reconfigure('tests')
+        should_reconfig, reason = state_manager.should_reconfigure("tests")
 
         elapsed = (time.time() - start_time) * 1000
 
         if should_reconfig:
-            self.logger.debug(f"PreflightValidator: Tests need reconfiguration for {project_name}: {reason} ({elapsed:.0f}ms)")
+            self.logger.debug(
+                f"PreflightValidator: Tests need reconfiguration for {project_name}: {reason} ({elapsed:.0f}ms)"
+            )
             return (False, reason)
 
-        self.logger.debug(f"PreflightValidator: Tests can be skipped for {project_name}: {reason} ({elapsed:.0f}ms)")
+        self.logger.debug(
+            f"PreflightValidator: Tests can be skipped for {project_name}: {reason} ({elapsed:.0f}ms)"
+        )
         return (True, f"{reason} (saved 90s + $0.60)")
 
     def _validate_hook_cache(self, cache_path: Path) -> Tuple[bool, str]:
@@ -322,11 +321,11 @@ class PreflightValidator:
                 return (False, "cache is not a YAML dict")
 
             # Check required field: hook_framework.installed
-            hook_framework = data.get('hook_framework', {})
+            hook_framework = data.get("hook_framework", {})
             if not isinstance(hook_framework, dict):
                 return (False, "hook_framework is not a dict")
 
-            if not hook_framework.get('installed'):
+            if not hook_framework.get("installed"):
                 return (False, "hook_framework.installed != true")
 
             return (True, "cache valid and complete")
@@ -362,7 +361,7 @@ class PreflightValidator:
                 return (False, "cache is not a YAML dict")
 
             # Check required fields
-            required_fields = ['test_framework', 'test_command', 'test_patterns']
+            required_fields = ["test_framework", "test_command", "test_patterns"]
             missing_fields = [field for field in required_fields if field not in data]
 
             if missing_fields:

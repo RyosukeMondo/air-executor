@@ -12,7 +12,7 @@ import subprocess
 import sys
 
 # Add project to path to import config
-sys.path.insert(0, '/home/rmondo/repos/air-executor/src')
+sys.path.insert(0, "/home/rmondo/repos/air-executor/src")
 from air_executor.config import load_config
 
 
@@ -21,12 +21,14 @@ def _load_config_and_params(context) -> tuple:
     try:
         config = load_config()
     except Exception as e:
-        raise RuntimeError(f"Failed to load config: {e}\n"
-                         f"Create config/air-executor.toml from config/air-executor.example.toml")
+        raise RuntimeError(
+            f"Failed to load config: {e}\n"
+            f"Create config/air-executor.toml from config/air-executor.example.toml"
+        )
 
-    dag_run_conf = context.get('dag_run').conf or {}
-    prompt = dag_run_conf.get('prompt', 'hello, how old are you?')
-    working_directory = dag_run_conf.get('working_directory', config.project_root)
+    dag_run_conf = context.get("dag_run").conf or {}
+    prompt = dag_run_conf.get("prompt", "hello, how old are you?")
+    working_directory = dag_run_conf.get("working_directory", config.project_root)
 
     return config, prompt, working_directory
 
@@ -39,7 +41,7 @@ def _send_prompt_command(process, prompt: str, config):
         "options": {
             **config.claude_default_options,
             "permission_mode": config.claude_permission_mode,
-        }
+        },
     }
     process.stdin.write(json.dumps(command) + "\n")
     process.stdin.flush()
@@ -53,7 +55,7 @@ def _extract_stream_text(payload: dict, conversation_text: list) -> bool:
     if message_type == "ResultMessage" and payload.get("result"):
         text = payload["result"]
         conversation_text.append(text)
-        print(text, end='', flush=True)
+        print(text, end="", flush=True)
         found_content = True
     elif payload.get("content"):
         content = payload.get("content", [])
@@ -63,12 +65,12 @@ def _extract_stream_text(payload: dict, conversation_text: list) -> bool:
                     text = item.get("text", "")
                     if text:
                         conversation_text.append(text)
-                        print(text, end='', flush=True)
+                        print(text, end="", flush=True)
                         found_content = True
     elif payload.get("text"):
         text = payload["text"]
         conversation_text.append(text)
-        print(text, end='', flush=True)
+        print(text, end="", flush=True)
         found_content = True
 
     return found_content
@@ -132,12 +134,12 @@ def _process_wrapper_output(process, prompt: str, config) -> tuple:
 def _print_summary(full_response: str, events: list):
     """Print response summary (SRP)"""
     print("\n")
-    print("="*60)
+    print("=" * 60)
     print("📋 CLAUDE'S RESPONSE SUMMARY")
-    print("="*60)
+    print("=" * 60)
     print(f"Total response length: {len(full_response)} characters")
     print(f"Total events received: {len(events)}")
-    print("="*60)
+    print("=" * 60)
 
 
 def run_claude_query_sdk(**context):
@@ -160,6 +162,14 @@ def run_claude_query_sdk(**context):
     print(f"   Working directory: {working_directory}")
     print(f"   Prompt: {prompt}")
 
+    # Setup environment with log level from config
+    import os
+
+    env = os.environ.copy()
+    wrapper_log_level = getattr(config, "logging", {}).get("wrapper", {}).get("level", "INFO")
+    if isinstance(wrapper_log_level, str):
+        env["CLAUDE_WRAPPER_LOG_LEVEL"] = wrapper_log_level
+
     process = subprocess.Popen(
         [str(config.venv_python), str(config.wrapper_path)],
         stdin=subprocess.PIPE,
@@ -168,6 +178,7 @@ def run_claude_query_sdk(**context):
         text=True,
         bufsize=1,
         cwd=working_directory,
+        env=env,
     )
 
     try:
@@ -184,15 +195,9 @@ def run_claude_query_sdk(**context):
 
         _print_summary(full_response, events)
 
-        context['task_instance'].xcom_push(
-            key='claude_response',
-            value=full_response
-        )
+        context["task_instance"].xcom_push(key="claude_response", value=full_response)
 
-        context['task_instance'].xcom_push(
-            key='events_count',
-            value=len(events)
-        )
+        context["task_instance"].xcom_push(key="events_count", value=len(events))
 
         return {
             "status": "success",

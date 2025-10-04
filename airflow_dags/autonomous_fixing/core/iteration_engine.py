@@ -46,7 +46,7 @@ class IterationEngine:
         self.fixer = fixer
         self.scorer = scorer
         self.config = config
-        self.max_iterations = config.get('execution', {}).get('max_iterations', 5)
+        self.max_iterations = config.get("execution", {}).get("max_iterations", 5)
 
         # Initialize components (SRP: each has one job)
         self.debug_logger = DebugLogger(config, project_name)
@@ -55,7 +55,7 @@ class IterationEngine:
         self.hook_manager = HookLevelManager()  # Progressive hook enforcement
 
         # Setup optimization components
-        self.setup_tracker = SetupTracker(config.get('state_manager'))
+        self.setup_tracker = SetupTracker(config.get("state_manager"))
         self.validator = PreflightValidator(self.setup_tracker)
 
         # Pass debug logger to fixer for wrapper call logging
@@ -88,29 +88,27 @@ class IterationEngine:
 
                 success = self.fixer.configure_precommit_hooks(project_path, lang_name)
                 if success:
-                    self.setup_tracker.mark_setup_complete(project_path, 'hooks')
+                    self.setup_tracker.mark_setup_complete(project_path, "hooks")
                     # Save project state after successful hook configuration
                     try:
                         state_manager = ProjectStateManager(Path(project_path))
-                        state_data = {
-                            'phase': 'hooks',
-                            'language': lang_name,
-                            'configured': True
-                        }
-                        state_manager.save_state('hooks', state_data)
+                        state_data = {"phase": "hooks", "language": lang_name, "configured": True}
+                        state_manager.save_state("hooks", state_data)
                     except Exception as e:
                         # Log error but don't fail setup tracking
-                        print(f"   ⚠️  Failed to save project state for {Path(project_path).name}: {e}")
+                        print(
+                            f"   ⚠️  Failed to save project state for {Path(project_path).name}: {e}"
+                        )
 
         if hooks_skipped > 0:
             print(f"\n   ⏭️  Skipped hook setup for {hooks_skipped}/{hooks_total} projects")
             print(f"   💰 Savings: {hooks_time_saved:.0f}s + ${hooks_cost_saved:.2f}")
             self.debug_logger.log_setup_skip_stats(
-                phase='hooks',
+                phase="hooks",
                 skipped=hooks_skipped,
                 total=hooks_total,
                 time_saved=hooks_time_saved,
-                cost_saved=hooks_cost_saved
+                cost_saved=hooks_cost_saved,
             )
 
         return hooks_skipped, hooks_time_saved, hooks_cost_saved
@@ -138,29 +136,27 @@ class IterationEngine:
 
                 result = self.fixer.discover_test_config(project_path, lang_name)
                 if result.success:
-                    self.setup_tracker.mark_setup_complete(project_path, 'tests')
+                    self.setup_tracker.mark_setup_complete(project_path, "tests")
                     # Save project state after successful test discovery
                     try:
                         state_manager = ProjectStateManager(Path(project_path))
-                        state_data = {
-                            'phase': 'tests',
-                            'language': lang_name,
-                            'discovered': True
-                        }
-                        state_manager.save_state('tests', state_data)
+                        state_data = {"phase": "tests", "language": lang_name, "discovered": True}
+                        state_manager.save_state("tests", state_data)
                     except Exception as e:
                         # Log error but don't fail setup tracking
-                        print(f"   ⚠️  Failed to save project state for {Path(project_path).name}: {e}")
+                        print(
+                            f"   ⚠️  Failed to save project state for {Path(project_path).name}: {e}"
+                        )
 
         if tests_skipped > 0:
             print(f"\n   ⏭️  Skipped test discovery for {tests_skipped}/{tests_total} projects")
             print(f"   💰 Savings: {tests_time_saved:.0f}s + ${tests_cost_saved:.2f}")
             self.debug_logger.log_setup_skip_stats(
-                phase='tests',
+                phase="tests",
                 skipped=tests_skipped,
                 total=tests_total,
                 time_saved=tests_time_saved,
-                cost_saved=tests_cost_saved
+                cost_saved=tests_cost_saved,
             )
 
         return tests_skipped, tests_time_saved, tests_cost_saved
@@ -191,7 +187,7 @@ class IterationEngine:
         p1_result = self.analyzer.analyze_static(projects_by_language)
 
         verification = self.verifier.verify_batch_results(p1_result.results_by_project)
-        if not verification['all_valid']:
+        if not verification["all_valid"]:
             self.verifier.print_verification_report(verification)
             print("\n❌ ABORTING: Analysis verification failed")
             return None, None, False
@@ -203,17 +199,19 @@ class IterationEngine:
 
     def _handle_p1_gate_failure(self, p1_result, p1_score_data, iteration: int) -> dict:
         """Handle P1 gate failure - fix issues and check timing (SRP)"""
-        print(f"\n⚠️  P1 score ({p1_score_data['score']:.1%}) < threshold ({p1_score_data['threshold']:.0%})")
+        print(
+            f"\n⚠️  P1 score ({p1_score_data['score']:.1%}) < threshold ({p1_score_data['threshold']:.0%})"
+        )
 
-        max_issues = self.config.get('execution', {}).get('max_issues_per_iteration', 10)
+        max_issues = self.config.get("execution", {}).get("max_issues_per_iteration", 10)
         fix_result = self.fixer.fix_static_issues(p1_result, iteration, max_issues=max_issues)
 
         self.debug_logger.log_fix_result(
-            fix_type='static_issue',
-            target='p1_analysis',
+            fix_type="static_issue",
+            target="p1_analysis",
             success=fix_result.success,
             duration=p1_result.execution_time,
-            details={'fixes_applied': getattr(fix_result, 'fixes_applied', 0)}
+            details={"fixes_applied": getattr(fix_result, "fixes_applied", 0)},
         )
 
         if fix_result.success:
@@ -224,20 +222,20 @@ class IterationEngine:
         timing_result = self.time_gate.end_iteration(iteration)
         self.debug_logger.log_iteration_end(
             iteration=iteration,
-            phase='p1_fix',
-            duration=timing_result['duration'],
+            phase="p1_fix",
+            duration=timing_result["duration"],
             success=fix_result.success,
-            fixes_applied=getattr(fix_result, 'fixes_applied', 0)
+            fixes_applied=getattr(fix_result, "fixes_applied", 0),
         )
 
-        if timing_result['should_abort']:
+        if timing_result["should_abort"]:
             print(f"\n❌ ABORT: Detected {self.time_gate.rapid_threshold} rapid iterations")
-            self.debug_logger.log_session_end('rapid_iteration_abort')
+            self.debug_logger.log_session_end("rapid_iteration_abort")
             return {
-                'success': False,
-                'reason': 'rapid_iteration_abort',
-                'iterations_completed': iteration,
-                'timing_summary': self.time_gate.get_timing_summary()
+                "success": False,
+                "reason": "rapid_iteration_abort",
+                "iterations_completed": iteration,
+                "timing_summary": self.time_gate.get_timing_summary(),
             }
 
         self.time_gate.wait_if_needed(timing_result)
@@ -247,12 +245,14 @@ class IterationEngine:
         """Upgrade hooks to level 1 after P1 gate passes (SRP)"""
         for lang_name, project_list in projects_by_language.items():
             for project_path in project_list:
-                adapter = self.analyzer._get_adapter(lang_name)
+                adapter = self.analyzer.adapters.get(lang_name)
                 self.hook_manager.upgrade_after_gate_passed(
-                    project_path, lang_name, 'p1',
+                    project_path,
+                    lang_name,
+                    "p1",
                     gate_passed=True,
-                    score=p1_score_data['score'],
-                    adapter=adapter
+                    score=p1_score_data["score"],
+                    adapter=adapter,
                 )
 
     def _run_test_analysis_phase(self, projects_by_language: Dict, p1_score_data: dict) -> tuple:
@@ -261,13 +261,15 @@ class IterationEngine:
         print("📍 PRIORITY 2: Strategic Unit Tests (Time-Aware)")
         print(f"{'='*80}")
 
-        strategy = self.scorer.determine_test_strategy(p1_score_data['score'])
-        print(f"📊 Test strategy: {strategy.upper()} (based on P1 health: {p1_score_data['score']:.1%})")
+        strategy = self.scorer.determine_test_strategy(p1_score_data["score"])
+        print(
+            f"📊 Test strategy: {strategy.upper()} (based on P1 health: {p1_score_data['score']:.1%})"
+        )
 
         p2_result = self.analyzer.analyze_tests(projects_by_language, strategy)
 
         verification = self.verifier.verify_batch_results(p2_result.results_by_project)
-        if not verification['all_valid']:
+        if not verification["all_valid"]:
             self.verifier.print_verification_report(verification)
             print("\n⚠️  WARNING: Test analysis verification failed")
 
@@ -276,32 +278,36 @@ class IterationEngine:
 
         return p2_result, p2_score_data, strategy
 
-    def _handle_test_creation(self, p2_result, iteration: int, projects_by_language: Dict, strategy: str) -> tuple:
+    def _handle_test_creation(
+        self, p2_result, iteration: int, projects_by_language: Dict, strategy: str
+    ) -> tuple:
         """Handle test creation when no tests exist (SRP)"""
         print("\n⚠️  CRITICAL: No tests found - delegating test creation")
 
         # Check circuit breaker
         for project_key in p2_result.results_by_project.keys():
-            _, project_path = project_key.split(':', 1)
+            _, project_path = project_key.split(":", 1)
             attempts = self.test_creation_attempts.get(project_path, 0)
 
             if attempts >= 2:
-                print(f"\n❌ ABORT: Project {project_path} has had {attempts} test creation attempts")
-                self.debug_logger.log_session_end('test_creation_loop_detected')
+                print(
+                    f"\n❌ ABORT: Project {project_path} has had {attempts} test creation attempts"
+                )
+                self.debug_logger.log_session_end("test_creation_loop_detected")
                 return None, {
-                    'success': False,
-                    'reason': 'test_creation_loop',
-                    'iterations_completed': iteration,
-                    'project': project_path
+                    "success": False,
+                    "reason": "test_creation_loop",
+                    "iterations_completed": iteration,
+                    "project": project_path,
                 }
 
             self.test_creation_attempts[project_path] = attempts + 1
 
         fix_result = self.fixer.create_tests(p2_result, iteration)
         self.debug_logger.log_test_creation(
-            project='multi-project',
+            project="multi-project",
             success=fix_result.success,
-            tests_created=getattr(fix_result, 'tests_created', 0)
+            tests_created=getattr(fix_result, "tests_created", 0),
         )
 
         if fix_result.success:
@@ -309,21 +315,24 @@ class IterationEngine:
             p2_recheck = self.analyzer.analyze_tests(projects_by_language, strategy)
             p2_recheck_score = self.scorer.score_tests(p2_recheck)
 
-            if p2_recheck_score['passed_gate']:
+            if p2_recheck_score["passed_gate"]:
                 # Reset circuit breaker on success
                 for project_key in p2_result.results_by_project.keys():
-                    _, project_path = project_key.split(':', 1)
+                    _, project_path = project_key.split(":", 1)
                     if project_path in self.test_creation_attempts:
                         del self.test_creation_attempts[project_path]
 
         return fix_result, None
 
-    def _handle_p2_gate_failure(self, p2_result, p2_score_data, iteration: int,
-                                projects_by_language: Dict, strategy: str) -> dict:
+    def _handle_p2_gate_failure(
+        self, p2_result, p2_score_data, iteration: int, projects_by_language: Dict, strategy: str
+    ) -> dict:
         """Handle P2 gate failure - create or fix tests (SRP)"""
-        print(f"\n⚠️  P2 score ({p2_score_data['score']:.1%}) < threshold ({p2_score_data['threshold']:.0%})")
+        print(
+            f"\n⚠️  P2 score ({p2_score_data['score']:.1%}) < threshold ({p2_score_data['threshold']:.0%})"
+        )
 
-        if p2_score_data.get('needs_test_creation', False):
+        if p2_score_data.get("needs_test_creation", False):
             fix_result, abort_result = self._handle_test_creation(
                 p2_result, iteration, projects_by_language, strategy
             )
@@ -332,11 +341,11 @@ class IterationEngine:
         else:
             fix_result = self.fixer.fix_test_failures(p2_result, iteration)
             self.debug_logger.log_fix_result(
-                fix_type='test_failure',
-                target='p2_tests',
+                fix_type="test_failure",
+                target="p2_tests",
                 success=fix_result.success,
                 duration=p2_result.execution_time,
-                details={'fixes_applied': getattr(fix_result, 'fixes_applied', 0)}
+                details={"fixes_applied": getattr(fix_result, "fixes_applied", 0)},
             )
 
             if fix_result.success:
@@ -347,20 +356,20 @@ class IterationEngine:
         timing_result = self.time_gate.end_iteration(iteration)
         self.debug_logger.log_iteration_end(
             iteration=iteration,
-            phase='p2_fix',
-            duration=timing_result['duration'],
+            phase="p2_fix",
+            duration=timing_result["duration"],
             success=fix_result.success if fix_result else False,
-            fixes_applied=getattr(fix_result, 'fixes_applied', 0) if fix_result else 0,
-            tests_created=getattr(fix_result, 'tests_created', 0) if fix_result else 0
+            fixes_applied=getattr(fix_result, "fixes_applied", 0) if fix_result else 0,
+            tests_created=getattr(fix_result, "tests_created", 0) if fix_result else 0,
         )
 
-        if timing_result['should_abort']:
+        if timing_result["should_abort"]:
             print(f"\n❌ ABORT: Detected {self.time_gate.rapid_threshold} rapid iterations")
-            self.debug_logger.log_session_end('rapid_iteration_abort')
+            self.debug_logger.log_session_end("rapid_iteration_abort")
             return {
-                'success': False,
-                'reason': 'rapid_iteration_abort',
-                'iterations_completed': iteration
+                "success": False,
+                "reason": "rapid_iteration_abort",
+                "iterations_completed": iteration,
             }
 
         self.time_gate.wait_if_needed(timing_result)
@@ -370,12 +379,14 @@ class IterationEngine:
         """Upgrade hooks to level 2 after P2 gate passes (SRP)"""
         for lang_name, project_list in projects_by_language.items():
             for project_path in project_list:
-                adapter = self.analyzer._get_adapter(lang_name)
+                adapter = self.analyzer.adapters.get(lang_name)
                 self.hook_manager.upgrade_after_gate_passed(
-                    project_path, lang_name, 'p2',
+                    project_path,
+                    lang_name,
+                    "p2",
                     gate_passed=True,
-                    score=p2_score_data['score'],
-                    adapter=adapter
+                    score=p2_score_data["score"],
+                    adapter=adapter,
                 )
 
     def run_improvement_loop(self, projects_by_language: Dict) -> Dict:
@@ -408,30 +419,36 @@ class IterationEngine:
             print(f"{'='*80}")
 
             self.time_gate.start_iteration(iteration)
-            self.debug_logger.log_iteration_start(iteration, 'p1_analysis')
+            self.debug_logger.log_iteration_start(iteration, "p1_analysis")
 
             # Run P1 static analysis
-            p1_result, p1_score_data, valid = self._run_static_analysis_phase(projects_by_language, iteration)
+            p1_result, p1_score_data, valid = self._run_static_analysis_phase(
+                projects_by_language, iteration
+            )
             if not valid:
-                return {'success': False, 'reason': 'analysis_verification_failed'}
+                return {"success": False, "reason": "analysis_verification_failed"}
 
             # Check P1 gate
-            if not p1_score_data['passed_gate']:
+            if not p1_score_data["passed_gate"]:
                 abort_result = self._handle_p1_gate_failure(p1_result, p1_score_data, iteration)
                 if abort_result:
                     return abort_result
                 continue  # Re-run analysis in next iteration
 
             # P1 gate passed!
-            print(f"\n✅ P1 gate PASSED ({p1_score_data['score']:.1%} >= {p1_score_data['threshold']:.0%})")
+            print(
+                f"\n✅ P1 gate PASSED ({p1_score_data['score']:.1%} >= {p1_score_data['threshold']:.0%})"
+            )
 
             self._upgrade_hooks_after_p1(projects_by_language, p1_score_data)
 
             # Run P2 test analysis
-            p2_result, p2_score_data, strategy = self._run_test_analysis_phase(projects_by_language, p1_score_data)
+            p2_result, p2_score_data, strategy = self._run_test_analysis_phase(
+                projects_by_language, p1_score_data
+            )
 
             # Check P2 gate
-            if not p2_score_data['passed_gate']:
+            if not p2_score_data["passed_gate"]:
                 abort_result = self._handle_p2_gate_failure(
                     p2_result, p2_score_data, iteration, projects_by_language, strategy
                 )
@@ -440,7 +457,9 @@ class IterationEngine:
                 continue  # Re-run analysis in next iteration
 
             # Both gates passed!
-            print(f"\n✅ P2 gate PASSED ({p2_score_data['score']:.1%} >= {p2_score_data['threshold']:.0%})")
+            print(
+                f"\n✅ P2 gate PASSED ({p2_score_data['score']:.1%} >= {p2_score_data['threshold']:.0%})"
+            )
 
             self._upgrade_hooks_after_p2(projects_by_language, p2_score_data)
 
@@ -450,39 +469,38 @@ class IterationEngine:
             timing_result = self.time_gate.end_iteration(iteration)
             self.debug_logger.log_iteration_end(
                 iteration=iteration,
-                phase='success',
-                duration=timing_result['duration'],
-                success=True
+                phase="success",
+                duration=timing_result["duration"],
+                success=True,
             )
 
             # Log session end with success
-            self.debug_logger.log_session_end('all_gates_passed')
+            self.debug_logger.log_session_end("all_gates_passed")
 
             return {
-                'success': True,
-                'iterations_completed': iteration,
-                'p1_score': p1_score_data['score'],
-                'p2_score': p2_score_data['score'],
-                'overall_health': self.scorer.calculate_overall_health(
-                    p1_score_data['score'],
-                    p2_score_data['score']
+                "success": True,
+                "iterations_completed": iteration,
+                "p1_score": p1_score_data["score"],
+                "p2_score": p2_score_data["score"],
+                "overall_health": self.scorer.calculate_overall_health(
+                    p1_score_data["score"], p2_score_data["score"]
                 ),
-                'timing_summary': self.time_gate.get_timing_summary(),
-                'metrics': self.debug_logger.get_metrics()
+                "timing_summary": self.time_gate.get_timing_summary(),
+                "metrics": self.debug_logger.get_metrics(),
             }
 
         # Max iterations reached without passing gates
         print(f"\n⚠️  Reached maximum iterations ({self.max_iterations}) without passing all gates")
 
         # Log session end with max iterations
-        self.debug_logger.log_session_end('max_iterations_reached')
+        self.debug_logger.log_session_end("max_iterations_reached")
 
         return {
-            'success': False,
-            'reason': 'max_iterations_reached',
-            'iterations_completed': self.max_iterations,
-            'timing_summary': self.time_gate.get_timing_summary(),
-            'metrics': self.debug_logger.get_metrics()
+            "success": False,
+            "reason": "max_iterations_reached",
+            "iterations_completed": self.max_iterations,
+            "timing_summary": self.time_gate.get_timing_summary(),
+            "metrics": self.debug_logger.get_metrics(),
         }
 
     def _print_score(self, score_data: Dict, execution_time: float):

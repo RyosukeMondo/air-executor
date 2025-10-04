@@ -50,8 +50,21 @@ state_manager:
   namespace: "warps_fix"    # Key namespace for isolation (prevents cross-project conflicts)
 
 logging:
-  level: "INFO"
+  level: "INFO"  # Global log level: DEBUG, INFO, WARNING, ERROR
   file: "logs/fix-warps.log"
+
+  # Wrapper-specific logging (passed to claude_wrapper.py)
+  wrapper:
+    level: "DEBUG"  # Controls claude_wrapper.py stderr logging (INFO or DEBUG)
+    show_events: true  # Show [WRAPPER DEBUG] event logs from ClaudeClient
+
+  # Debug logger configuration (DebugLogger component)
+  debug:
+    enabled: true
+    log_dir: "logs/debug"
+    log_levels:
+      wrapper_responses: false  # Include full wrapper responses in debug logs (verbose)
+      wrapper_calls: true       # Log all wrapper calls with timing
 
 git:
   auto_commit: true
