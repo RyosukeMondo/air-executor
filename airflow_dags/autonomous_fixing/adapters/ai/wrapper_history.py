@@ -61,27 +61,13 @@ class WrapperHistoryLogger:
             git_after: Git HEAD commit after call (optional)
         """
         events = result.get('events', [])
-        event_summary = self._extract_event_summary(events)
-        claude_responses = self._extract_claude_responses(events)
-
-        entry = self._build_log_entry(
-            prompt=prompt,
-            project_path=project_path,
-            prompt_type=prompt_type,
-            result=result,
-            duration=duration,
-            git_before=git_before,
-            git_after=git_after,
-            events=events,
-            event_summary=event_summary,
-            claude_responses=claude_responses,
+        entry = self._create_log_entry(
+            prompt, project_path, prompt_type, result, duration,
+            git_before, git_after, events
         )
+        self._write_log_entries(entry)
 
-        # Write to both files
-        self._write_entry(self.current_log, entry)
-        self._write_entry(self.latest_log, entry)
-
-    def _build_log_entry(
+    def _create_log_entry(
         self,
         prompt: str,
         project_path: str,
@@ -91,38 +77,67 @@ class WrapperHistoryLogger:
         git_before: Optional[str],
         git_after: Optional[str],
         events: List[Dict],
-        event_summary: List[str],
-        claude_responses: List[str],
     ) -> Dict:
-        """Build the log entry dictionary."""
+        """Create complete log entry from call parameters."""
+        event_summary = self._extract_event_summary(events)
+        claude_responses = self._extract_claude_responses(events)
+
+        entry = self._build_base_entry(prompt, project_path, prompt_type, duration)
+        entry.update(self._build_result_fields(result))
+        entry.update(self._build_event_fields(events, event_summary, claude_responses))
+        entry["git"] = self._build_git_fields(git_before, git_after)
+
+        return entry
+
+    def _build_base_entry(
+        self, prompt: str, project_path: str, prompt_type: str, duration: float
+    ) -> Dict:
+        """Build base entry fields."""
         return {
             "timestamp": datetime.now().isoformat(),
             "prompt_type": prompt_type,
             "project": project_path,
             "duration": round(duration, 2),
-            "success": result.get('success', False),
-            # Prompt (full text for investigation)
             "prompt": prompt,
             "prompt_length": len(prompt),
-            # Result details
+        }
+
+    def _build_result_fields(self, result: Dict) -> Dict:
+        """Build result-related fields."""
+        return {
+            "success": result.get('success', False),
             "error": result.get('error'),
             "outcome": result.get('outcome'),
-            # Events (summary for readability)
+        }
+
+    def _build_event_fields(
+        self, events: List[Dict], event_summary: List[str], claude_responses: List[str]
+    ) -> Dict:
+        """Build event-related fields."""
+        return {
             "events": event_summary,
             "event_count": len(events),
-            # Claude's actual responses (CRITICAL for debugging)
             "claude_response": " ".join(claude_responses),
             "claude_response_length": sum(len(r) for r in claude_responses),
-            # Full event objects (for deep debugging if needed)
-            # Store first 3 stream events to save space
             "stream_events_sample": [e for e in events if e.get('event') == 'stream'][:3],
-            # Git tracking
-            "git": {
-                "before": git_before,
-                "after": git_after,
-                "commit_created": git_before != git_after if (git_before and git_after) else None
-            }
         }
+
+    def _build_git_fields(self, git_before: Optional[str], git_after: Optional[str]) -> Dict:
+        """Build git tracking fields."""
+        commit_created = None
+        if git_before and git_after:
+            commit_created = git_before != git_after
+
+        return {
+            "before": git_before,
+            "after": git_after,
+            "commit_created": commit_created,
+        }
+
+    def _write_log_entries(self, entry: Dict) -> None:
+        """Write entry to both current and latest log files."""
+        self._write_entry(self.current_log, entry)
+        self._write_entry(self.latest_log, entry)
 
     def _extract_event_summary(self, events: List[Dict]) -> List[str]:
         """Extract event types from events list."""
@@ -132,14 +147,15 @@ class WrapperHistoryLogger:
         """Extract Claude's text responses from stream events."""
         responses = []
         for event in events:
-            if event.get('event') != 'stream':
-                continue
-
-            payload = event.get('payload', {})
-            self._extract_from_content_array(payload, responses)
-            self._extract_from_direct_text(payload, responses)
-
+            if event.get('event') == 'stream':
+                payload = event.get('payload', {})
+                self._extract_responses_from_payload(payload, responses)
         return responses
+
+    def _extract_responses_from_payload(self, payload: Dict, responses: List[str]) -> None:
+        """Extract all responses from a payload."""
+        self._extract_from_content_array(payload, responses)
+        self._extract_from_direct_text(payload, responses)
 
     def _extract_from_content_array(self, payload: Dict, responses: List[str]) -> None:
         """Extract text from content array in payload."""
@@ -148,23 +164,17 @@ class WrapperHistoryLogger:
             return
 
         for item in content:
-            if not isinstance(item, dict):
-                continue
-
-            text = self._get_text_from_item(item)
-            if text:
-                responses.append(text)
+            if isinstance(item, dict):
+                text = self._get_text_from_item(item)
+                if text:
+                    responses.append(text)
 
     def _get_text_from_item(self, item: Dict) -> Optional[str]:
         """Get text from a content item."""
-        # Check for text field (AssistantMessage format)
         if 'text' in item:
             return item.get('text', '')
-
-        # Check for type='text' field (alternative format)
         if item.get('type') == 'text':
             return item.get('text')
-
         return None
 
     def _extract_from_direct_text(self, payload: Dict, responses: List[str]) -> None:
@@ -195,6 +205,11 @@ class WrapperHistoryLogger:
         if not self.latest_log.exists():
             return []
 
+        calls = self._read_all_calls()
+        return self._get_newest_calls(calls, limit)
+
+    def _read_all_calls(self) -> List[Dict]:
+        """Read all calls from latest log file."""
         calls = []
         try:
             with open(self.latest_log, 'r') as f:
@@ -203,8 +218,10 @@ class WrapperHistoryLogger:
                         calls.append(json.loads(line))
         except Exception:
             pass
+        return calls
 
-        # Return newest first, limited
+    def _get_newest_calls(self, calls: List[Dict], limit: int) -> List[Dict]:
+        """Get newest N calls from list."""
         return calls[-limit:][::-1]
 
     def get_failures(self, limit: int = 10) -> List[Dict]:
@@ -239,14 +256,17 @@ class WrapperHistoryLogger:
             call: Call entry from history
             verbose: If True, show full prompt and events
         """
+        self._print_basic_summary(call)
+        if verbose:
+            self._print_verbose_details(call)
+
+    def _print_basic_summary(self, call: Dict) -> None:
+        """Print basic call summary."""
         self._print_header(call)
         self._print_basic_info(call)
         self._print_git_info(call)
         self._print_result(call)
         self._print_events(call)
-
-        if verbose:
-            self._print_verbose_details(call)
 
     def _print_header(self, call: Dict) -> None:
         """Print call header with timestamp and status."""
@@ -263,13 +283,23 @@ class WrapperHistoryLogger:
     def _print_git_info(self, call: Dict) -> None:
         """Print git commit information."""
         git = call.get('git', {})
-        if git.get('commit_created'):
-            before = git.get('before', '')[:8]
-            after = git.get('after', '')[:8]
-            print(f"  ✅ Git commit: {before} → {after}")
-        elif git.get('commit_created') is False:
-            before = git.get('before', '')[:8]
-            print(f"  ❌ No commit: {before} (unchanged)")
+        commit_created = git.get('commit_created')
+
+        if commit_created:
+            self._print_commit_created(git)
+        elif commit_created is False:
+            self._print_no_commit(git)
+
+    def _print_commit_created(self, git: Dict) -> None:
+        """Print message for created commit."""
+        before = git.get('before', '')[:8]
+        after = git.get('after', '')[:8]
+        print(f"  ✅ Git commit: {before} → {after}")
+
+    def _print_no_commit(self, git: Dict) -> None:
+        """Print message for no commit."""
+        before = git.get('before', '')[:8]
+        print(f"  ❌ No commit: {before} (unchanged)")
 
     def _print_result(self, call: Dict) -> None:
         """Print call result or error."""
@@ -292,18 +322,24 @@ class WrapperHistoryLogger:
 
     def _print_prompt_details(self, call: Dict) -> None:
         """Print prompt details in verbose mode."""
-        print(f"\n  Prompt ({call.get('prompt_length')} chars):")
+        prompt = call.get('prompt', '')
+        prompt_len = call.get('prompt_length', 0)
+
+        print(f"\n  Prompt ({prompt_len} chars):")
         print("  " + "-" * 76)
 
-        prompt = call.get('prompt', '')
-        lines = prompt.split('\n')
-        for line in lines[:20]:  # First 20 lines
+        self._print_truncated_lines(prompt, max_lines=20)
+
+        print("  " + "-" * 76)
+
+    def _print_truncated_lines(self, text: str, max_lines: int) -> None:
+        """Print first N lines of text with truncation indicator."""
+        lines = text.split('\n')
+        for line in lines[:max_lines]:
             print(f"  {line}")
 
-        if len(lines) > 20:
-            print(f"  ... ({len(lines) - 20} more lines)")
-
-        print("  " + "-" * 76)
+        if len(lines) > max_lines:
+            print(f"  ... ({len(lines) - max_lines} more lines)")
 
     def _print_response_details(self, call: Dict) -> None:
         """Print Claude response details in verbose mode."""
@@ -317,12 +353,7 @@ class WrapperHistoryLogger:
         print(f"\n  Claude Response ({response_len} chars):")
         print("  " + "-" * 76)
 
-        lines = response.split('\n')
-        for line in lines[:30]:  # First 30 lines
-            print(f"  {line}")
-
-        if len(lines) > 30:
-            print(f"  ... ({len(lines) - 30} more lines)")
+        self._print_truncated_lines(response, max_lines=30)
 
         print("  " + "-" * 76)
 
@@ -335,7 +366,10 @@ class WrapperHistoryLogger:
         """
         import time
         cutoff = time.time() - (keep_days * 86400)
+        self._remove_old_log_files(cutoff)
 
+    def _remove_old_log_files(self, cutoff: float) -> None:
+        """Remove log files older than cutoff timestamp."""
         for log_file in self.log_dir.glob("wrapper_calls_*.jsonl"):
             if log_file.stat().st_mtime < cutoff:
                 log_file.unlink()
