@@ -34,19 +34,14 @@ def extract_structure(lines: list) -> str:
     """Extract imports and function/class signatures only"""
     structure = []
 
+    def is_structural_line(stripped: str) -> bool:
+        """Check if line is import or declaration"""
+        starts = ("import ", "export ", "class ", "abstract class ", "mixin ", "enum ")
+        contains = ("void ", "Future<", "Stream<")
+        return any(stripped.startswith(s) for s in starts) or any(c in stripped for c in contains)
+
     for line in lines:
-        stripped = line.strip()
-        if (
-            stripped.startswith("import ")
-            or stripped.startswith("export ")
-            or stripped.startswith("class ")
-            or stripped.startswith("abstract class ")
-            or stripped.startswith("mixin ")
-            or stripped.startswith("enum ")
-            or "void " in stripped
-            or "Future<" in stripped
-            or "Stream<" in stripped
-        ):
+        if is_structural_line(line.strip()):
             structure.append(line)
 
     return "".join(structure) if structure else "// Empty or no structure found"

@@ -155,7 +155,8 @@ DO NOT skip any issues. DO NOT skip the commit step.
 """
 
         if summary:
-            prompt += f"\n\n**Previous session**: Fixed {summary.get('fixed_count', 0)} comprehensive batches\n"
+            fixed_count = summary.get("fixed_count", 0)
+            prompt += f"\n\n**Previous session**: Fixed {fixed_count} comprehensive batches\n"
 
         return prompt
 
@@ -190,7 +191,9 @@ DO NOT skip the commit step. Changes must be committed before finishing.
 """
 
         if summary:
-            prompt += f"\n\n**Previous session**: Fixed {summary.get('fixed_count', 0)} of {summary.get('total_count', 0)} issues\n"
+            fixed = summary.get("fixed_count", 0)
+            total = summary.get("total_count", 0)
+            prompt += f"\n\n**Previous session**: Fixed {fixed} of {total} issues\n"
 
         return prompt
 
