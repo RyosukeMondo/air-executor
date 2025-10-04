@@ -2,8 +2,7 @@
 
 import concurrent.futures
 import sys
-from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 from ..core.job import Job, JobState
 from ..core.runner import Runner
@@ -166,7 +165,7 @@ class RunnerSpawner:
             try:
                 fresh_job.transition_to(JobState.WAITING)
                 self.store.write_job_state(fresh_job)
-            except:
+            except Exception:
                 pass  # Ignore state transition errors during cleanup
             self.store.remove_pid_file(fresh_job.name)
             raise OSError(f"Failed to spawn runner for job {fresh_job.name}: {e}")
