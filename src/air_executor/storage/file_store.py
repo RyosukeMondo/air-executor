@@ -277,8 +277,6 @@ class FileStore:
         Raises:
             OSError: If write fails
         """
-        from datetime import datetime
-
         pid_path = self.jobs_path / job_name / "runner.pid"
         try:
             with open(pid_path, "w") as f:
