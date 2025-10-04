@@ -49,7 +49,6 @@ class TimeGatekeeper:
             config: Configuration dict with time_gates settings
         """
         self.config = config
-        self.gates = config.get("time_gates", {})
 
         # Configuration
         self.min_iteration_duration = self.gates.get("min_iteration_duration", 30)
@@ -60,6 +59,11 @@ class TimeGatekeeper:
         # Tracking
         self.iteration_history: list[IterationTiming] = []
         self.rapid_iterations: list[int] = []
+
+    @property
+    def gates(self) -> dict:
+        """Get time gates configuration from config."""
+        return self.config.get("time_gates", {})
 
     def start_iteration(self, iteration: int) -> float:
         """
