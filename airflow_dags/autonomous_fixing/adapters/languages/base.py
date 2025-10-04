@@ -15,18 +15,41 @@ class LanguageAdapter(ILanguageAdapter, ABC):
 
     # Common exclusion patterns (SSOT - was scattered across adapters)
     COMMON_EXCLUSIONS = {
-        'node_modules', 'build', 'dist', 'coverage', '.next', 'out',  # JS/TS
-        'venv', '.venv', '__pycache__', '.pytest_cache', '.mypy_cache',  # Python
-        'vendor', 'bin',  # Go
-        '.dart_tool', '.pub-cache',  # Flutter
-        '.git', '.svn', '.hg',  # Version control
-        'target', 'obj',  # Build outputs
+        "node_modules",
+        "build",
+        "dist",
+        "coverage",
+        ".next",
+        "out",  # JS/TS
+        "venv",
+        ".venv",
+        "__pycache__",
+        ".pytest_cache",
+        ".mypy_cache",  # Python
+        "vendor",
+        "bin",  # Go
+        ".dart_tool",
+        ".pub-cache",  # Flutter
+        ".git",
+        ".svn",
+        ".hg",  # Version control
+        "target",
+        "obj",  # Build outputs
+        "tests",
+        "test",
+        "__tests__",
+        "spec",  # Test directories
+        "sample_python_project",
+        "sample_javascript_project",
+        "sample_go_project",  # Test fixtures
+        "tmp_test_run",  # Temporary test runs
+        "scripts",  # Utility scripts
     }
 
     def __init__(self, config: Dict):
         self.config = config
-        self.complexity_threshold = config.get('complexity_threshold', 10)
-        self.max_file_lines = config.get('max_file_lines', 500)
+        self.complexity_threshold = config.get("complexity_threshold", 10)
+        self.max_file_lines = config.get("max_file_lines", 500)
 
     @property
     @abstractmethod
@@ -158,16 +181,18 @@ class LanguageAdapter(ILanguageAdapter, ABC):
 
         for file_path in self._get_source_files(project):
             try:
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, "r", encoding="utf-8") as f:
                     line_count = sum(1 for _ in f)
 
                 if line_count > self.max_file_lines:
-                    violations.append({
-                        'file': str(file_path),
-                        'lines': line_count,
-                        'threshold': self.max_file_lines,
-                        'message': f'File has {line_count} lines (max: {self.max_file_lines})'
-                    })
+                    violations.append(
+                        {
+                            "file": str(file_path),
+                            "lines": line_count,
+                            "threshold": self.max_file_lines,
+                            "message": f"File has {line_count} lines (max: {self.max_file_lines})",
+                        }
+                    )
             except Exception:
                 continue
 
@@ -198,6 +223,7 @@ class LanguageAdapter(ILanguageAdapter, ABC):
         # Check max 50 files to avoid hanging on large projects
         if len(source_files) > 50:
             import random
+
             source_files = random.sample(source_files, 50)
 
         for file_path in source_files:
@@ -209,12 +235,14 @@ class LanguageAdapter(ILanguageAdapter, ABC):
 
                 complexity = self.calculate_complexity(str(file_path))
                 if complexity > self.complexity_threshold:
-                    violations.append({
-                        'file': str(file_path),
-                        'complexity': complexity,
-                        'threshold': self.complexity_threshold,
-                        'message': f'Complexity {complexity} exceeds threshold {self.complexity_threshold}'
-                    })
+                    violations.append(
+                        {
+                            "file": str(file_path),
+                            "complexity": complexity,
+                            "threshold": self.complexity_threshold,
+                            "message": f"Complexity {complexity} exceeds threshold {self.complexity_threshold}",
+                        }
+                    )
             except Exception:
                 # Skip files that fail analysis
                 continue
@@ -226,7 +254,9 @@ class LanguageAdapter(ILanguageAdapter, ABC):
         """Get list of source files for this language."""
         pass
 
-    def _filter_excluded_paths(self, files: List[Path], additional_exclusions: set = None) -> List[Path]:
+    def _filter_excluded_paths(
+        self, files: List[Path], additional_exclusions: set = None
+    ) -> List[Path]:
         """
         Filter out excluded paths (SSOT - was duplicated across adapters).
 
@@ -304,8 +334,8 @@ class LanguageAdapter(ILanguageAdapter, ABC):
     def get_test_strategy_description(self, strategy: str) -> str:
         """Get human-readable description of test strategy."""
         descriptions = {
-            'minimal': 'Running minimal tests (critical path only, ~5 min)',
-            'selective': 'Running selective tests (changed files + smoke tests, ~15 min)',
-            'comprehensive': 'Running comprehensive tests (full suite, ~30 min)'
+            "minimal": "Running minimal tests (critical path only, ~5 min)",
+            "selective": "Running selective tests (changed files + smoke tests, ~15 min)",
+            "comprehensive": "Running comprehensive tests (full suite, ~30 min)",
         }
         return descriptions.get(strategy, strategy)

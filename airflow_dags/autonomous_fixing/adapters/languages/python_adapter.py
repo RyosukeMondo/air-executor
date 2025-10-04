@@ -259,9 +259,8 @@ class PythonAdapter(LanguageAdapter):
         for pattern in ["**/*.py"]:
             source_files.extend(project_path.rglob(pattern))
 
-        # Exclude common non-source directories
-        excluded = {"venv", ".venv", "env", "__pycache__", ".tox", "build", "dist"}
-        return [f for f in source_files if not any(e in f.parts for e in excluded)]
+        # Use base class exclusion filtering (COMMON_EXCLUSIONS)
+        return self._filter_excluded_paths(source_files)
 
     def _parse_coverage_json(self, coverage_file: Path) -> Dict:
         """Parse coverage.json file."""

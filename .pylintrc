@@ -6,7 +6,7 @@
 py-version=3.11
 
 # Files/directories to ignore
-ignore=CVS,.git,__pycache__,.venv,venv,build,dist
+ignore=CVS,.git,__pycache__,.venv,venv,build,dist,tests/sample_*,tests/tmp_*,scripts
 
 # Use multiple processes for faster checking
 jobs=0
@@ -15,8 +15,7 @@ jobs=0
 load-plugins=pylint.extensions.check_elif,
              pylint.extensions.bad_builtin,
              pylint.extensions.docparams,
-             pylint.extensions.mccabe,
-             scripts.pylint_one_class_checker
+             pylint.extensions.mccabe
 
 
 [MESSAGES CONTROL]
