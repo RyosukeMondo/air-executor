@@ -80,7 +80,7 @@ class HookLevelManager:
 
     def _validate_level_range(self, target_level: int, current_level: int) -> tuple[bool, str]:
         """Validate target level is in valid range (SRP)"""
-        if target_level < 1 or target_level > 3:
+        if not 1 <= target_level <= 3:
             return False, f"Invalid target level: {target_level}"
         if target_level <= current_level:
             return False, f"Already at level {current_level}"
@@ -121,7 +121,7 @@ class HookLevelManager:
 
         print("      🔧 Verifying linting...")
         lint_result = adapter.static_analysis(project_path)
-        if lint_result.errors and len(lint_result.errors) > 0:
+        if lint_result.errors:
             return False, f"Linting failed: {len(lint_result.errors)} errors"
 
         return True, ""
@@ -297,17 +297,19 @@ class HookLevelManager:
 
         Returns: True if upgrade successful
         """
+        # Early returns for invalid states
         if not gate_passed:
             return False
 
         target_level = self._get_target_level_for_phase(phase)
-        if target_level is None:
+        if not target_level:
             return False
 
         current_level = self.get_current_level(project_path, language)
         if target_level <= current_level:
             return False
 
+        # Perform upgrade sequence
         self._print_upgrade_header(phase, score, current_level, target_level)
 
         can_upgrade, reason = self.can_upgrade_to_level(
@@ -319,7 +321,6 @@ class HookLevelManager:
             return False
 
         success = self.upgrade_to_level(project_path, language, target_level)
-
         if success:
             self._print_upgrade_success(target_level)
 
@@ -346,7 +347,6 @@ class HookLevelManager:
         Returns: True if regression detected
         """
         current_level = self.get_current_level(project_path, language)
-
         if current_level == 0:
             return False
 
@@ -375,9 +375,7 @@ class HookLevelManager:
     def _format_enforcement_details(self, current_level: int, level_info: Dict) -> str:
         """Format enforcement details section (SRP)."""
         if current_level == 0:
-            details = "⏭️  No enforcement yet (learning mode)\n"
-            details += "   Hooks will be enabled as quality gates pass\n"
-            return details
+            return "⏭️  No enforcement yet (learning mode)\n   Hooks will be enabled as quality gates pass\n"
 
         details = "Enforced Checks:\n"
         for check in level_info.get('checks', []):
