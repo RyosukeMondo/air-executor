@@ -176,6 +176,183 @@ class IterationEngine:
 
         return p1_result, p1_score_data, True
 
+    def _handle_p1_gate_failure(self, p1_result, p1_score_data, iteration: int) -> dict:
+        """Handle P1 gate failure - fix issues and check timing (SRP)"""
+        print(f"\n⚠️  P1 score ({p1_score_data['score']:.1%}) < threshold ({p1_score_data['threshold']:.0%})")
+
+        max_issues = self.config.get('execution', {}).get('max_issues_per_iteration', 10)
+        fix_result = self.fixer.fix_static_issues(p1_result, iteration, max_issues=max_issues)
+
+        self.debug_logger.log_fix_result(
+            fix_type='static_issue',
+            target='p1_analysis',
+            success=fix_result.success,
+            duration=p1_result.execution_time,
+            details={'fixes_applied': getattr(fix_result, 'fixes_applied', 0)}
+        )
+
+        if fix_result.success:
+            print("\n✅ Fixes applied, re-running analysis in next iteration...")
+        else:
+            print("\n⚠️  No fixes could be applied")
+
+        timing_result = self.time_gate.end_iteration(iteration)
+        self.debug_logger.log_iteration_end(
+            iteration=iteration,
+            phase='p1_fix',
+            duration=timing_result['duration'],
+            success=fix_result.success,
+            fixes_applied=getattr(fix_result, 'fixes_applied', 0)
+        )
+
+        if timing_result['should_abort']:
+            print(f"\n❌ ABORT: Detected {self.time_gate.rapid_threshold} rapid iterations")
+            self.debug_logger.log_session_end('rapid_iteration_abort')
+            return {
+                'success': False,
+                'reason': 'rapid_iteration_abort',
+                'iterations_completed': iteration,
+                'timing_summary': self.time_gate.get_timing_summary()
+            }
+
+        self.time_gate.wait_if_needed(timing_result)
+        return None  # Continue to next iteration
+
+    def _upgrade_hooks_after_p1(self, projects_by_language: Dict, p1_score_data: dict):
+        """Upgrade hooks to level 1 after P1 gate passes (SRP)"""
+        for lang_name, project_list in projects_by_language.items():
+            for project_path in project_list:
+                adapter = self.analyzer._get_adapter(lang_name)
+                self.hook_manager.upgrade_after_gate_passed(
+                    project_path, lang_name, 'p1',
+                    gate_passed=True,
+                    score=p1_score_data['score'],
+                    adapter=adapter
+                )
+
+    def _run_test_analysis_phase(self, projects_by_language: Dict, p1_score_data: dict) -> tuple:
+        """Run P2 test analysis phase (SRP)"""
+        print(f"\n{'='*80}")
+        print("📍 PRIORITY 2: Strategic Unit Tests (Time-Aware)")
+        print(f"{'='*80}")
+
+        strategy = self.scorer.determine_test_strategy(p1_score_data['score'])
+        print(f"📊 Test strategy: {strategy.upper()} (based on P1 health: {p1_score_data['score']:.1%})")
+
+        p2_result = self.analyzer.analyze_tests(projects_by_language, strategy)
+
+        verification = self.verifier.verify_batch_results(p2_result.results_by_project)
+        if not verification['all_valid']:
+            self.verifier.print_verification_report(verification)
+            print("\n⚠️  WARNING: Test analysis verification failed")
+
+        p2_score_data = self.scorer.score_tests(p2_result)
+        self._print_score(p2_score_data, p2_result.execution_time)
+
+        return p2_result, p2_score_data, strategy
+
+    def _handle_test_creation(self, p2_result, iteration: int, projects_by_language: Dict, strategy: str) -> tuple:
+        """Handle test creation when no tests exist (SRP)"""
+        print("\n⚠️  CRITICAL: No tests found - delegating test creation")
+
+        # Check circuit breaker
+        for project_key in p2_result.results_by_project.keys():
+            _, project_path = project_key.split(':', 1)
+            attempts = self.test_creation_attempts.get(project_path, 0)
+
+            if attempts >= 2:
+                print(f"\n❌ ABORT: Project {project_path} has had {attempts} test creation attempts")
+                self.debug_logger.log_session_end('test_creation_loop_detected')
+                return None, {
+                    'success': False,
+                    'reason': 'test_creation_loop',
+                    'iterations_completed': iteration,
+                    'project': project_path
+                }
+
+            self.test_creation_attempts[project_path] = attempts + 1
+
+        fix_result = self.fixer.create_tests(p2_result, iteration)
+        self.debug_logger.log_test_creation(
+            project='multi-project',
+            success=fix_result.success,
+            tests_created=getattr(fix_result, 'tests_created', 0)
+        )
+
+        if fix_result.success:
+            print("\n✅ Tests created, re-running test analysis...")
+            p2_recheck = self.analyzer.analyze_tests(projects_by_language, strategy)
+            p2_recheck_score = self.scorer.score_tests(p2_recheck)
+
+            if p2_recheck_score['passed_gate']:
+                # Reset circuit breaker on success
+                for project_key in p2_result.results_by_project.keys():
+                    _, project_path = project_key.split(':', 1)
+                    if project_path in self.test_creation_attempts:
+                        del self.test_creation_attempts[project_path]
+
+        return fix_result, None
+
+    def _handle_p2_gate_failure(self, p2_result, p2_score_data, iteration: int,
+                                projects_by_language: Dict, strategy: str) -> dict:
+        """Handle P2 gate failure - create or fix tests (SRP)"""
+        print(f"\n⚠️  P2 score ({p2_score_data['score']:.1%}) < threshold ({p2_score_data['threshold']:.0%})")
+
+        if p2_score_data.get('needs_test_creation', False):
+            fix_result, abort_result = self._handle_test_creation(
+                p2_result, iteration, projects_by_language, strategy
+            )
+            if abort_result:
+                return abort_result
+        else:
+            fix_result = self.fixer.fix_test_failures(p2_result, iteration)
+            self.debug_logger.log_fix_result(
+                fix_type='test_failure',
+                target='p2_tests',
+                success=fix_result.success,
+                duration=p2_result.execution_time,
+                details={'fixes_applied': getattr(fix_result, 'fixes_applied', 0)}
+            )
+
+            if fix_result.success:
+                print("\n✅ Fixes applied, re-running analysis in next iteration...")
+            else:
+                print("\n⚠️  No fixes could be applied")
+
+        timing_result = self.time_gate.end_iteration(iteration)
+        self.debug_logger.log_iteration_end(
+            iteration=iteration,
+            phase='p2_fix',
+            duration=timing_result['duration'],
+            success=fix_result.success if fix_result else False,
+            fixes_applied=getattr(fix_result, 'fixes_applied', 0) if fix_result else 0,
+            tests_created=getattr(fix_result, 'tests_created', 0) if fix_result else 0
+        )
+
+        if timing_result['should_abort']:
+            print(f"\n❌ ABORT: Detected {self.time_gate.rapid_threshold} rapid iterations")
+            self.debug_logger.log_session_end('rapid_iteration_abort')
+            return {
+                'success': False,
+                'reason': 'rapid_iteration_abort',
+                'iterations_completed': iteration
+            }
+
+        self.time_gate.wait_if_needed(timing_result)
+        return None
+
+    def _upgrade_hooks_after_p2(self, projects_by_language: Dict, p2_score_data: dict):
+        """Upgrade hooks to level 2 after P2 gate passes (SRP)"""
+        for lang_name, project_list in projects_by_language.items():
+            for project_path in project_list:
+                adapter = self.analyzer._get_adapter(lang_name)
+                self.hook_manager.upgrade_after_gate_passed(
+                    project_path, lang_name, 'p2',
+                    gate_passed=True,
+                    score=p2_score_data['score'],
+                    adapter=adapter
+                )
+
     def run_improvement_loop(self, projects_by_language: Dict) -> Dict:
         """
         Run the improvement loop until gates pass or max iterations reached.
@@ -211,220 +388,36 @@ class IterationEngine:
             # Run P1 static analysis
             p1_result, p1_score_data, valid = self._run_static_analysis_phase(projects_by_language, iteration)
             if not valid:
-                return {
-                    'success': False,
-                    'reason': 'analysis_verification_failed'
-                }
+                return {'success': False, 'reason': 'analysis_verification_failed'}
 
             # Check P1 gate
             if not p1_score_data['passed_gate']:
-                print(f"\n⚠️  P1 score ({p1_score_data['score']:.1%}) < threshold ({p1_score_data['threshold']:.0%})")
-
-                # Fix P1 issues (limit from config)
-                max_issues = self.config.get('execution', {}).get('max_issues_per_iteration', 10)
-                fix_result = self.fixer.fix_static_issues(p1_result, iteration, max_issues=max_issues)
-
-                # Log fix results
-                self.debug_logger.log_fix_result(
-                    fix_type='static_issue',
-                    target='p1_analysis',
-                    success=fix_result.success,
-                    duration=p1_result.execution_time,
-                    details={'fixes_applied': getattr(fix_result, 'fixes_applied', 0)}
-                )
-
-                if fix_result.success:
-                    print("\n✅ Fixes applied, re-running analysis in next iteration...")
-                else:
-                    print("\n⚠️  No fixes could be applied")
-
-                # End iteration timing and check gates
-                timing_result = self.time_gate.end_iteration(iteration)
-                self.debug_logger.log_iteration_end(
-                    iteration=iteration,
-                    phase='p1_fix',
-                    duration=timing_result['duration'],
-                    success=fix_result.success,
-                    fixes_applied=getattr(fix_result, 'fixes_applied', 0)
-                )
-
-                # Check if we should abort due to rapid iterations
-                if timing_result['should_abort']:
-                    print(f"\n❌ ABORT: Detected {self.time_gate.rapid_threshold} rapid iterations within {self.time_gate.rapid_window}s")
-                    print("   This indicates the system is stuck in a wasteful loop.")
-                    print(f"   Timing summary: {self.time_gate.get_timing_summary()}")
-
-                    self.debug_logger.log_session_end('rapid_iteration_abort')
-                    return {
-                        'success': False,
-                        'reason': 'rapid_iteration_abort',
-                        'iterations_completed': iteration,
-                        'timing_summary': self.time_gate.get_timing_summary()
-                    }
-
-                # Wait if iteration was too fast
-                self.time_gate.wait_if_needed(timing_result)
-
+                abort_result = self._handle_p1_gate_failure(p1_result, p1_score_data, iteration)
+                if abort_result:
+                    return abort_result
                 continue  # Re-run analysis in next iteration
 
             # P1 gate passed!
             print(f"\n✅ P1 gate PASSED ({p1_score_data['score']:.1%} >= {p1_score_data['threshold']:.0%})")
 
-            # UPGRADE HOOKS: P1 passed → Enable Level 1 (type checking + build)
-            for lang_name, project_list in projects_by_language.items():
-                for project_path in project_list:
-                    adapter = self.analyzer._get_adapter(lang_name)
-                    self.hook_manager.upgrade_after_gate_passed(
-                        project_path, lang_name, 'p1',
-                        gate_passed=True,
-                        score=p1_score_data['score'],
-                        adapter=adapter
-                    )
+            self._upgrade_hooks_after_p1(projects_by_language, p1_score_data)
 
-            # === PHASE 2: Tests ===
-            print(f"\n{'='*80}")
-            print("📍 PRIORITY 2: Strategic Unit Tests (Time-Aware)")
-            print(f"{'='*80}")
-
-            # Determine test strategy based on P1 health
-            strategy = self.scorer.determine_test_strategy(p1_score_data['score'])
-            print(f"📊 Test strategy: {strategy.upper()} (based on P1 health: {p1_score_data['score']:.1%})")
-
-            p2_result = self.analyzer.analyze_tests(projects_by_language, strategy)
-
-            # Verify test analysis results
-            verification = self.verifier.verify_batch_results(p2_result.results_by_project)
-            if not verification['all_valid']:
-                self.verifier.print_verification_report(verification)
-                print("\n⚠️  WARNING: Test analysis verification failed - results may be unreliable")
-                # Continue anyway since tests are less critical than static analysis
-
-            p2_score_data = self.scorer.score_tests(p2_result)
-
-            self._print_score(p2_score_data, p2_result.execution_time)
+            # Run P2 test analysis
+            p2_result, p2_score_data, strategy = self._run_test_analysis_phase(projects_by_language, p1_score_data)
 
             # Check P2 gate
             if not p2_score_data['passed_gate']:
-                print(f"\n⚠️  P2 score ({p2_score_data['score']:.1%}) < threshold ({p2_score_data['threshold']:.0%})")
-
-                # Check if this is a "no tests" situation (critical failure)
-                if p2_score_data.get('needs_test_creation', False):
-                    print("\n⚠️  CRITICAL: No tests found - delegating test creation to claude_wrapper")
-
-                    # Check circuit breaker - prevent infinite test creation loops
-                    for project_key in p2_result.results_by_project.keys():
-                        _, project_path = project_key.split(':', 1)
-                        attempts = self.test_creation_attempts.get(project_path, 0)
-
-                        if attempts >= 2:  # Max 2 test creation attempts per project
-                            print(f"\n❌ ABORT: Project {project_path} has had {attempts} test creation attempts")
-                            print("   This indicates tests are being created but not detected properly.")
-                            print("   Manual investigation required.")
-
-                            self.debug_logger.log_session_end('test_creation_loop_detected')
-                            return {
-                                'success': False,
-                                'reason': 'test_creation_loop',
-                                'iterations_completed': iteration,
-                                'project': project_path,
-                                'attempts': attempts
-                            }
-
-                        # Increment attempt counter
-                        self.test_creation_attempts[project_path] = attempts + 1
-
-                    # Create tests using LLM-as-a-judge
-                    fix_result = self.fixer.create_tests(p2_result, iteration)
-
-                    # Log test creation
-                    self.debug_logger.log_test_creation(
-                        project='multi-project',
-                        success=fix_result.success,
-                        tests_created=getattr(fix_result, 'tests_created', 0)
-                    )
-
-                    if fix_result.success:
-                        print("\n✅ Tests created, re-running test analysis immediately...")
-
-                        # CRITICAL: Re-run test analysis immediately to verify tests work
-                        p2_recheck = self.analyzer.analyze_tests(projects_by_language, strategy)
-                        p2_recheck_score = self.scorer.score_tests(p2_recheck)
-
-                        print(f"   Test validation: {p2_recheck_score['score']:.1%} pass rate")
-
-                        if p2_recheck_score['passed_gate']:
-                            print("   ✅ Newly created tests pass! Moving to next phase.")
-                            # Reset circuit breaker on success
-                            for project_key in p2_result.results_by_project.keys():
-                                _, project_path = project_key.split(':', 1)
-                                if project_path in self.test_creation_attempts:
-                                    del self.test_creation_attempts[project_path]
-                        else:
-                            print("   ⚠️  Tests created but not all passing - will fix in next iteration")
-                    else:
-                        print("\n⚠️  Test creation failed")
-
-                else:
-                    # Fix P2 issues (failing tests)
-                    fix_result = self.fixer.fix_test_failures(p2_result, iteration)
-
-                    # Log fix results
-                    self.debug_logger.log_fix_result(
-                        fix_type='test_failure',
-                        target='p2_tests',
-                        success=fix_result.success,
-                        duration=p2_result.execution_time,
-                        details={'fixes_applied': getattr(fix_result, 'fixes_applied', 0)}
-                    )
-
-                    if fix_result.success:
-                        print("\n✅ Fixes applied, re-running analysis in next iteration...")
-                    else:
-                        print("\n⚠️  No fixes could be applied")
-
-                # End iteration timing and check gates
-                timing_result = self.time_gate.end_iteration(iteration)
-                self.debug_logger.log_iteration_end(
-                    iteration=iteration,
-                    phase='p2_fix',
-                    duration=timing_result['duration'],
-                    success=fix_result.success,
-                    fixes_applied=getattr(fix_result, 'fixes_applied', 0),
-                    tests_created=getattr(fix_result, 'tests_created', 0)
+                abort_result = self._handle_p2_gate_failure(
+                    p2_result, p2_score_data, iteration, projects_by_language, strategy
                 )
-
-                # Check if we should abort due to rapid iterations
-                if timing_result['should_abort']:
-                    print(f"\n❌ ABORT: Detected {self.time_gate.rapid_threshold} rapid iterations within {self.time_gate.rapid_window}s")
-                    print("   This indicates the system is stuck in a wasteful loop.")
-                    print(f"   Timing summary: {self.time_gate.get_timing_summary()}")
-
-                    self.debug_logger.log_session_end('rapid_iteration_abort')
-                    return {
-                        'success': False,
-                        'reason': 'rapid_iteration_abort',
-                        'iterations_completed': iteration,
-                        'timing_summary': self.time_gate.get_timing_summary()
-                    }
-
-                # Wait if iteration was too fast
-                self.time_gate.wait_if_needed(timing_result)
-
+                if abort_result:
+                    return abort_result
                 continue  # Re-run analysis in next iteration
 
             # Both gates passed!
             print(f"\n✅ P2 gate PASSED ({p2_score_data['score']:.1%} >= {p2_score_data['threshold']:.0%})")
 
-            # UPGRADE HOOKS: P2 passed → Enable Level 2 (type + tests)
-            for lang_name, project_list in projects_by_language.items():
-                for project_path in project_list:
-                    adapter = self.analyzer._get_adapter(lang_name)
-                    self.hook_manager.upgrade_after_gate_passed(
-                        project_path, lang_name, 'p2',
-                        gate_passed=True,
-                        score=p2_score_data['score'],
-                        adapter=adapter
-                    )
+            self._upgrade_hooks_after_p2(projects_by_language, p2_score_data)
 
             print(f"\n🎉 All priority gates passed in iteration {iteration}!")
 
