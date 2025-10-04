@@ -77,22 +77,7 @@ class GoAdapter(LanguageAdapter):
         )
 
         try:
-            # Build test command based on strategy
-            cmd = ['go', 'test', './...']
-
-            if strategy == 'minimal':
-                # Only short tests
-                cmd.append('-short')
-                timeout = 300  # 5 min
-            elif strategy == 'selective':
-                # Short tests + tagged non-integration
-                cmd.extend(['-short', '-tags=!integration'])
-                timeout = 900  # 15 min
-            else:  # comprehensive
-                # Full test suite
-                cmd.append('-v')
-                timeout = 1800  # 30 min
-
+            cmd, timeout = self._build_test_command(strategy)
             test_result = subprocess.run(
                 cmd,
                 cwd=project_path,
@@ -101,17 +86,7 @@ class GoAdapter(LanguageAdapter):
                 timeout=timeout
             )
 
-            # Parse test results
-            result.test_failures = self.parse_errors(
-                test_result.stdout + test_result.stderr,
-                'tests'
-            )
-
-            # Extract counts
-            counts = self._extract_test_counts(test_result.stdout)
-            result.tests_passed = counts['passed']
-            result.tests_failed = counts['failed']
-
+            self._populate_test_results(result, test_result)
             result.success = test_result.returncode == 0
             result.execution_time = time.time() - start_time
 
@@ -123,6 +98,33 @@ class GoAdapter(LanguageAdapter):
             result.error_message = str(e)
 
         return result
+
+    def _build_test_command(self, strategy: str) -> tuple:
+        """Build test command and timeout based on strategy."""
+        cmd = ['go', 'test', './...']
+
+        if strategy == 'minimal':
+            cmd.append('-short')
+            timeout = 300  # 5 min
+        elif strategy == 'selective':
+            cmd.extend(['-short', '-tags=!integration'])
+            timeout = 900  # 15 min
+        else:  # comprehensive
+            cmd.append('-v')
+            timeout = 1800  # 30 min
+
+        return cmd, timeout
+
+    def _populate_test_results(self, result: AnalysisResult, test_result) -> None:
+        """Populate test results from subprocess output."""
+        result.test_failures = self.parse_errors(
+            test_result.stdout + test_result.stderr,
+            'tests'
+        )
+
+        counts = self._extract_test_counts(test_result.stdout)
+        result.tests_passed = counts['passed']
+        result.tests_failed = counts['failed']
 
     def analyze_coverage(self, project_path: str) -> AnalysisResult:
         """Analyze test coverage using go test -cover."""
@@ -342,57 +344,76 @@ class GoAdapter(LanguageAdapter):
     def _parse_coverage_file(self, coverage_file: Path) -> Dict:
         """Parse Go coverage.out file."""
         try:
-            with open(coverage_file) as f:
-                lines = f.readlines()
+            lines = self._read_coverage_lines(coverage_file)
+            total_stmts, covered_stmts, file_coverage = self._process_coverage_lines(lines)
+            percentage = self._calculate_percentage(covered_stmts, total_stmts)
+            gaps = self._find_coverage_gaps(file_coverage)
 
-            # Skip mode line
-            if lines and lines[0].startswith('mode:'):
-                lines = lines[1:]
-
-            # Parse coverage lines: file.go:startLine.col,endLine.col numStmt count
-            total_stmts = 0
-            covered_stmts = 0
-            file_coverage = {}
-
-            for line in lines:
-                parts = line.strip().split()
-                if len(parts) >= 3:
-                    file_loc = parts[0].split(':')[0]  # Extract filename
-                    num_stmts = int(parts[1])
-                    count = int(parts[2])
-
-                    total_stmts += num_stmts
-                    if count > 0:
-                        covered_stmts += num_stmts
-
-                    # Track per-file coverage
-                    if file_loc not in file_coverage:
-                        file_coverage[file_loc] = {'total': 0, 'covered': 0}
-                    file_coverage[file_loc]['total'] += num_stmts
-                    if count > 0:
-                        file_coverage[file_loc]['covered'] += num_stmts
-
-            # Calculate overall percentage
-            percentage = (covered_stmts / total_stmts * 100) if total_stmts > 0 else 0
-
-            # Find files with low coverage
-            gaps = []
-            for file_path, cov_data in file_coverage.items():
-                file_pct = (cov_data['covered'] / cov_data['total'] * 100) if cov_data['total'] > 0 else 0
-                if file_pct < 50:
-                    gaps.append({
-                        'file': file_path,
-                        'coverage': file_pct,
-                        'message': f'Low coverage: {file_pct:.1f}%'
-                    })
-
-            return {
-                'percentage': percentage,
-                'gaps': gaps
-            }
+            return {'percentage': percentage, 'gaps': gaps}
 
         except Exception:
             return {'percentage': 0, 'gaps': []}
+
+    def _read_coverage_lines(self, coverage_file: Path) -> List[str]:
+        """Read and prepare coverage file lines."""
+        with open(coverage_file) as f:
+            lines = f.readlines()
+
+        # Skip mode line if present
+        if lines and lines[0].startswith('mode:'):
+            return lines[1:]
+        return lines
+
+    def _process_coverage_lines(self, lines: List[str]) -> tuple:
+        """Process coverage lines and extract coverage data."""
+        total_stmts = 0
+        covered_stmts = 0
+        file_coverage = {}
+
+        for line in lines:
+            parts = line.strip().split()
+            if len(parts) < 3:
+                continue
+
+            file_loc = parts[0].split(':')[0]
+            num_stmts = int(parts[1])
+            count = int(parts[2])
+
+            total_stmts += num_stmts
+            if count > 0:
+                covered_stmts += num_stmts
+
+            self._update_file_coverage(file_coverage, file_loc, num_stmts, count)
+
+        return total_stmts, covered_stmts, file_coverage
+
+    def _update_file_coverage(self, file_coverage: Dict, file_loc: str, num_stmts: int, count: int) -> None:
+        """Update coverage tracking for a specific file."""
+        if file_loc not in file_coverage:
+            file_coverage[file_loc] = {'total': 0, 'covered': 0}
+
+        file_coverage[file_loc]['total'] += num_stmts
+        if count > 0:
+            file_coverage[file_loc]['covered'] += num_stmts
+
+    def _calculate_percentage(self, covered: int, total: int) -> float:
+        """Calculate coverage percentage."""
+        if total == 0:
+            return 0
+        return (covered / total) * 100
+
+    def _find_coverage_gaps(self, file_coverage: Dict) -> List[Dict]:
+        """Find files with low coverage (<50%)."""
+        gaps = []
+        for file_path, cov_data in file_coverage.items():
+            file_pct = self._calculate_percentage(cov_data['covered'], cov_data['total'])
+            if file_pct < 50:
+                gaps.append({
+                    'file': file_path,
+                    'coverage': file_pct,
+                    'message': f'Low coverage: {file_pct:.1f}%'
+                })
+        return gaps
 
     def validate_tools(self) -> List[ToolValidationResult]:
         """Validate Go toolchain availability."""
@@ -436,9 +457,7 @@ class GoAdapter(LanguageAdapter):
                 timeout=5
             )
 
-            version_match = re.search(r'go version go([\d.]+)', result.stdout)
-            version = version_match.group(1) if version_match else 'unknown'
-
+            version = self._extract_go_version(result.stdout)
             return ToolValidationResult(
                 tool_name='go',
                 available=True,
@@ -453,17 +472,17 @@ class GoAdapter(LanguageAdapter):
                 error_message=f'Go found but failed to run: {e}'
             )
 
+    def _extract_go_version(self, output: str) -> str:
+        """Extract Go version from 'go version' output."""
+        version_match = re.search(r'go version go([\d.]+)', output)
+        return version_match.group(1) if version_match else 'unknown'
+
     def _validate_tool(self, tool_name: str, version_flag: str, fix_suggestion: str, optional: bool = False) -> ToolValidationResult:
         """Generic tool validation."""
         tool_cmd = shutil.which(tool_name)
 
         if not tool_cmd:
-            return ToolValidationResult(
-                tool_name=tool_name,
-                available=False,
-                error_message=f'{tool_name} not found in PATH' if not optional else f'{tool_name} not found (optional)',
-                fix_suggestion=fix_suggestion if not optional else None
-            )
+            return self._create_tool_not_found_result(tool_name, fix_suggestion, optional)
 
         try:
             result = subprocess.run(
@@ -473,11 +492,7 @@ class GoAdapter(LanguageAdapter):
                 timeout=5
             )
 
-            # Try to extract version from output
-            output = result.stdout + result.stderr
-            version_match = re.search(r'([\d.]+)', output)
-            version = version_match.group(1) if version_match else 'unknown'
-
+            version = self._extract_version(result.stdout + result.stderr)
             return ToolValidationResult(
                 tool_name=tool_name,
                 available=True,
@@ -491,3 +506,18 @@ class GoAdapter(LanguageAdapter):
                 path=tool_cmd,
                 error_message=f'{tool_name} found but failed to run: {e}'
             )
+
+    def _create_tool_not_found_result(self, tool_name: str, fix_suggestion: str, optional: bool) -> ToolValidationResult:
+        """Create result for tool not found scenario."""
+        error_msg = f'{tool_name} not found in PATH' if not optional else f'{tool_name} not found (optional)'
+        return ToolValidationResult(
+            tool_name=tool_name,
+            available=False,
+            error_message=error_msg,
+            fix_suggestion=fix_suggestion if not optional else None
+        )
+
+    def _extract_version(self, output: str) -> str:
+        """Extract version number from tool output."""
+        version_match = re.search(r'([\d.]+)', output)
+        return version_match.group(1) if version_match else 'unknown'
