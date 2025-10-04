@@ -50,43 +50,53 @@ class PromptGenerator:
         return formatted
 
     @staticmethod
+    def _format_issue_list(related_issues: list, max_display: int = 20) -> str:
+        """Format list of issues for display"""
+        issue_list = []
+        for i, issue in enumerate(related_issues[:max_display], 1):
+            issue_list.append(f"{i}. {issue['file']}:{issue['line']} - {issue['message'][:80]}")
+
+        if len(related_issues) > max_display:
+            issue_list.append(f"... and {len(related_issues) - max_display} more similar issues")
+
+        return "\n".join(issue_list)
+
+    @staticmethod
+    def _format_files_list(related_issues: list, max_display: int = 15) -> tuple[list, str]:
+        """Format list of unique files from issues"""
+        files = list(set(issue["file"] for issue in related_issues if issue.get("file")))
+        files_text = "\n".join([f"  - {f}" for f in files[:max_display]])
+        if len(files) > max_display:
+            files_text += f"\n  ... and {len(files) - max_display} more files"
+        return files, files_text
+
+    @staticmethod
+    def _generate_commit_message(task, batch_type: str, files_count: int) -> tuple[str, str]:
+        """Generate commit prefix and description based on task type"""
+        if "cleanup" in str(task.type):
+            return "chore", f"remove all {batch_type}"
+        if "location" in str(task.type):
+            return "fix", batch_type.replace("_", " ")
+        return "fix", f"{batch_type} across {files_count} files"
+
+    @staticmethod
     def batch_fix_prompt(task, summary: Optional[Dict]) -> str:
         """Generate prompt for batch fix"""
         batch_type = task.batch_type if hasattr(task, "batch_type") else "issues"
         related_issues = task.related_issues if hasattr(task, "related_issues") else []
 
         # Check if this is a mega batch
-        is_mega = batch_type == "mega_comprehensive"
-
-        if is_mega:
+        if batch_type == "mega_comprehensive":
             return PromptGenerator.mega_batch_prompt(task, summary)
 
-        # Regular batch: focused on one type or location
-        issue_list = []
-        for i, issue in enumerate(related_issues[:20], 1):
-            issue_list.append(f"{i}. {issue['file']}:{issue['line']} - {issue['message'][:80]}")
+        # Format issues and files
+        issues_text = PromptGenerator._format_issue_list(related_issues)
+        files, files_text = PromptGenerator._format_files_list(related_issues)
 
-        if len(related_issues) > 20:
-            issue_list.append(f"... and {len(related_issues) - 20} more similar issues")
-
-        issues_text = "\n".join(issue_list)
-
-        # Get unique files
-        files = list(set(issue["file"] for issue in related_issues if issue.get("file")))
-        files_text = "\n".join([f"  - {f}" for f in files[:15]])
-        if len(files) > 15:
-            files_text += f"\n  ... and {len(files) - 15} more files"
-
-        # Determine commit message based on batch type
-        if "cleanup" in str(task.type):
-            commit_prefix = "chore"
-            commit_desc = f"remove all {batch_type}"
-        elif "location" in str(task.type):
-            commit_prefix = "fix"
-            commit_desc = batch_type.replace("_", " ")
-        else:
-            commit_prefix = "fix"
-            commit_desc = f"{batch_type} across {len(files)} files"
+        # Generate commit message
+        commit_prefix, commit_desc = PromptGenerator._generate_commit_message(
+            task, batch_type, len(files)
+        )
 
         prompt = f"""Fix ALL {len(related_issues)} {batch_type} issues in Flutter project.
 
