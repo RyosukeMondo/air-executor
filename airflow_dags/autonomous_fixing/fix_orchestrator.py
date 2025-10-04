@@ -6,17 +6,17 @@ Coordinates health monitoring, issue discovery, task execution, and completion d
 
 import sys
 import time
-import yaml
-from pathlib import Path
-from typing import Dict, List
 from datetime import datetime
+from pathlib import Path
+from typing import List
 
-from smart_health_monitor import SmartHealthMonitor
+import yaml
 from adapters.state.state_manager import StateManager
 from domain.models import Task
-from issue_discovery import IssueDiscovery
 from executor_runner import AirExecutorRunner
+from issue_discovery import IssueDiscovery
 from issue_grouping import IssueGrouper
+from smart_health_monitor import SmartHealthMonitor
 
 
 class FixOrchestrator:
@@ -321,7 +321,7 @@ class FixOrchestrator:
             print(f"  Dynamic: {final_metrics.dynamic.dynamic_health_score:.0%}")
 
         stats = self.state_manager.get_stats()
-        print(f"\nQueue status:")
+        print("\nQueue status:")
         print(f"  Remaining tasks: {stats['queue_size']}")
         print(f"  Failure count: {stats['failure_count']}")
 

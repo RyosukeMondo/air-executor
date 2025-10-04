@@ -10,11 +10,10 @@ Provides:
 
 import json
 import logging
-import time
-from pathlib import Path
-from typing import Dict, Any, Optional
+from dataclasses import asdict, dataclass
 from datetime import datetime
-from dataclasses import dataclass, asdict
+from pathlib import Path
+from typing import Any, Dict, Optional
 
 
 @dataclass

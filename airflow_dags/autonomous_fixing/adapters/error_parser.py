@@ -14,10 +14,10 @@ SSOT: Single source of truth for error parsing logic
 
 import json
 import re
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import List, Dict, Optional, Protocol
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Dict, List, Optional
 
 
 @dataclass

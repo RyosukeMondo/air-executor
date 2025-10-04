@@ -1,8 +1,8 @@
 """Task and fix result models."""
 
 from dataclasses import dataclass, field
-from typing import Dict, Optional
 from datetime import datetime
+from typing import Dict, Optional
 
 
 @dataclass

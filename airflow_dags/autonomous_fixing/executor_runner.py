@@ -4,14 +4,14 @@ Air-executor integration module.
 Runs fix tasks via claude_wrapper.py with narrow context.
 """
 
-import subprocess
 import os
+import subprocess
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional
-from dataclasses import dataclass
 
-from state_manager import Task, StateManager
+from state_manager import Task
 
 # Import BatchTask if available
 try:
@@ -88,7 +88,6 @@ class AirExecutorRunner:
     def _execute(self, prompt: str) -> subprocess.CompletedProcess:
         """Execute claude_wrapper.py with prompt via stdin"""
         import json
-        import os
         import sys
 
         # Use same python as current process (venv python)
@@ -467,7 +466,7 @@ def extract_file_context(filepath: str, error_line: int = None, context_lines: i
             # Get context around error line
             start = max(0, error_line - context_lines - 1)
             end = min(len(lines), error_line + context_lines)
-            context = ''.join(lines[start:end])
+            ''.join(lines[start:end])
 
             # Add line numbers
             numbered = []
@@ -509,8 +508,9 @@ def extract_structure(lines: list) -> str:
 def main():
     """CLI entry point for testing"""
     import sys
-    from state_manager import generate_task_id
     from datetime import datetime
+
+    from state_manager import generate_task_id
 
     if len(sys.argv) < 3:
         print("Usage: python executor_runner.py <wrapper_path> <working_dir> [test]")

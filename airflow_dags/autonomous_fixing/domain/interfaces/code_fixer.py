@@ -1,7 +1,8 @@
 """Code fixer interface."""
 
 from abc import ABC, abstractmethod
-from ..models import Task, FixResult
+
+from ..models import FixResult, Task
 
 
 class ICodeFixer(ABC):

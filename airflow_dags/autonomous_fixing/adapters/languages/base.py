@@ -1,12 +1,13 @@
 """Base language adapter interface for multi-language support."""
 
 from abc import ABC, abstractmethod
-from typing import List, Dict
 from pathlib import Path
+from typing import Dict, List
+
+from ...domain.interfaces import ILanguageAdapter
 
 # Import domain models (Single Source of Truth)
 from ...domain.models import AnalysisResult, ToolValidationResult
-from ...domain.interfaces import ILanguageAdapter
 
 
 class LanguageAdapter(ILanguageAdapter, ABC):

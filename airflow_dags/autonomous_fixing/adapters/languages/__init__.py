@@ -1,13 +1,12 @@
 """Language adapters for multi-language autonomous fixing."""
 
-from .base import LanguageAdapter
-from .flutter_adapter import FlutterAdapter
-from .python import PythonAdapter  # NEW: Import from python package
-from .javascript_adapter import JavaScriptAdapter
-from .go_adapter import GoAdapter
-
 # Import models from domain (don't re-export from here)
 from ...domain.models import AnalysisResult, ToolValidationResult
+from .base import LanguageAdapter
+from .flutter_adapter import FlutterAdapter
+from .go_adapter import GoAdapter
+from .javascript_adapter import JavaScriptAdapter
+from .python import PythonAdapter  # NEW: Import from python package
 
 __all__ = [
     'LanguageAdapter',

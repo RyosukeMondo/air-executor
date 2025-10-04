@@ -6,7 +6,6 @@ Prevents wasteful iterations where Claude says "success" but nothing was actuall
 
 import subprocess
 from typing import Dict, Optional
-from pathlib import Path
 
 
 class GitVerifier:

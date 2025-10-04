@@ -1,11 +1,12 @@
 """Python test execution (pytest)."""
 
-import subprocess
 import json
 import re
+import subprocess
 import time
-from typing import List, Dict
 from pathlib import Path
+from typing import Dict, List
+
 from ....domain.models import AnalysisResult
 
 

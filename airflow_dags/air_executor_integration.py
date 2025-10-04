@@ -7,13 +7,14 @@ This DAG demonstrates how Air-Executor jobs appear in Airflow UI:
 - Display results in Airflow UI
 """
 
+import json
+import sys
+from datetime import datetime, timedelta
+from pathlib import Path
+
 from airflow import DAG
 from airflow.providers.standard.operators.python import PythonOperator
 from airflow.providers.standard.sensors.python import PythonSensor
-from datetime import datetime, timedelta
-import sys
-import json
-from pathlib import Path
 
 # Add Air-Executor to Python path
 sys.path.insert(0, '/home/rmondo/repos/air-executor')
@@ -23,8 +24,9 @@ def create_air_executor_job(**context):
     Create Air-Executor job and push job_name to XCom.
     This appears in Airflow logs.
     """
-    from example_python_usage import AirExecutorClient
     import re
+
+    from example_python_usage import AirExecutorClient
 
     client = AirExecutorClient(
         base_path='/home/rmondo/repos/air-executor/.air-executor'
@@ -64,7 +66,7 @@ def create_air_executor_job(**context):
     job_id = client.create_job(job_name, tasks)
 
     print(f"✅ Job created with ID: {job_id}")
-    print(f"📊 Monitor with: ./status.sh")
+    print("📊 Monitor with: ./status.sh")
     print(f"📁 Job directory: .air-executor/jobs/{job_name}/")
 
     # Push to XCom for next task
@@ -132,7 +134,7 @@ def get_job_result(**context):
         tasks = json.load(f)
 
     print("\n" + "="*60)
-    print(f"🎉 Air-Executor Job Results")
+    print("🎉 Air-Executor Job Results")
     print("="*60)
     print(f"Job Name: {job_name}")
     print(f"Final State: {state['state']}")

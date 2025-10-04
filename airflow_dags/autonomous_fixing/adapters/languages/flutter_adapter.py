@@ -1,14 +1,14 @@
 """Flutter language adapter."""
 
-import subprocess
-import json
 import re
+import subprocess
 import time
 from pathlib import Path
-from typing import List, Dict
-from .base import LanguageAdapter
+from typing import Dict, List
+
 from ...domain.models import AnalysisResult, ToolValidationResult
 from ..error_parser import ErrorParserStrategy
+from .base import LanguageAdapter
 
 
 class FlutterAdapter(LanguageAdapter):
@@ -91,7 +91,7 @@ class FlutterAdapter(LanguageAdapter):
         except subprocess.TimeoutExpired:
             result.success = False
             result.error_message = "Static analysis timed out after 120 seconds"
-            print(f"[DEBUG] TIMEOUT after 120s")
+            print("[DEBUG] TIMEOUT after 120s")
         except Exception as e:
             result.success = False
             result.error_message = str(e)
@@ -406,7 +406,7 @@ class FlutterAdapter(LanguageAdapter):
                 available=False,
                 error_message='Flutter not found in PATH or common locations',
                 fix_suggestion='Install Flutter: https://docs.flutter.dev/get-started/install\n'
-                              f'Or add to PATH: export PATH=$HOME/flutter/bin:$PATH'
+                              'Or add to PATH: export PATH=$HOME/flutter/bin:$PATH'
             )
 
         # Get version
@@ -517,5 +517,5 @@ class FlutterAdapter(LanguageAdapter):
                 'gaps': gaps
             }
 
-        except Exception as e:
+        except Exception:
             return {'percentage': 0, 'gaps': []}

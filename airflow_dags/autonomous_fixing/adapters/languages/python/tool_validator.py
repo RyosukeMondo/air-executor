@@ -1,10 +1,11 @@
 """Python tool validation."""
 
-import subprocess
-import shutil
 import re
-from typing import List
+import shutil
+import subprocess
 from pathlib import Path
+from typing import List
+
 from ....domain.models import ToolValidationResult
 
 

@@ -15,10 +15,10 @@ SSOT: Single source of truth for test result parsing logic
 import json
 import re
 import xml.etree.ElementTree as ET
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Protocol
-from abc import ABC, abstractmethod
+from typing import Optional
 
 
 @dataclass

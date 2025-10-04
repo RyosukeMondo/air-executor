@@ -1,12 +1,12 @@
 """Flutter language adapter."""
 
-import subprocess
-import json
 import re
+import subprocess
 import time
 from pathlib import Path
-from typing import List, Dict
-from .base import LanguageAdapter, AnalysisResult, ToolValidationResult
+from typing import Dict, List
+
+from .base import AnalysisResult, LanguageAdapter, ToolValidationResult
 
 
 class FlutterAdapter(LanguageAdapter):
@@ -441,7 +441,7 @@ class FlutterAdapter(LanguageAdapter):
                 available=False,
                 error_message='Flutter not found in PATH or common locations',
                 fix_suggestion='Install Flutter: https://docs.flutter.dev/get-started/install\n'
-                              f'Or add to PATH: export PATH=$HOME/flutter/bin:$PATH'
+                              'Or add to PATH: export PATH=$HOME/flutter/bin:$PATH'
             )
 
         # Get version
@@ -552,5 +552,5 @@ class FlutterAdapter(LanguageAdapter):
                 'gaps': gaps
             }
 
-        except Exception as e:
+        except Exception:
             return {'percentage': 0, 'gaps': []}

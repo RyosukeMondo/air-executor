@@ -7,12 +7,9 @@ without TTY requirements using claude_wrapper.py with JSON-based stdin/stdout.
 This is a utility module imported by specialized DAGs (python_cleanup, commit_and_push, etc.)
 """
 
-from datetime import timedelta
-import subprocess
 import json
-import os
+import subprocess
 import sys
-from pathlib import Path
 
 # Add project to path to import config
 sys.path.insert(0, '/home/rmondo/repos/air-executor/src')
@@ -49,7 +46,7 @@ def run_claude_query_sdk(**context):
     prompt = dag_run_conf.get('prompt', 'hello, how old are you?')
     working_directory = dag_run_conf.get('working_directory', config.project_root)
 
-    print(f"🚀 Starting claude_wrapper.py")
+    print("🚀 Starting claude_wrapper.py")
     print(f"   Working directory: {working_directory}")
     print(f"   Prompt: {prompt}")
 
@@ -71,7 +68,6 @@ def run_claude_query_sdk(**context):
 
         # Track if we should exit the loop
         should_exit = False
-        completed = False
 
         # Wait for "ready" event
         for line in process.stdout:
@@ -166,7 +162,7 @@ def run_claude_query_sdk(**context):
                         print("✅ Wrapper idle, exiting loop")
                         break
 
-            except json.JSONDecodeError as e:
+            except json.JSONDecodeError:
                 print(f"⚠️  Non-JSON output: {line.strip()}")
                 continue
 

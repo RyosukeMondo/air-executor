@@ -4,15 +4,17 @@ State management system using Redis.
 Manages task queue, session summaries, and run history.
 """
 
-import redis
 import json
 import uuid
+from datetime import datetime
 from typing import Dict, List, Optional
-from datetime import datetime, timedelta
+
+import redis
+
+from ...domain.interfaces import IStateStore, ITaskRepository
 
 # Import domain models and interfaces
 from ...domain.models import Task
-from ...domain.interfaces import IStateStore, ITaskRepository
 
 
 class StateManager(IStateStore, ITaskRepository):
@@ -295,7 +297,7 @@ def main():
 
         # Show stats
         stats = mgr.get_stats()
-        print(f"\n📊 Stats:")
+        print("\n📊 Stats:")
         print(json.dumps(stats, indent=2))
 
         print("\n✅ Test complete!")

@@ -7,10 +7,11 @@ setup phases can be skipped, preventing redundant AI calls.
 
 import logging
 import time
-import yaml
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Optional, Tuple, Iterator
+from typing import Iterator, Optional, Tuple
+
+import yaml
 
 from ..setup_tracker import SetupTracker
 

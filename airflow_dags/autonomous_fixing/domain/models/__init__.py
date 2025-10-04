@@ -1,7 +1,7 @@
 """Domain models for autonomous fixing."""
 from .analysis import AnalysisResult, ToolValidationResult
-from .health import HealthMetrics, StaticMetrics, DynamicMetrics
-from .tasks import Task, FixResult
+from .health import DynamicMetrics, HealthMetrics, StaticMetrics
+from .tasks import FixResult, Task
 
 __all__ = [
     'AnalysisResult',

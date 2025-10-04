@@ -1,9 +1,9 @@
 """Python language adapter - orchestrates sub-components."""
 
-import re
-from typing import List, Dict
-from ..base import LanguageAdapter
+from typing import Dict, List
+
 from ....domain.models import AnalysisResult, ToolValidationResult
+from ..base import LanguageAdapter
 from .detector import PythonProjectDetector
 from .static_analyzer import PythonStaticAnalyzer
 from .test_runner import PythonTestRunner

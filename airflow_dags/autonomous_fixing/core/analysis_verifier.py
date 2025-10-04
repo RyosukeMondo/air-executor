@@ -5,8 +5,8 @@ Single Responsibility: Verify analysis results and detect silent failures.
 Follows SOLID principles - focused, testable, composable.
 """
 
-from typing import Dict, List, Optional
 from dataclasses import dataclass
+from typing import Dict, List
 
 
 @dataclass

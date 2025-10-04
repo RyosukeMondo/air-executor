@@ -7,9 +7,10 @@ This DAG:
 - Parameterizable working directory
 """
 
+from datetime import datetime, timedelta
+
 from airflow import DAG
 from airflow.providers.standard.operators.python import PythonOperator
-from datetime import datetime, timedelta
 
 # Try new import path first, fallback to old for compatibility
 try:
@@ -26,7 +27,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from claude_query_sdk import run_claude_query_sdk
-
 
 # Pre-defined git commit and push prompt for stable, repeatable execution
 GIT_COMMIT_PUSH_PROMPT = """Perform intelligent git commit and push operations:

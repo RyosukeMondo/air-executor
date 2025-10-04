@@ -13,10 +13,10 @@ Enables investigation via: ./scripts/claude_wrapper_history.sh
 """
 
 import json
-import os
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional, List
+from typing import Dict, List, Optional
+
 
 class WrapperHistoryLogger:
     """Log all claude_wrapper calls for debugging and investigation."""

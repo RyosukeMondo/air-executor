@@ -13,13 +13,13 @@ Trigger with parameters:
 }
 """
 
-from airflow import DAG
-from airflow.providers.standard.operators.python import PythonOperator
-from datetime import datetime, timedelta
 import subprocess
 import sys
-import os
+from datetime import datetime, timedelta
 from pathlib import Path
+
+from airflow import DAG
+from airflow.providers.standard.operators.python import PythonOperator
 
 # Add project to path
 sys.path.insert(0, '/home/rmondo/repos/air-executor/src')
@@ -112,7 +112,7 @@ def run_autonomous_fixing(**context):
         if process.returncode != 0:
             raise RuntimeError(f"Orchestrator failed with exit code {process.returncode}")
 
-    except Exception as e:
+    except Exception:
         process.kill()
         # Cleanup temp config
         if target_project:

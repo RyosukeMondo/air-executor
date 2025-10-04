@@ -7,14 +7,15 @@ This DAG demonstrates how Airflow and Air-Executor share control:
 - Airflow: Post-processing after Air-Executor completes
 """
 
+import json
+import sys
+from datetime import datetime, timedelta
+from pathlib import Path
+
 from airflow import DAG
+from airflow.providers.standard.operators.bash import BashOperator
 from airflow.providers.standard.operators.python import PythonOperator
 from airflow.providers.standard.sensors.python import PythonSensor
-from airflow.providers.standard.operators.bash import BashOperator
-from datetime import datetime, timedelta
-import sys
-import json
-from pathlib import Path
 
 sys.path.insert(0, '/home/rmondo/repos/air-executor')
 
@@ -43,8 +44,9 @@ def handoff_to_air_executor(**context):
     """
     HAND OFF TO AIR-EXECUTOR: Create dynamic processing job
     """
-    from example_python_usage import AirExecutorClient
     import re
+
+    from example_python_usage import AirExecutorClient
 
     manifest = context['task_instance'].xcom_pull(
         task_ids='airflow_prepare',
@@ -180,10 +182,10 @@ def wait_for_air_executor(**context):
     completed = sum(1 for t in tasks if t['status'] == 'completed')
     pending = sum(1 for t in tasks if t['status'] == 'pending')
 
-    print(f"⏳ [AIRFLOW] Air-Executor in control...")
+    print("⏳ [AIRFLOW] Air-Executor in control...")
     print(f"   Job state: {state['state']}")
     print(f"   Tasks: {completed}/{total} completed ({pending} pending)")
-    print(f"   Air-Executor handling dynamic task execution...")
+    print("   Air-Executor handling dynamic task execution...")
 
     return state['state'] in ['completed', 'failed']
 

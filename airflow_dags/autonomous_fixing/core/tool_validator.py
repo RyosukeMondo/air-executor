@@ -5,8 +5,8 @@ Validates toolchain availability before running autonomous fixing
 to catch issues early and provide helpful error messages.
 """
 
-from typing import Dict, List
 from dataclasses import dataclass
+from typing import Dict, List
 
 try:
     from ..domain.models import ToolValidationResult
@@ -155,7 +155,6 @@ class ToolValidator:
         for lang_name, results in all_results.items():
             # Check for critical tools
             has_static_tool = False
-            has_test_tool = False
 
             for result in results:
                 # Static analysis tools - check both keywords and known tool names
@@ -169,7 +168,7 @@ class ToolValidator:
                 # Test tools
                 if 'test' in result.tool_name and 'coverage' not in result.tool_name:
                     if result.available:
-                        has_test_tool = True
+                        pass
 
             # For now, allow proceeding with test file counting fallback
             # So we only require static analysis tool
@@ -245,17 +244,18 @@ class ToolValidator:
 def main():
     """Standalone tool validation utility."""
     import sys
-    import yaml
     from pathlib import Path
+
+    import yaml
 
     # Add parent to path
     sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
     from airflow_dags.autonomous_fixing.language_adapters import (
         FlutterAdapter,
-        PythonAdapter,
+        GoAdapter,
         JavaScriptAdapter,
-        GoAdapter
+        PythonAdapter,
     )
 
     if len(sys.argv) < 2:

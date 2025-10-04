@@ -6,9 +6,9 @@ No fixing, no scoring, no iteration logic - just analysis.
 """
 
 import time
-from typing import Dict, List
-from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import dataclass, field
+from typing import Dict, List
 
 
 @dataclass

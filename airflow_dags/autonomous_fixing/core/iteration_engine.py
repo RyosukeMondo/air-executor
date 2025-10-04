@@ -7,11 +7,12 @@ No analysis, no fixing, no scoring - just iteration coordination.
 
 from pathlib import Path
 from typing import Dict
-from .debug_logger import DebugLogger
-from .time_gatekeeper import TimeGatekeeper
+
 from .analysis_verifier import AnalysisVerifier
+from .debug_logger import DebugLogger
 from .hook_level_manager import HookLevelManager
 from .setup_tracker import SetupTracker
+from .time_gatekeeper import TimeGatekeeper
 from .validators.preflight import PreflightValidator
 
 
@@ -169,7 +170,7 @@ class IterationEngine:
 
         if total_skipped > 0:
             print(f"\n{'='*80}")
-            print(f"📊 SETUP OPTIMIZATION SUMMARY")
+            print("📊 SETUP OPTIMIZATION SUMMARY")
             print(f"{'='*80}")
             print(f"   ⏭️  Total skipped: {total_skipped}/{total_projects * 2} setup operations")
             print(f"   💰 Total savings: {total_time_saved:.0f}s + ${total_cost_saved:.2f}")
@@ -183,7 +184,7 @@ class IterationEngine:
             print(f"{'='*80}")
 
             # Start iteration timing
-            iteration_start = self.time_gate.start_iteration(iteration)
+            self.time_gate.start_iteration(iteration)
             self.debug_logger.log_iteration_start(iteration, 'p1_analysis')
 
             # === PHASE 1: Static Analysis ===
@@ -226,9 +227,9 @@ class IterationEngine:
                 )
 
                 if fix_result.success:
-                    print(f"\n✅ Fixes applied, re-running analysis in next iteration...")
+                    print("\n✅ Fixes applied, re-running analysis in next iteration...")
                 else:
-                    print(f"\n⚠️  No fixes could be applied")
+                    print("\n⚠️  No fixes could be applied")
 
                 # End iteration timing and check gates
                 timing_result = self.time_gate.end_iteration(iteration)
@@ -243,7 +244,7 @@ class IterationEngine:
                 # Check if we should abort due to rapid iterations
                 if timing_result['should_abort']:
                     print(f"\n❌ ABORT: Detected {self.time_gate.rapid_threshold} rapid iterations within {self.time_gate.rapid_window}s")
-                    print(f"   This indicates the system is stuck in a wasteful loop.")
+                    print("   This indicates the system is stuck in a wasteful loop.")
                     print(f"   Timing summary: {self.time_gate.get_timing_summary()}")
 
                     self.debug_logger.log_session_end('rapid_iteration_abort')
@@ -336,7 +337,7 @@ class IterationEngine:
                     )
 
                     if fix_result.success:
-                        print(f"\n✅ Tests created, re-running test analysis immediately...")
+                        print("\n✅ Tests created, re-running test analysis immediately...")
 
                         # CRITICAL: Re-run test analysis immediately to verify tests work
                         p2_recheck = self.analyzer.analyze_tests(projects_by_language, strategy)
@@ -345,16 +346,16 @@ class IterationEngine:
                         print(f"   Test validation: {p2_recheck_score['score']:.1%} pass rate")
 
                         if p2_recheck_score['passed_gate']:
-                            print(f"   ✅ Newly created tests pass! Moving to next phase.")
+                            print("   ✅ Newly created tests pass! Moving to next phase.")
                             # Reset circuit breaker on success
                             for project_key in p2_result.results_by_project.keys():
                                 _, project_path = project_key.split(':', 1)
                                 if project_path in self.test_creation_attempts:
                                     del self.test_creation_attempts[project_path]
                         else:
-                            print(f"   ⚠️  Tests created but not all passing - will fix in next iteration")
+                            print("   ⚠️  Tests created but not all passing - will fix in next iteration")
                     else:
-                        print(f"\n⚠️  Test creation failed")
+                        print("\n⚠️  Test creation failed")
 
                 else:
                     # Fix P2 issues (failing tests)
@@ -370,9 +371,9 @@ class IterationEngine:
                     )
 
                     if fix_result.success:
-                        print(f"\n✅ Fixes applied, re-running analysis in next iteration...")
+                        print("\n✅ Fixes applied, re-running analysis in next iteration...")
                     else:
-                        print(f"\n⚠️  No fixes could be applied")
+                        print("\n⚠️  No fixes could be applied")
 
                 # End iteration timing and check gates
                 timing_result = self.time_gate.end_iteration(iteration)
@@ -388,7 +389,7 @@ class IterationEngine:
                 # Check if we should abort due to rapid iterations
                 if timing_result['should_abort']:
                     print(f"\n❌ ABORT: Detected {self.time_gate.rapid_threshold} rapid iterations within {self.time_gate.rapid_window}s")
-                    print(f"   This indicates the system is stuck in a wasteful loop.")
+                    print("   This indicates the system is stuck in a wasteful loop.")
                     print(f"   Timing summary: {self.time_gate.get_timing_summary()}")
 
                     self.debug_logger.log_session_end('rapid_iteration_abort')
@@ -461,6 +462,6 @@ class IterationEngine:
 
     def _print_score(self, score_data: Dict, execution_time: float):
         """Print score summary."""
-        print(f"\n📊 Phase Result:")
+        print("\n📊 Phase Result:")
         print(f"   Score: {score_data['score']:.1%}")
         print(f"   Time: {execution_time:.1f}s")

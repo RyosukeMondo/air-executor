@@ -10,10 +10,10 @@ Manages upgrading pre-commit hooks as quality gates pass:
 Philosophy: Only enforce what has been proven to pass.
 """
 
-import yaml
 from pathlib import Path
-from typing import Dict, Optional
-from ..domain.models import AnalysisResult
+from typing import Dict
+
+import yaml
 
 
 class HookLevelManager:
@@ -95,24 +95,24 @@ class HookLevelManager:
             return False, f"Already at level {current_level}"
 
         # Verify requirements for target level
-        level_config = self.config['levels'][target_level]
+        self.config['levels'][target_level]
 
         if target_level >= 1:
             # Verify type checking passes
-            print(f"      🔍 Verifying type checking...")
+            print("      🔍 Verifying type checking...")
             result = adapter.run_type_check(project_path)
             if not result.success or result.errors:
                 return False, f"Type checking failed: {len(result.errors)} errors"
 
             # Verify build succeeds
-            print(f"      🔨 Verifying build...")
+            print("      🔨 Verifying build...")
             build_result = adapter.run_build(project_path)
             if not build_result.success:
                 return False, f"Build failed: {build_result.error_message}"
 
         if target_level >= 2:
             # Verify tests exist and pass
-            print(f"      🧪 Verifying tests...")
+            print("      🧪 Verifying tests...")
             test_result = adapter.run_tests(project_path, strategy='minimal')
             if not test_result.success:
                 return False, f"Tests failed: {test_result.tests_failed} failing"
@@ -121,7 +121,7 @@ class HookLevelManager:
 
         if target_level >= 3:
             # Verify coverage meets threshold
-            print(f"      📈 Verifying coverage...")
+            print("      📈 Verifying coverage...")
             cov_result = adapter.analyze_coverage(project_path)
             if not hasattr(cov_result, 'coverage_percentage') or not cov_result.coverage_percentage:
                 return False, "Coverage analysis unavailable"
@@ -129,7 +129,7 @@ class HookLevelManager:
                 return False, f"Coverage {cov_result.coverage_percentage:.1f}% < 60%"
 
             # Verify linting passes
-            print(f"      🔧 Verifying linting...")
+            print("      🔧 Verifying linting...")
             lint_result = adapter.static_analysis(project_path)
             if lint_result.errors and len(lint_result.errors) > 0:
                 return False, f"Linting failed: {len(lint_result.errors)} errors"
@@ -173,7 +173,7 @@ class HookLevelManager:
         self._update_metadata_cache(project_path, language, target_level, level_config)
 
         # Display what's now enforced
-        print(f"\n   📋 Now enforcing:")
+        print("\n   📋 Now enforcing:")
         for check in level_config.get('checks', []):
             print(f"      • {check['id']}" if isinstance(check, dict) else f"      • {check}")
 
@@ -274,15 +274,15 @@ class HookLevelManager:
         if not can_upgrade:
             print(f"\n   ⚠️  Cannot upgrade to Level {target_level}: {reason}")
             print(f"   Staying at Level {current_level}")
-            print(f"   Fix these issues to enable higher enforcement.")
+            print("   Fix these issues to enable higher enforcement.")
             return False
 
         # Perform upgrade
         success = self.upgrade_to_level(project_path, language, target_level)
 
         if success:
-            print(f"\n   ✅ Hooks upgraded successfully!")
-            print(f"   Quality cannot regress below this level.")
+            print("\n   ✅ Hooks upgraded successfully!")
+            print("   Quality cannot regress below this level.")
             print(f"   Future commits must pass Level {target_level} checks.")
 
         return success
@@ -309,11 +309,11 @@ class HookLevelManager:
         )
 
         if not can_pass:
-            print(f"\n⚠️  QUALITY REGRESSION DETECTED!")
+            print("\n⚠️  QUALITY REGRESSION DETECTED!")
             print(f"   Current Level {current_level} checks no longer pass:")
             print(f"   {reason}")
-            print(f"\n   Action required:")
-            print(f"   1. Fix the quality issues immediately")
+            print("\n   Action required:")
+            print("   1. Fix the quality issues immediately")
             print(f"   2. Or consider rolling back to Level {current_level - 1}")
             return True
 
@@ -336,7 +336,7 @@ class HookLevelManager:
         current_level = self.get_current_level(project_path, language)
         level_info = self.get_level_info(current_level)
 
-        summary = f"\n📊 Pre-Commit Hook Enforcement Status\n"
+        summary = "\n📊 Pre-Commit Hook Enforcement Status\n"
         summary += f"{'='*60}\n"
         summary += f"Current Level: {current_level} ({level_info.get('name', 'unknown')})\n"
         summary += f"Description: {level_info.get('description', 'N/A')}\n\n"

@@ -1,6 +1,7 @@
 """Health monitor interface."""
 
 from abc import ABC, abstractmethod
+
 from ..models import HealthMetrics
 
 

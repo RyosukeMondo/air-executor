@@ -4,14 +4,14 @@ Issue discovery module.
 Analyzes Flutter project and generates fix tasks.
 """
 
-import subprocess
 import re
-from pathlib import Path
-from typing import List, Dict
+import subprocess
 from datetime import datetime
+from pathlib import Path
+from typing import Dict, List
 
-from state_manager import Task, generate_task_id
 from executor_runner import extract_file_context
+from state_manager import Task, generate_task_id
 
 
 class IssueDiscovery:
@@ -218,8 +218,8 @@ class IssueDiscovery:
 
 def main():
     """CLI entry point"""
-    import sys
     import json
+    import sys
 
     if len(sys.argv) < 2:
         print("Usage: python issue_discovery.py <project_path> [build|test|lint|all]")

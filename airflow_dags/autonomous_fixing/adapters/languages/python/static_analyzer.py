@@ -1,12 +1,13 @@
 """Python static analysis (linting, complexity)."""
 
-import subprocess
 import json
 import re
-from typing import List, Dict
+import subprocess
 from pathlib import Path
-from .detector import PythonProjectDetector
+from typing import Dict, List
+
 from ....domain.models import AnalysisResult
+from .detector import PythonProjectDetector
 
 
 class PythonStaticAnalyzer:

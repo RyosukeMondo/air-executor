@@ -5,12 +5,12 @@ Static checks (fast) → Dynamic checks (slow) only if static passes.
 """
 
 import sys
-from pathlib import Path
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
-from code_metrics import LightweightCodeMetrics, ProjectMetrics
+from code_metrics import LightweightCodeMetrics
 
 
 @dataclass
@@ -138,7 +138,7 @@ class SmartHealthMonitor:
             if not force_dynamic:
                 print(f"\n✅ Static passed ({static.static_health_score:.0%}) → Running dynamic checks...")
             else:
-                print(f"\n🔨 Force dynamic mode...")
+                print("\n🔨 Force dynamic mode...")
             print("🧪 Dynamic Analysis (slow ~2-5min)...")
             dynamic = self._run_dynamic_checks()
         else:

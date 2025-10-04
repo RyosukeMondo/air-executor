@@ -5,9 +5,11 @@ Clean, focused module that ONLY handles calling claude_wrapper to fix issues.
 No analysis, no scoring, no iteration logic - just fixing.
 """
 
-import yaml
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict, List
+
+import yaml
+
 from ..adapters.ai.claude_client import ClaudeClient
 from ..adapters.git.git_verifier import GitVerifier
 from ..domain.models import FixResult
@@ -77,10 +79,10 @@ class IssueFixer:
             print(f"\n   [{idx}/{len(all_issues)}] Fixing {issue['type']} in {issue['file']}")
 
             if self._fix_single_issue(issue):
-                print(f"      ✓ Fixed successfully")
+                print("      ✓ Fixed successfully")
                 fixes_applied += 1
             else:
-                print(f"      ✗ Fix failed")
+                print("      ✗ Fix failed")
 
         print(f"\n   Applied {fixes_applied}/{len(all_issues)} fixes")
 
@@ -118,10 +120,10 @@ class IssueFixer:
             print(f"\n   Fixing {test_info['failed']} failing tests in {test_info['project'].split('/')[-1]}")
 
             if self._fix_failing_tests(test_info):
-                print(f"      ✓ Fixed successfully")
+                print("      ✓ Fixed successfully")
                 fixes_applied += 1
             else:
-                print(f"      ✗ Fix failed")
+                print("      ✗ Fix failed")
 
         print(f"\n   Applied fixes to {fixes_applied}/{len(failing_tests)} projects")
 
@@ -220,9 +222,9 @@ class IssueFixer:
             )
 
             if not verification['verified']:
-                print(f"      ❌ ABORT: Claude said success but no commit detected!")
+                print("      ❌ ABORT: Claude said success but no commit detected!")
                 print(f"      {verification['message']}")
-                print(f"      This indicates a problem with claude_wrapper or the fix.")
+                print("      This indicates a problem with claude_wrapper or the fix.")
                 return False
 
             print(f"      ✅ Verified: {verification['message']}")
@@ -258,7 +260,7 @@ class IssueFixer:
             )
 
             if not verification['verified']:
-                print(f"      ❌ ABORT: Claude said success but no commit detected!")
+                print("      ❌ ABORT: Claude said success but no commit detected!")
                 print(f"      {verification['message']}")
                 return False
 
@@ -380,7 +382,7 @@ class IssueFixer:
         else:
             error_msg = result.get('error', 'Unknown error')
             print(f"   ⚠️  Hook configuration failed: {error_msg}")
-            print(f"   Continuing without pre-commit enforcement (less robust)")
+            print("   Continuing without pre-commit enforcement (less robust)")
             return False
 
     def discover_test_config(self, project_path: str, language: str) -> FixResult:
@@ -489,10 +491,10 @@ class IssueFixer:
             print(f"\n   Creating tests for {project_name} ({project_info['language']}) - {reason}")
 
             if self._create_tests_for_project(project_info):
-                print(f"      ✓ Tests created successfully")
+                print("      ✓ Tests created successfully")
                 tests_created += 1
             else:
-                print(f"      ✗ Test creation failed")
+                print("      ✗ Test creation failed")
 
         print(f"\n   Created tests for {tests_created}/{len(projects_needing_tests)} projects")
 
@@ -531,24 +533,24 @@ class IssueFixer:
             )
 
             if not verification['verified']:
-                print(f"      ❌ ABORT: Claude said success but no commit detected!")
+                print("      ❌ ABORT: Claude said success but no commit detected!")
                 print(f"      {verification['message']}")
-                print(f"      This indicates tests were not actually created.")
+                print("      This indicates tests were not actually created.")
                 return False
 
             print(f"      ✅ Verified: {verification['message']}")
 
             # CRITICAL: Verify tests actually pass after creation
-            print(f"      🔍 Validating created tests...")
+            print("      🔍 Validating created tests...")
             adapter = self._get_adapter(project_info['language'])
             if adapter:
                 # Run tests to verify they work
                 test_result = adapter.run_tests(project_info['project'], strategy='minimal')
 
                 if not test_result.success:
-                    print(f"      ⚠️  Warning: Created tests are failing!")
+                    print("      ⚠️  Warning: Created tests are failing!")
                     print(f"         Failed: {test_result.tests_failed}, Passed: {test_result.tests_passed}")
-                    print(f"         Consider running fix_failing_tests phase")
+                    print("         Consider running fix_failing_tests phase")
                     # Still return True - tests exist, they just need fixing
                     return True
                 else:

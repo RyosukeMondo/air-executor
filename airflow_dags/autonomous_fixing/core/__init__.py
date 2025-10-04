@@ -7,11 +7,11 @@ Following SOLID principles:
 - Dependency Inversion: Depend on abstractions (language adapters)
 """
 
+from .analysis_verifier import AnalysisVerifier
 from .analyzer import ProjectAnalyzer
 from .fixer import IssueFixer
-from .scorer import HealthScorer
 from .iteration_engine import IterationEngine
-from .analysis_verifier import AnalysisVerifier
+from .scorer import HealthScorer
 from .tool_validator import ToolValidator
 
 __all__ = [

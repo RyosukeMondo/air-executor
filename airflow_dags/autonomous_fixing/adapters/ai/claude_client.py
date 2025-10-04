@@ -4,12 +4,11 @@ Claude Client - Helper for calling claude_wrapper with JSON protocol.
 Provides simple interface to claude_wrapper's streaming JSON protocol.
 """
 
-import subprocess
 import json
-import sys
+import subprocess
 import time
-from pathlib import Path
 from typing import Dict, Optional
+
 from .wrapper_history import WrapperHistoryLogger
 
 
@@ -119,7 +118,7 @@ class ClaudeClient:
         # Enable detailed logging for debugging
         debug_mode = self.debug_logger is not None
         if debug_mode:
-            print(f"\n[WRAPPER DEBUG] Starting claude_wrapper")
+            print("\n[WRAPPER DEBUG] Starting claude_wrapper")
             print(f"  Wrapper: {self.wrapper_path}")
             print(f"  Python: {self.python_exec}")
             print(f"  CWD: {project_path}")
@@ -165,7 +164,7 @@ class ClaudeClient:
 
             if debug_mode:
                 print(f"[WRAPPER DEBUG] Process started (PID: {process.pid})")
-                print(f"[WRAPPER DEBUG] Sending JSON command...")
+                print("[WRAPPER DEBUG] Sending JSON command...")
 
             # Send command and keep stdin open to avoid EOF detection
             # Wrapper needs stdin to stay open while Claude executes
@@ -173,12 +172,11 @@ class ClaudeClient:
             process.stdin.flush()
 
             if debug_mode:
-                print(f"[WRAPPER DEBUG] Command sent, reading events...")
+                print("[WRAPPER DEBUG] Command sent, reading events...")
 
             # Read events from stdout as they stream
             events = []
             event_types_seen = []
-            shutdown_received = False
 
             # Read line by line until shutdown
             while True:
@@ -201,7 +199,6 @@ class ClaudeClient:
 
                     # Stop reading when wrapper shuts down
                     if event_type in ['shutdown', 'auto_shutdown']:
-                        shutdown_received = True
                         break
 
                 except json.JSONDecodeError:

@@ -1,12 +1,13 @@
 """Go language adapter."""
 
-import subprocess
 import re
-import time
 import shutil
+import subprocess
+import time
 from pathlib import Path
-from typing import List, Dict
-from .base import LanguageAdapter, AnalysisResult, ToolValidationResult
+from typing import Dict, List
+
+from .base import AnalysisResult, LanguageAdapter, ToolValidationResult
 
 
 class GoAdapter(LanguageAdapter):

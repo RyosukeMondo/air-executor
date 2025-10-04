@@ -10,33 +10,24 @@ All actual work is delegated to specialized modules:
 """
 
 import sys
-import yaml
 from pathlib import Path
 from typing import Dict, List
 
+import yaml
+
 # Import language adapters (from new location)
 try:
-    from .adapters.languages import (
-        FlutterAdapter,
-        PythonAdapter,
-        JavaScriptAdapter,
-        GoAdapter
-    )
+    from .adapters.languages import FlutterAdapter, GoAdapter, JavaScriptAdapter, PythonAdapter
 except ImportError:
     sys.path.insert(0, str(Path(__file__).parent))
-    from adapters.languages import (
-        FlutterAdapter,
-        PythonAdapter,
-        JavaScriptAdapter,
-        GoAdapter
-    )
+    from adapters.languages import FlutterAdapter, GoAdapter, JavaScriptAdapter, PythonAdapter
 
 # Import clean core modules
 try:
-    from .core import ProjectAnalyzer, IssueFixer, HealthScorer, IterationEngine, ToolValidator
+    from .core import HealthScorer, IssueFixer, IterationEngine, ProjectAnalyzer, ToolValidator
 except ImportError:
     sys.path.insert(0, str(Path(__file__).parent))
-    from core import ProjectAnalyzer, IssueFixer, HealthScorer, IterationEngine
+    from core import HealthScorer, IssueFixer, IterationEngine, ProjectAnalyzer
     from core.tool_validator import ToolValidator
 
 
@@ -160,7 +151,7 @@ class MultiLanguageOrchestrator:
 
     def _print_project_summary(self, projects_by_language: Dict[str, List[str]]):
         """Print detected projects summary."""
-        print(f"\n📦 Detected Projects:")
+        print("\n📦 Detected Projects:")
         for lang, projects in projects_by_language.items():
             print(f"   {lang.upper()}: {len(projects)} project(s)")
             for p in projects:

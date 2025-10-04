@@ -5,12 +5,12 @@ Groups similar issues for batch fixing.
 """
 
 import re
-from typing import List, Dict
-from dataclasses import dataclass
 from collections import defaultdict
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Dict, List
 
 from state_manager import Task, generate_task_id
-from datetime import datetime
 
 
 @dataclass
@@ -126,7 +126,7 @@ class IssueGrouper:
         if 'uncategorized' in categorized:
             result_tasks.extend(categorized['uncategorized'])
 
-        print(f"\n📦 Grouping results:")
+        print("\n📦 Grouping results:")
         print(f"   Input tasks: {len(tasks)}")
         print(f"   Output tasks: {len(result_tasks)}")
 
@@ -191,9 +191,9 @@ class IssueGrouper:
             batch_type="mega_comprehensive"
         )
 
-        print(f"\n📦 Mega Batch Mode:")
+        print("\n📦 Mega Batch Mode:")
         print(f"   Input tasks: {len(tasks)}")
-        print(f"   Output: 1 comprehensive mega-batch")
+        print("   Output: 1 comprehensive mega-batch")
 
         return [mega_task]
 
@@ -343,7 +343,6 @@ class IssueGrouper:
 
 def main():
     """CLI testing"""
-    import sys
     from state_manager import Task
 
     # Create test tasks
