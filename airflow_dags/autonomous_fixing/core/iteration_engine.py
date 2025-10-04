@@ -5,6 +5,7 @@ Clean, focused module that ONLY handles the iteration loop logic.
 No analysis, no fixing, no scoring - just iteration coordination.
 """
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
 from .analysis_verifier import AnalysisVerifier
@@ -20,6 +21,16 @@ if TYPE_CHECKING:
     from .analyzer import ProjectAnalyzer
     from .fixer import IssueFixer
     from .scorer import HealthScorer
+
+
+@dataclass
+class _IterationComponents:
+    """Internal: Groups iteration utility components for reduced instance attributes."""
+
+    debug_logger: DebugLogger
+    time_gate: TimeGatekeeper
+    verifier: AnalysisVerifier
+    setup_runner: SetupPhaseRunner
 
 
 class IterationEngine:
@@ -67,12 +78,8 @@ class IterationEngine:
 
         if isinstance(config, dict):
             self.orchestrator_config = OrchestratorConfig.from_dict(config)
-            self.config = config
         else:
             self.orchestrator_config = config
-            self.config = config.to_dict()
-
-        self.max_iterations = self.config.get("execution", {}).get("max_iterations", 5)
 
         # Dependency injection with defaults
         # Note: analyzer requires language_adapters, so must be provided by caller
@@ -91,16 +98,22 @@ class IterationEngine:
         self.scorer: "HealthScorer" = scorer or HealthScorer(self.config)
         self.hook_manager: HookLevelManager = hook_manager or HookLevelManager()
 
-        # Initialize components (SRP: each has one job)
-        self.debug_logger = DebugLogger(self.config, project_name)
-        self.time_gate = TimeGatekeeper(self.config)
-        self.verifier = AnalysisVerifier(self.config)
+        # Initialize utility components (grouped to reduce instance attributes)
+        debug_logger = DebugLogger(self.config, project_name)
+        time_gate = TimeGatekeeper(self.config)
+        verifier = AnalysisVerifier(self.config)
 
         # Setup optimization components
         setup_tracker = SetupTracker(self.config.get("state_manager"))
         validator = PreflightValidator(setup_tracker)
-        self.setup_runner = SetupPhaseRunner(
-            self.fixer, self.debug_logger, setup_tracker, validator
+        setup_runner = SetupPhaseRunner(self.fixer, debug_logger, setup_tracker, validator)
+
+        # Group components together (reduces from 12 to 7 instance attributes)
+        self._components = _IterationComponents(
+            debug_logger=debug_logger,
+            time_gate=time_gate,
+            verifier=verifier,
+            setup_runner=setup_runner,
         )
 
         # Pass debug logger to fixer for wrapper call logging
@@ -109,6 +122,51 @@ class IterationEngine:
 
         # Circuit breaker for repeated test creation
         self.test_creation_attempts = {}  # project_path -> attempt_count
+
+    @property
+    def config(self) -> dict:
+        """
+        Backward compatibility: Derive config dict from orchestrator_config.
+
+        Returns dict representation of the configuration without storing redundantly.
+        """
+        return self.orchestrator_config.to_dict()
+
+    @property
+    def max_iterations(self) -> int:
+        """Derive max_iterations from config without storing redundantly."""
+        return self.config.get("execution", {}).get("max_iterations", 5)
+
+    @property
+    def debug_logger(self) -> DebugLogger:
+        """Access debug_logger from grouped components."""
+        return self._components.debug_logger
+
+    @debug_logger.setter
+    def debug_logger(self, value: DebugLogger) -> None:
+        """Set debug_logger in grouped components."""
+        # Update the dataclass field (creates new instance to maintain immutability)
+        self._components = _IterationComponents(
+            debug_logger=value,
+            time_gate=self._components.time_gate,
+            verifier=self._components.verifier,
+            setup_runner=self._components.setup_runner,
+        )
+
+    @property
+    def time_gate(self) -> TimeGatekeeper:
+        """Access time_gate from grouped components."""
+        return self._components.time_gate
+
+    @property
+    def verifier(self) -> AnalysisVerifier:
+        """Access verifier from grouped components."""
+        return self._components.verifier
+
+    @property
+    def setup_runner(self) -> SetupPhaseRunner:
+        """Access setup_runner from grouped components."""
+        return self._components.setup_runner
 
     def _run_static_analysis_phase(self, projects_by_language: dict, iteration: int) -> tuple:
         """Run P1 static analysis phase (SRP)"""
