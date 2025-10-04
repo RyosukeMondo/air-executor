@@ -410,3 +410,77 @@ class PythonAdapter(LanguageAdapter):
                 path=tool_cmd,
                 error_message=f"{tool_name} found but failed to run: {e}",
             )
+
+    def run_type_check(self, project_path: str) -> AnalysisResult:
+        """Run mypy type checking."""
+        start_time = time.time()
+        result = AnalysisResult(
+            language=self.language_name, phase="type_check", project_path=project_path
+        )
+
+        try:
+            # Check if mypy is available
+            if not shutil.which("mypy"):
+                result.success = True  # No mypy, consider it passing
+                result.execution_time = time.time() - start_time
+                return result
+
+            # Run mypy
+            proc = subprocess.run(
+                ["mypy", "."], cwd=project_path, capture_output=True, text=True, timeout=120
+            )
+
+            if proc.returncode != 0:
+                result.success = False
+                result.errors = self.parse_errors(proc.stdout + proc.stderr, "type_check")
+            else:
+                result.success = True
+
+        except subprocess.TimeoutExpired:
+            result.success = False
+            result.errors = [{"message": "Type checking timed out after 120 seconds"}]
+        except Exception as e:
+            result.success = False
+            result.errors = [{"message": f"Type check failed: {str(e)}"}]
+
+        result.execution_time = time.time() - start_time
+        return result
+
+    def run_build(self, project_path: str) -> AnalysisResult:
+        """Run Python syntax check (no traditional build needed)."""
+        start_time = time.time()
+        result = AnalysisResult(
+            language=self.language_name, phase="build", project_path=project_path
+        )
+
+        try:
+            # For Python, "build" means checking syntax of all .py files
+            source_files = self._get_source_files(Path(project_path))
+
+            for file_path in source_files:
+                try:
+                    # Compile to check syntax
+                    with open(file_path) as f:
+                        compile(f.read(), str(file_path), "exec")
+                except SyntaxError as e:
+                    result.success = False
+                    result.errors.append(
+                        {
+                            "file": str(file_path),
+                            "line": e.lineno,
+                            "message": f"Syntax error: {e.msg}",
+                        }
+                    )
+
+            if not result.errors:
+                result.success = True
+            else:
+                result.error_message = f"{len(result.errors)} syntax errors found"
+
+        except Exception as e:
+            result.success = False
+            result.error_message = f"Build check failed: {str(e)}"
+            result.errors = [{"message": result.error_message}]
+
+        result.execution_time = time.time() - start_time
+        return result

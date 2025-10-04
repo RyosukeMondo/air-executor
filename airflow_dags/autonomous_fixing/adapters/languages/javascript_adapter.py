@@ -447,3 +447,97 @@ class JavaScriptAdapter(LanguageAdapter):
                 path=tool_cmd,
                 error_message=f"{tool_name} found but failed to run: {e}",
             )
+
+    def run_type_check(self, project_path: str) -> AnalysisResult:
+        """Run TypeScript type checking (tsc --noEmit)."""
+        start_time = time.time()
+        result = AnalysisResult(
+            language=self.language_name, phase="type_check", project_path=project_path
+        )
+
+        try:
+            # Check if TypeScript is configured
+            tsconfig = Path(project_path) / "tsconfig.json"
+            if not tsconfig.exists():
+                result.success = True  # No TypeScript, consider it passing
+                result.execution_time = time.time() - start_time
+                return result
+
+            # Run tsc --noEmit
+            proc = subprocess.run(
+                ["npx", "tsc", "--noEmit"],
+                cwd=project_path,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+
+            if proc.returncode != 0:
+                result.success = False
+                result.errors = self.parse_errors(proc.stdout + proc.stderr, "type_check")
+            else:
+                result.success = True
+
+        except subprocess.TimeoutExpired:
+            result.success = False
+            result.errors = [{"message": "Type checking timed out after 120 seconds"}]
+        except Exception as e:
+            result.success = False
+            result.errors = [{"message": f"Type check failed: {str(e)}"}]
+
+        result.execution_time = time.time() - start_time
+        return result
+
+    def run_build(self, project_path: str) -> AnalysisResult:
+        """Run build command (npm run build or equivalent)."""
+        start_time = time.time()
+        result = AnalysisResult(
+            language=self.language_name, phase="build", project_path=project_path
+        )
+
+        try:
+            # Check package.json for build script
+            package_json_path = Path(project_path) / "package.json"
+            if not package_json_path.exists():
+                result.success = True  # No package.json, consider it passing
+                result.execution_time = time.time() - start_time
+                return result
+
+            with open(package_json_path) as f:
+                package_data = json.load(f)
+
+            scripts = package_data.get("scripts", {})
+            if "build" not in scripts:
+                result.success = True  # No build script, consider it passing
+                result.execution_time = time.time() - start_time
+                return result
+
+            # Run build
+            proc = subprocess.run(
+                ["npm", "run", "build"],
+                cwd=project_path,
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+
+            if proc.returncode != 0:
+                result.success = False
+                error_output = proc.stdout + proc.stderr
+                result.errors = self.parse_errors(error_output, "build")
+                # Add error_message attribute for backward compatibility
+                result.error_message = error_output[:500]  # First 500 chars
+            else:
+                result.success = True
+
+        except subprocess.TimeoutExpired:
+            result.success = False
+            result.error_message = "Build timed out after 300 seconds"
+            result.errors = [{"message": result.error_message}]
+        except Exception as e:
+            result.success = False
+            result.error_message = f"Build failed: {str(e)}"
+            result.errors = [{"message": result.error_message}]
+
+        result.execution_time = time.time() - start_time
+        return result

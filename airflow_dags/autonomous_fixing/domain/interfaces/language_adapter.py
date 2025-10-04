@@ -133,3 +133,29 @@ class ILanguageAdapter(ABC):
             Maximum complexity found in the file
         """
         pass
+
+    @abstractmethod
+    def run_type_check(self, project_path: str) -> AnalysisResult:
+        """
+        Run type checking for the project.
+
+        Args:
+            project_path: Path to project
+
+        Returns:
+            AnalysisResult with type checking results
+        """
+        pass
+
+    @abstractmethod
+    def run_build(self, project_path: str) -> AnalysisResult:
+        """
+        Run build/compilation for the project.
+
+        Args:
+            project_path: Path to project
+
+        Returns:
+            AnalysisResult with build results
+        """
+        pass
