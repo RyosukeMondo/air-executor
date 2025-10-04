@@ -60,38 +60,62 @@ class WrapperHistoryLogger:
             git_before: Git HEAD commit before call (optional)
             git_after: Git HEAD commit after call (optional)
         """
-        # Build log entry
         events = result.get('events', [])
         event_summary = self._extract_event_summary(events)
         claude_responses = self._extract_claude_responses(events)
 
-        entry = {
+        entry = self._build_log_entry(
+            prompt=prompt,
+            project_path=project_path,
+            prompt_type=prompt_type,
+            result=result,
+            duration=duration,
+            git_before=git_before,
+            git_after=git_after,
+            events=events,
+            event_summary=event_summary,
+            claude_responses=claude_responses,
+        )
+
+        # Write to both files
+        self._write_entry(self.current_log, entry)
+        self._write_entry(self.latest_log, entry)
+
+    def _build_log_entry(
+        self,
+        prompt: str,
+        project_path: str,
+        prompt_type: str,
+        result: Dict,
+        duration: float,
+        git_before: Optional[str],
+        git_after: Optional[str],
+        events: List[Dict],
+        event_summary: List[str],
+        claude_responses: List[str],
+    ) -> Dict:
+        """Build the log entry dictionary."""
+        return {
             "timestamp": datetime.now().isoformat(),
             "prompt_type": prompt_type,
             "project": project_path,
             "duration": round(duration, 2),
             "success": result.get('success', False),
-
             # Prompt (full text for investigation)
             "prompt": prompt,
             "prompt_length": len(prompt),
-
             # Result details
             "error": result.get('error'),
             "outcome": result.get('outcome'),
-
             # Events (summary for readability)
             "events": event_summary,
             "event_count": len(events),
-
             # Claude's actual responses (CRITICAL for debugging)
             "claude_response": " ".join(claude_responses),
             "claude_response_length": sum(len(r) for r in claude_responses),
-
             # Full event objects (for deep debugging if needed)
             # Store first 3 stream events to save space
             "stream_events_sample": [e for e in events if e.get('event') == 'stream'][:3],
-
             # Git tracking
             "git": {
                 "before": git_before,
@@ -99,10 +123,6 @@ class WrapperHistoryLogger:
                 "commit_created": git_before != git_after if (git_before and git_after) else None
             }
         }
-
-        # Write to both files
-        self._write_entry(self.current_log, entry)
-        self._write_entry(self.latest_log, entry)
 
     def _extract_event_summary(self, events: List[Dict]) -> List[str]:
         """Extract event types from events list."""
@@ -112,25 +132,46 @@ class WrapperHistoryLogger:
         """Extract Claude's text responses from stream events."""
         responses = []
         for event in events:
-            if event.get('event') == 'stream':
-                payload = event.get('payload', {})
-                # Extract text from content array
-                content = payload.get('content', [])
-                if isinstance(content, list):
-                    for item in content:
-                        if isinstance(item, dict):
-                            # Check for text field (AssistantMessage format)
-                            if 'text' in item:
-                                text = item.get('text', '')
-                                if text:
-                                    responses.append(text)
-                            # Check for type='text' field (alternative format)
-                            elif item.get('type') == 'text' and item.get('text'):
-                                responses.append(item['text'])
-                # Also check for direct text field
-                if payload.get('text'):
-                    responses.append(payload['text'])
+            if event.get('event') != 'stream':
+                continue
+
+            payload = event.get('payload', {})
+            self._extract_from_content_array(payload, responses)
+            self._extract_from_direct_text(payload, responses)
+
         return responses
+
+    def _extract_from_content_array(self, payload: Dict, responses: List[str]) -> None:
+        """Extract text from content array in payload."""
+        content = payload.get('content', [])
+        if not isinstance(content, list):
+            return
+
+        for item in content:
+            if not isinstance(item, dict):
+                continue
+
+            text = self._get_text_from_item(item)
+            if text:
+                responses.append(text)
+
+    def _get_text_from_item(self, item: Dict) -> Optional[str]:
+        """Get text from a content item."""
+        # Check for text field (AssistantMessage format)
+        if 'text' in item:
+            return item.get('text', '')
+
+        # Check for type='text' field (alternative format)
+        if item.get('type') == 'text':
+            return item.get('text')
+
+        return None
+
+    def _extract_from_direct_text(self, payload: Dict, responses: List[str]) -> None:
+        """Extract text from direct text field in payload."""
+        text = payload.get('text')
+        if text:
+            responses.append(text)
 
     def _write_entry(self, log_file: Path, entry: Dict) -> None:
         """Write JSON entry to log file."""
@@ -198,24 +239,40 @@ class WrapperHistoryLogger:
             call: Call entry from history
             verbose: If True, show full prompt and events
         """
-        # Header
+        self._print_header(call)
+        self._print_basic_info(call)
+        self._print_git_info(call)
+        self._print_result(call)
+        self._print_events(call)
+
+        if verbose:
+            self._print_verbose_details(call)
+
+    def _print_header(self, call: Dict) -> None:
+        """Print call header with timestamp and status."""
         timestamp = call.get('timestamp', 'Unknown time')
         success = '✅' if call.get('success') else '❌'
         print(f"\n{success} {timestamp}")
 
-        # Basic info
+    def _print_basic_info(self, call: Dict) -> None:
+        """Print basic call information."""
         print(f"  Type: {call.get('prompt_type')}")
         print(f"  Project: {call.get('project')}")
         print(f"  Duration: {call.get('duration')}s")
 
-        # Git info
+    def _print_git_info(self, call: Dict) -> None:
+        """Print git commit information."""
         git = call.get('git', {})
         if git.get('commit_created'):
-            print(f"  ✅ Git commit: {git.get('before', '')[:8]} → {git.get('after', '')[:8]}")
+            before = git.get('before', '')[:8]
+            after = git.get('after', '')[:8]
+            print(f"  ✅ Git commit: {before} → {after}")
         elif git.get('commit_created') is False:
-            print(f"  ❌ No commit: {git.get('before', '')[:8]} (unchanged)")
+            before = git.get('before', '')[:8]
+            print(f"  ❌ No commit: {before} (unchanged)")
 
-        # Result
+    def _print_result(self, call: Dict) -> None:
+        """Print call result or error."""
         if call.get('success'):
             outcome = call.get('outcome', 'ok')
             print(f"  Result: {outcome}")
@@ -223,35 +280,51 @@ class WrapperHistoryLogger:
             error = call.get('error', 'Unknown error')
             print(f"  Error: {error}")
 
-        # Events
+    def _print_events(self, call: Dict) -> None:
+        """Print event summary."""
         events = call.get('events', [])
         print(f"  Events: {', '.join(events)}")
 
-        # Verbose mode
-        if verbose:
-            print(f"\n  Prompt ({call.get('prompt_length')} chars):")
-            print("  " + "-" * 76)
-            for line in call.get('prompt', '').split('\n')[:20]:  # First 20 lines
-                print(f"  {line}")
-            prompt_newline_count = call.get('prompt', '').count('\n')
-            if prompt_newline_count > 20:
-                print(f"  ... ({prompt_newline_count - 20} more lines)")
-            print("  " + "-" * 76)
+    def _print_verbose_details(self, call: Dict) -> None:
+        """Print detailed prompt and response in verbose mode."""
+        self._print_prompt_details(call)
+        self._print_response_details(call)
 
-            # Show Claude's response
-            response = call.get('claude_response', '')
-            response_len = call.get('claude_response_length', 0)
-            if response:
-                print(f"\n  Claude Response ({response_len} chars):")
-                print("  " + "-" * 76)
-                for line in response.split('\n')[:30]:  # First 30 lines
-                    print(f"  {line}")
-                response_newline_count = response.count('\n')
-                if response_newline_count > 30:
-                    print(f"  ... ({response_newline_count - 30} more lines)")
-                print("  " + "-" * 76)
-            else:
-                print(f"\n  ⚠️  No Claude response captured (response length: {response_len})")
+    def _print_prompt_details(self, call: Dict) -> None:
+        """Print prompt details in verbose mode."""
+        print(f"\n  Prompt ({call.get('prompt_length')} chars):")
+        print("  " + "-" * 76)
+
+        prompt = call.get('prompt', '')
+        lines = prompt.split('\n')
+        for line in lines[:20]:  # First 20 lines
+            print(f"  {line}")
+
+        if len(lines) > 20:
+            print(f"  ... ({len(lines) - 20} more lines)")
+
+        print("  " + "-" * 76)
+
+    def _print_response_details(self, call: Dict) -> None:
+        """Print Claude response details in verbose mode."""
+        response = call.get('claude_response', '')
+        response_len = call.get('claude_response_length', 0)
+
+        if not response:
+            print(f"\n  ⚠️  No Claude response captured (response length: {response_len})")
+            return
+
+        print(f"\n  Claude Response ({response_len} chars):")
+        print("  " + "-" * 76)
+
+        lines = response.split('\n')
+        for line in lines[:30]:  # First 30 lines
+            print(f"  {line}")
+
+        if len(lines) > 30:
+            print(f"  ... ({len(lines) - 30} more lines)")
+
+        print("  " + "-" * 76)
 
     def cleanup_old_logs(self, keep_days: int = 7) -> None:
         """
