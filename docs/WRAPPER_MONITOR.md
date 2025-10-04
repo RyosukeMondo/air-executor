@@ -1,6 +1,6 @@
 # Claude Wrapper Real-Time Monitor
 
-Real-time visualization dashboard for `claude_wrapper.py` execution state and progress.
+Real-time terminal dashboard for `claude_wrapper.py` execution state and progress.
 
 ## Features
 
@@ -12,16 +12,28 @@ Real-time visualization dashboard for `claude_wrapper.py` execution state and pr
 
 ## Quick Start
 
-### Installation
+### Prerequisites
 
 ```bash
-# Install rich library (for terminal UI)
-pip install -r requirements-dev.txt
+# Ensure rich library is installed
+pip install rich
 ```
 
-### Basic Usage
+### For Autonomous Fixing (Recommended)
 
-#### 1. Monitor Live Wrapper Execution
+**Terminal 1** (start monitoring):
+```bash
+./scripts/monitor_wrapper.sh
+```
+
+**Terminal 2** (run execution):
+```bash
+./scripts/autonomous_fix.sh config/projects/warps.yaml
+```
+
+The monitor will automatically track all wrapper executions in real-time.
+
+### For Direct Wrapper Usage
 
 Pipe wrapper output directly to the monitor:
 
@@ -137,22 +149,88 @@ monitor = WrapperMonitor(max_events=20)  # Show last 20 events
 
 ## Integration with Autonomous Fixing
 
-Monitor autonomous fixing executions:
+Monitor autonomous fixing executions in real-time:
+
+### Quick Start (Recommended)
 
 ```bash
-# Monitor test discovery phase
-./scripts/autonomous_fixing_orchestrator.py --simulate 2>/dev/null | .venv/bin/python3 scripts/watch_wrapper.py
+# Terminal 1: Start monitoring
+./scripts/monitor_wrapper.sh
 
-# Monitor live execution
-./scripts/run_autonomous_fixing.sh | .venv/bin/python3 scripts/watch_wrapper.py
+# Terminal 2: Run autonomous fixing
+./scripts/autonomous_fix.sh config/projects/warps.yaml
 ```
+
+### Simple Method (Recommended)
+
+```bash
+# Terminal 1: Start monitoring
+./scripts/monitor.sh
+
+# Terminal 2: Run autonomous fixing
+./scripts/autonomous_fix.sh config/projects/warps.yaml
+```
+
+The `claude_client.py` writes all wrapper events to `logs/wrapper-realtime.log` for real-time monitoring.
+
+## How It Works
+
+### Event Flow
+
+```
+claude_client.py → logs/wrapper-realtime.log → tail -F → watch_wrapper.py → Terminal Dashboard
+```
+
+### Process
+
+1. **Event Capture**: `claude_client.py` intercepts wrapper stdout and writes all JSON events to `logs/wrapper-realtime.log`
+2. **Log Clearing**: Each new wrapper call clears the log file to ensure only current execution is shown
+3. **Live Monitoring**: `tail -F` follows the log file by name (handles truncation) and pipes events to `watch_wrapper.py`
+4. **Event Processing**: Monitor parses events, tracks state/phase/tools, and updates terminal dashboard in real-time
+5. **Dashboard Rendering**: Rich library renders live terminal UI with current status and recent events
+
+### Tracked Information
+
+- **State**: ready, executing, completed, failed, cancelled, shutdown
+- **Phase**: Current execution phase (e.g., "P1: Static Analysis", "P2: Testing")
+- **Tools**: Tool usage with progress tracking (e.g., "Read 3/5")
+- **Runtime**: Elapsed time since run started
+- **Events**: Last 10 events with timestamps and icons
+- **Statistics**: Stream count, errors, tool completion
 
 ## Troubleshooting
 
+### Quick Diagnostics
+
+Run the test script to verify the monitoring system:
+
+```bash
+./scripts/test_monitor.sh
+```
+
+This checks:
+- Rich library installation
+- Log directory permissions
+- Event parsing functionality
+- tail -F truncation handling
+- Log file write permissions
+
 ### Monitor Not Updating
 
-- Ensure wrapper outputs JSON events (check with `head -n 5` on output)
-- Verify `rich` library is installed: `pip list | grep rich`
+**Check if monitor is running:**
+```bash
+ps aux | grep -E "(tail|watch_wrapper)" | grep -v grep
+```
+
+**Verify log file has events:**
+```bash
+tail logs/wrapper-realtime.log
+```
+
+**Common issues:**
+- Monitor must run in a real terminal (TTY), not with redirected output
+- Use `tail -F` (capital F), not `tail -f`
+- Ensure `rich` library is installed: `pip install rich`
 - Check that wrapper emits events to stdout, not stderr
 
 ### Missing Events
@@ -169,9 +247,12 @@ Monitor autonomous fixing executions:
 
 ## Files
 
-- `scripts/watch_wrapper.py` - Real-time monitor dashboard
-- `scripts/demo_wrapper_output.py` - Demo/testing script
+- `scripts/monitor.sh` - **Main script to start monitoring** (recommended)
+- `scripts/watch_wrapper.py` - Real-time terminal dashboard (called by monitor.sh)
+- `scripts/test_monitor.sh` - Test script to verify monitoring system works
+- `scripts/demo_wrapper_output.py` - Demo/testing script for development
 - `scripts/claude_wrapper.py` - Enhanced with phase/tool tracking
+- `airflow_dags/autonomous_fixing/adapters/ai/claude_client.py` - Writes events to `logs/wrapper-realtime.log`
 
 ## See Also
 

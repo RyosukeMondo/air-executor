@@ -14,6 +14,7 @@ import dataclasses
 import inspect
 import json
 import logging
+import os
 import signal
 import sys
 import traceback
@@ -47,8 +48,12 @@ from wrapper_monitoring import (
 )
 
 # Configure logging to stderr only (never stdout to avoid JSON pollution)
+# Default level is INFO, can be overridden via CLAUDE_WRAPPER_LOG_LEVEL env var
+_log_level_str = os.environ.get("CLAUDE_WRAPPER_LOG_LEVEL", "INFO").upper()
+_log_level = getattr(logging, _log_level_str, logging.INFO)
+
 logging.basicConfig(
-    level=logging.INFO,
+    level=_log_level,
     format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[logging.StreamHandler(sys.stderr)],
 )

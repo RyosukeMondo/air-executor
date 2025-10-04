@@ -1,18 +1,25 @@
-#!/usr/bin/env python3
+#!/home/rmondo/repos/air-executor/.venv/bin/python3
 """
 Real-time Claude Wrapper Monitor
 
 Live dashboard for monitoring claude_wrapper.py execution in real-time.
 
-Usage:
-    # Watch wrapper output directly
-    ./scripts/watch_wrapper.py < wrapper_output.log
+⚠️  DO NOT RUN THIS SCRIPT DIRECTLY!
+    Use: ./scripts/monitor.sh instead
 
+RECOMMENDED USAGE (Autonomous Fixing):
+    Terminal 1: ./scripts/monitor.sh
+    Terminal 2: ./scripts/autonomous_fix.sh config/projects/warps.yaml
+
+ADVANCED USAGE (piping from other sources):
     # Pipe from running wrapper
     python scripts/claude_wrapper.py | python scripts/watch_wrapper.py
 
     # Watch wrapper logs with tail
-    tail -f logs/wrapper-*.log | python scripts/watch_wrapper.py
+    tail -f logs/wrapper-realtime.log | python scripts/watch_wrapper.py
+
+    # Watch demo output
+    python scripts/demo_wrapper_output.py | python scripts/watch_wrapper.py
 """
 
 import json
@@ -38,7 +45,7 @@ except ImportError:
 class WrapperMonitor:
     """Real-time monitor for Claude wrapper execution."""
 
-    def __init__(self, max_events: int = 10):
+    def __init__(self, max_events: int = 20):
         self.console = Console()
         self.max_events = max_events
 
@@ -48,18 +55,27 @@ class WrapperMonitor:
         self.run_id = None
         self.start_time = None
         self.current_tool = None
+        self.current_tool_params = None
         self.tool_progress = "0/0"
         self.session_id = None
+        self.last_text_content = None
 
         # Event history (recent events)
         self.events: deque = deque(maxlen=max_events)
+
+        # Tool tracking
+        self.tools_used = deque(maxlen=10)
+        self.active_tools = {}
 
         # Statistics
         self.stats = {
             "tools_completed": 0,
             "tools_total": 0,
             "streams_received": 0,
+            "text_blocks": 0,
+            "tool_uses": 0,
             "errors": 0,
+            "runs_completed": 0,
         }
 
     def process_event(self, event: Dict[str, Any]) -> None:
@@ -69,6 +85,7 @@ class WrapperMonitor:
 
         # Dispatch to specific event handlers
         handlers = {
+            "monitor_ready": self._handle_monitor_ready,
             "ready": self._handle_ready,
             "run_started": self._handle_run_started,
             "phase_detected": self._handle_phase_detected,
@@ -87,6 +104,11 @@ class WrapperMonitor:
         if handler:
             handler(event, timestamp)
 
+    def _handle_monitor_ready(self, event: Dict[str, Any], timestamp: str) -> None:
+        self.state = "monitoring"
+        message = event.get("message", "Monitor ready")
+        self.add_event(timestamp, "👁️", message)
+
     def _handle_ready(self, event: Dict[str, Any], timestamp: str) -> None:
         self.state = "ready"
         self.start_time = None
@@ -95,7 +117,11 @@ class WrapperMonitor:
     def _handle_run_started(self, event: Dict[str, Any], timestamp: str) -> None:
         self.state = "executing"
         self.run_id = event.get("run_id")
-        self.start_time = datetime.fromisoformat(timestamp)
+        # Parse as timezone-aware datetime to match datetime.now(timezone.utc)
+        dt = datetime.fromisoformat(timestamp)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        self.start_time = dt
         self.add_event(timestamp, "▶️", "Run started")
 
     def _handle_phase_detected(self, event: Dict[str, Any], timestamp: str) -> None:
@@ -120,16 +146,91 @@ class WrapperMonitor:
         self.stats["streams_received"] += 1
         payload = event.get("payload", {})
         msg_type = payload.get("message_type", "")
+        content = payload.get("content", [])
 
-        # Only log significant stream events
-        if "text" in msg_type.lower() or msg_type == "TextBlock":
-            text = payload.get("text", "")
-            if text and len(text.strip()) > 0:
-                preview = text[:50] + "..." if len(text) > 50 else text
-                self.add_event(timestamp, "💬", f"Text: {preview}")
+        # Process AssistantMessage with tool uses
+        if msg_type == "AssistantMessage" and content:
+            self._process_assistant_message(content, timestamp)
+
+        # Process UserMessage (tool results)
+        elif msg_type == "UserMessage" and content:
+            self._process_user_message(content, timestamp)
+
+    def _process_assistant_message(self, content: list, timestamp: str) -> None:
+        """Process AssistantMessage content."""
+        for item in content:
+            self._process_content_item(item, timestamp)
+
+    def _process_user_message(self, content: list, timestamp: str) -> None:
+        """Process UserMessage content (tool results)."""
+        for item in content:
+            if isinstance(item, dict) and "tool_use_id" in item:
+                tool_id = item.get("tool_use_id")
+                if tool_id in self.active_tools:
+                    tool_name = self.active_tools[tool_id]["name"]
+                    is_error = item.get("is_error", False)
+
+                    if is_error:
+                        self.add_event(timestamp, "❌", f"{tool_name} failed")
+                    else:
+                        self.add_event(timestamp, "✓", f"{tool_name} completed")
+
+                    del self.active_tools[tool_id]
+
+    def _process_content_item(self, item: Dict[str, Any], timestamp: str) -> None:
+        """Process a single content item (tool use or text)."""
+        if isinstance(item, dict) and "name" in item:
+            self._handle_tool_use(item, timestamp)
+        elif isinstance(item, dict) and "text" in item:
+            self._handle_text_content(item, timestamp)
+
+    def _handle_tool_use(self, item: Dict[str, Any], timestamp: str) -> None:
+        """Handle tool use content item."""
+        tool_name = item.get("name")
+        tool_id = item.get("id", "")
+        tool_input = item.get("input", {})
+
+        self.stats["tool_uses"] += 1
+        self.active_tools[tool_id] = {"name": tool_name, "input": tool_input}
+
+        input_preview = self._format_tool_input(tool_name, tool_input)
+        self.add_event(timestamp, "🔧", f"{tool_name}: {input_preview}")
+        self.tools_used.append((tool_name, input_preview))
+
+    def _handle_text_content(self, item: Dict[str, Any], timestamp: str) -> None:
+        """Handle text content item."""
+        text = item.get("text", "")
+        if text and len(text.strip()) > 0:
+            self.stats["text_blocks"] += 1
+            self.last_text_content = text
+            preview = text[:60] + "..." if len(text) > 60 else text
+            self.add_event(timestamp, "💬", preview)
+
+    def _format_tool_input(self, tool_name: str, tool_input: Dict[str, Any]) -> str:
+        """Format tool input for display."""
+        if tool_name == "Read":
+            return tool_input.get("file_path", "").split("/")[-1]
+        elif tool_name == "Edit":
+            return tool_input.get("file_path", "").split("/")[-1]
+        elif tool_name == "Write":
+            return tool_input.get("file_path", "").split("/")[-1]
+        elif tool_name == "Bash":
+            cmd = tool_input.get("command", "")
+            return cmd[:50] + "..." if len(cmd) > 50 else cmd
+        elif tool_name == "Glob":
+            return tool_input.get("pattern", "")
+        elif tool_name == "Grep":
+            return tool_input.get("pattern", "")
+        else:
+            # Generic preview of first parameter
+            if tool_input:
+                first_val = str(list(tool_input.values())[0])
+                return first_val[:50] + "..." if len(first_val) > 50 else first_val
+            return ""
 
     def _handle_run_completed(self, event: Dict[str, Any], timestamp: str) -> None:
         self.state = "completed"
+        self.stats["runs_completed"] += 1
         reason = event.get("reason", "ok")
         self.add_event(timestamp, "🎉", f"Completed: {reason}")
 
@@ -186,6 +287,7 @@ class WrapperMonitor:
         """Get color for current state."""
         state_colors = {
             "initializing": "yellow",
+            "monitoring": "blue",
             "ready": "green",
             "executing": "cyan",
             "completed": "green",
@@ -199,13 +301,18 @@ class WrapperMonitor:
         """Build the live dashboard layout."""
         layout = Layout()
         layout.split_column(
-            Layout(name="header", size=7),
-            Layout(name="events", size=None),
+            Layout(name="header", size=8),
+            Layout(name="main", size=None),
+        )
+
+        layout["main"].split_row(
+            Layout(name="events", ratio=2),
+            Layout(name="stats", ratio=1),
         )
 
         # Header panel with current state
         header_table = Table.grid(padding=1)
-        header_table.add_column(style="bold cyan", justify="right")
+        header_table.add_column(style="bold cyan", justify="right", width=14)
         header_table.add_column(style="bold white")
 
         state_text = Text(self.state.upper(), style=f"bold {self.get_state_color()}")
@@ -213,10 +320,13 @@ class WrapperMonitor:
         header_table.add_row("Phase:", self.phase)
         header_table.add_row("Runtime:", self.get_runtime())
 
-        if self.current_tool:
-            header_table.add_row("Current Tool:", f"🔧 {self.current_tool}")
+        if self.session_id:
+            session_preview = self.session_id[:16] + "..."
+            header_table.add_row("Session:", session_preview)
 
-        header_table.add_row("Progress:", f"{self.tool_progress} tools")
+        if self.active_tools:
+            active = ", ".join([v["name"] for v in self.active_tools.values()])
+            header_table.add_row("Active Tools:", f"🔧 {active}")
 
         layout["header"].update(
             Panel(
@@ -230,10 +340,10 @@ class WrapperMonitor:
         # Events panel with recent activity
         events_table = Table(show_header=True, box=box.SIMPLE, expand=True)
         events_table.add_column("Time", style="dim", width=10)
-        events_table.add_column("Event", width=50)
+        events_table.add_column("Event", overflow="fold")
 
         if not self.events:
-            events_table.add_row("--:--:--", "No events yet...")
+            events_table.add_row("--:--:--", "Waiting for events...")
         else:
             for time_str, icon, message in self.events:
                 events_table.add_row(time_str, f"{icon} {message}")
@@ -243,6 +353,33 @@ class WrapperMonitor:
                 events_table,
                 title="📋 Recent Events",
                 border_style="blue",
+                box=box.ROUNDED,
+            )
+        )
+
+        # Statistics panel
+        stats_table = Table(show_header=False, box=box.SIMPLE, expand=True)
+        stats_table.add_column("Metric", style="cyan", justify="left")
+        stats_table.add_column("Value", style="white", justify="right")
+
+        stats_table.add_row("Runs", str(self.stats["runs_completed"]))
+        stats_table.add_row("Tool Uses", str(self.stats["tool_uses"]))
+        stats_table.add_row("Text Blocks", str(self.stats["text_blocks"]))
+        stats_table.add_row("Streams", str(self.stats["streams_received"]))
+        stats_table.add_row("Errors", str(self.stats["errors"]))
+
+        # Recent tools
+        if self.tools_used:
+            stats_table.add_row("─" * 12, "─" * 8)
+            stats_table.add_row("[bold]Recent Tools", "")
+            for tool_name, _ in list(self.tools_used)[-5:]:
+                stats_table.add_row(f"  {tool_name}", "")
+
+        layout["stats"].update(
+            Panel(
+                stats_table,
+                title="📊 Statistics",
+                border_style="green",
                 box=box.ROUNDED,
             )
         )
@@ -284,18 +421,40 @@ class WrapperMonitor:
         # Final summary
         self.console.print("\n[bold]Monitor Summary:[/bold]")
         self.console.print(f"  Final state: [{self.get_state_color()}]{self.state}[/]")
-        self.console.print(
-            f"  Tools completed: {self.stats['tools_completed']}/{self.stats['tools_total']}"
-        )
+        self.console.print(f"  Runs completed: {self.stats['runs_completed']}")
+        self.console.print(f"  Tool uses: {self.stats['tool_uses']}")
+        self.console.print(f"  Text blocks: {self.stats['text_blocks']}")
         self.console.print(f"  Stream events: {self.stats['streams_received']}")
         self.console.print(f"  Errors: {self.stats['errors']}")
         if self.start_time:
             self.console.print(f"  Total runtime: {self.get_runtime()}")
 
+        # Show recent tools used
+        if self.tools_used:
+            self.console.print("\n[bold]Tools Used:[/bold]")
+            tool_counts: Dict[str, int] = {}
+            for tool_name, _ in self.tools_used:
+                tool_counts[tool_name] = tool_counts.get(tool_name, 0) + 1
+
+            for tool_name, count in sorted(tool_counts.items(), key=lambda x: x[1], reverse=True):
+                self.console.print(f"  {tool_name}: {count}x")
+
 
 def main():
     """Main entry point."""
-    monitor = WrapperMonitor(max_events=12)
+    # Check if being run directly from terminal (not piped)
+    if sys.stdin.isatty():
+        print("\n⚠️  ERROR: Don't run watch_wrapper.py directly!", file=sys.stderr)
+        print("\n   Use this instead:", file=sys.stderr)
+        print("   ./scripts/monitor.sh\n", file=sys.stderr)
+        print("   Or pipe events to it:", file=sys.stderr)
+        print(
+            "   tail -F logs/wrapper-realtime.log | python scripts/watch_wrapper.py\n",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    monitor = WrapperMonitor(max_events=20)
 
     try:
         monitor.run()
