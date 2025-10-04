@@ -65,6 +65,31 @@ class IterationEngine:
         # Circuit breaker for repeated test creation
         self.test_creation_attempts = {}  # project_path -> attempt_count
 
+    def _save_project_state_safe(self, project_path: str, phase: str, lang_name: str, **kwargs):
+        """Safely save project state without failing on error."""
+        try:
+            state_manager = ProjectStateManager(Path(project_path))
+            state_data = {"phase": phase, "language": lang_name, **kwargs}
+            state_manager.save_state(phase, state_data)
+        except Exception as e:
+            print(f"   ⚠️  Failed to save project state for {Path(project_path).name}: {e}")
+
+    def _process_hook_setup_for_project(
+        self, project_path: str, lang_name: str
+    ) -> tuple[bool, float, float]:
+        """Process hook setup for a single project. Returns (skipped, time_saved, cost_saved)."""
+        can_skip, reason = self.validator.can_skip_hook_config(Path(project_path))
+        if can_skip:
+            print(f"   ⏭️  {Path(project_path).name}: {reason}")
+            return True, 60.0, 0.50
+
+        success = self.fixer.configure_precommit_hooks(project_path, lang_name)
+        if success:
+            self.setup_tracker.mark_setup_complete(project_path, "hooks")
+            self._save_project_state_safe(project_path, "hooks", lang_name, configured=True)
+
+        return False, 0.0, 0.0
+
     def _run_hook_setup_phase(self, projects_by_language: Dict) -> tuple:
         """Run pre-commit hook setup phase (SRP)"""
         print(f"\n{'='*80}")
@@ -78,27 +103,13 @@ class IterationEngine:
 
         for lang_name, project_list in projects_by_language.items():
             for project_path in project_list:
-                can_skip, reason = self.validator.can_skip_hook_config(Path(project_path))
-                if can_skip:
-                    print(f"   ⏭️  {Path(project_path).name}: {reason}")
+                skipped, time_saved, cost_saved = self._process_hook_setup_for_project(
+                    project_path, lang_name
+                )
+                if skipped:
                     hooks_skipped += 1
-                    hooks_time_saved += 60.0
-                    hooks_cost_saved += 0.50
-                    continue
-
-                success = self.fixer.configure_precommit_hooks(project_path, lang_name)
-                if success:
-                    self.setup_tracker.mark_setup_complete(project_path, "hooks")
-                    # Save project state after successful hook configuration
-                    try:
-                        state_manager = ProjectStateManager(Path(project_path))
-                        state_data = {"phase": "hooks", "language": lang_name, "configured": True}
-                        state_manager.save_state("hooks", state_data)
-                    except Exception as e:
-                        # Log error but don't fail setup tracking
-                        print(
-                            f"   ⚠️  Failed to save project state for {Path(project_path).name}: {e}"
-                        )
+                    hooks_time_saved += time_saved
+                    hooks_cost_saved += cost_saved
 
         if hooks_skipped > 0:
             print(f"\n   ⏭️  Skipped hook setup for {hooks_skipped}/{hooks_total} projects")
@@ -113,6 +124,22 @@ class IterationEngine:
 
         return hooks_skipped, hooks_time_saved, hooks_cost_saved
 
+    def _process_test_discovery_for_project(
+        self, project_path: str, lang_name: str
+    ) -> tuple[bool, float, float]:
+        """Process test discovery for a single project. Returns (skipped, time_saved, cost_saved)."""
+        can_skip, reason = self.validator.can_skip_test_discovery(Path(project_path))
+        if can_skip:
+            print(f"   ⏭️  {Path(project_path).name}: {reason}")
+            return True, 90.0, 0.60
+
+        result = self.fixer.discover_test_config(project_path, lang_name)
+        if result.success:
+            self.setup_tracker.mark_setup_complete(project_path, "tests")
+            self._save_project_state_safe(project_path, "tests", lang_name, discovered=True)
+
+        return False, 0.0, 0.0
+
     def _run_test_discovery_phase(self, projects_by_language: Dict) -> tuple:
         """Run test discovery phase (SRP)"""
         print(f"\n{'='*80}")
@@ -126,27 +153,13 @@ class IterationEngine:
 
         for lang_name, project_list in projects_by_language.items():
             for project_path in project_list:
-                can_skip, reason = self.validator.can_skip_test_discovery(Path(project_path))
-                if can_skip:
-                    print(f"   ⏭️  {Path(project_path).name}: {reason}")
+                skipped, time_saved, cost_saved = self._process_test_discovery_for_project(
+                    project_path, lang_name
+                )
+                if skipped:
                     tests_skipped += 1
-                    tests_time_saved += 90.0
-                    tests_cost_saved += 0.60
-                    continue
-
-                result = self.fixer.discover_test_config(project_path, lang_name)
-                if result.success:
-                    self.setup_tracker.mark_setup_complete(project_path, "tests")
-                    # Save project state after successful test discovery
-                    try:
-                        state_manager = ProjectStateManager(Path(project_path))
-                        state_data = {"phase": "tests", "language": lang_name, "discovered": True}
-                        state_manager.save_state("tests", state_data)
-                    except Exception as e:
-                        # Log error but don't fail setup tracking
-                        print(
-                            f"   ⚠️  Failed to save project state for {Path(project_path).name}: {e}"
-                        )
+                    tests_time_saved += time_saved
+                    tests_cost_saved += cost_saved
 
         if tests_skipped > 0:
             print(f"\n   ⏭️  Skipped test discovery for {tests_skipped}/{tests_total} projects")
@@ -278,13 +291,8 @@ class IterationEngine:
 
         return p2_result, p2_score_data, strategy
 
-    def _handle_test_creation(
-        self, p2_result, iteration: int, projects_by_language: Dict, strategy: str
-    ) -> tuple:
-        """Handle test creation when no tests exist (SRP)"""
-        print("\n⚠️  CRITICAL: No tests found - delegating test creation")
-
-        # Check circuit breaker
+    def _check_test_creation_circuit_breaker(self, p2_result, iteration: int) -> dict:
+        """Check if circuit breaker should stop test creation. Returns abort_result or None."""
         for project_key in p2_result.results_by_project.keys():
             _, project_path = project_key.split(":", 1)
             attempts = self.test_creation_attempts.get(project_path, 0)
@@ -294,7 +302,7 @@ class IterationEngine:
                     f"\n❌ ABORT: Project {project_path} has had {attempts} test creation attempts"
                 )
                 self.debug_logger.log_session_end("test_creation_loop_detected")
-                return None, {
+                return {
                     "success": False,
                     "reason": "test_creation_loop",
                     "iterations_completed": iteration,
@@ -302,6 +310,26 @@ class IterationEngine:
                 }
 
             self.test_creation_attempts[project_path] = attempts + 1
+
+        return None
+
+    def _reset_test_creation_circuit_breaker(self, p2_result):
+        """Reset circuit breaker after successful test creation."""
+        for project_key in p2_result.results_by_project.keys():
+            _, project_path = project_key.split(":", 1)
+            if project_path in self.test_creation_attempts:
+                del self.test_creation_attempts[project_path]
+
+    def _handle_test_creation(
+        self, p2_result, iteration: int, projects_by_language: Dict, strategy: str
+    ) -> tuple:
+        """Handle test creation when no tests exist (SRP)"""
+        print("\n⚠️  CRITICAL: No tests found - delegating test creation")
+
+        # Check circuit breaker
+        abort_result = self._check_test_creation_circuit_breaker(p2_result, iteration)
+        if abort_result:
+            return None, abort_result
 
         fix_result = self.fixer.create_tests(p2_result, iteration)
         self.debug_logger.log_test_creation(
@@ -316,11 +344,7 @@ class IterationEngine:
             p2_recheck_score = self.scorer.score_tests(p2_recheck)
 
             if p2_recheck_score["passed_gate"]:
-                # Reset circuit breaker on success
-                for project_key in p2_result.results_by_project.keys():
-                    _, project_path = project_key.split(":", 1)
-                    if project_path in self.test_creation_attempts:
-                        del self.test_creation_attempts[project_path]
+                self._reset_test_creation_circuit_breaker(p2_result)
 
         return fix_result, None
 

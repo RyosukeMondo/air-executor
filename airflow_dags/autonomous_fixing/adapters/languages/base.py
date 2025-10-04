@@ -220,11 +220,13 @@ class LanguageAdapter(ILanguageAdapter, ABC):
         source_files = self._get_source_files(project)
 
         # Performance optimization: Sample files if there are too many
-        # Check max 50 files to avoid hanging on large projects
-        if len(source_files) > 50:
+        # Check max 100 files to avoid hanging on large projects
+        # Use deterministic sampling for consistent results
+        if len(source_files) > 100:
             import random
 
-            source_files = random.sample(source_files, 50)
+            random.seed(42)  # Deterministic sampling
+            source_files = random.sample(source_files, 100)
 
         for file_path in source_files:
             try:
