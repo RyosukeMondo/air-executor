@@ -142,6 +142,56 @@ def _print_summary(full_response: str, events: list):
     print("=" * 60)
 
 
+def _setup_environment(config) -> dict:
+    """Setup environment variables for wrapper process (SRP)"""
+    import os
+
+    env = os.environ.copy()
+    wrapper_log_level = getattr(config, "logging", {}).get("wrapper", {}).get("level", "INFO")
+    if isinstance(wrapper_log_level, str):
+        env["CLAUDE_WRAPPER_LOG_LEVEL"] = wrapper_log_level
+    return env
+
+
+def _start_wrapper_process(config, working_directory: str, env: dict):
+    """Start the claude wrapper subprocess (SRP)"""
+    return subprocess.Popen(
+        [str(config.venv_python), str(config.wrapper_path)],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,
+        cwd=working_directory,
+        env=env,
+    )
+
+
+def _validate_process_exit(process, config):
+    """Validate process exit code (SRP, early return)"""
+    process.stdin.close()
+    return_code = process.wait(timeout=config.claude_timeout)
+
+    if return_code != 0:
+        stderr = process.stderr.read()
+        raise RuntimeError(f"Wrapper exited with code {return_code}: {stderr}")
+
+
+def _push_results_to_xcom(context, full_response: str, events: list):
+    """Push results to Airflow XCom (SRP)"""
+    context["task_instance"].xcom_push(key="claude_response", value=full_response)
+    context["task_instance"].xcom_push(key="events_count", value=len(events))
+
+
+def _build_success_result(full_response: str, events: list) -> dict:
+    """Build success result dictionary (SRP)"""
+    return {
+        "status": "success",
+        "response": full_response,
+        "events_count": len(events),
+    }
+
+
 def run_claude_query_sdk(**context):
     """
     Run Claude query using claude_wrapper.py (non-blocking, no TTY needed).
@@ -162,48 +212,18 @@ def run_claude_query_sdk(**context):
     print(f"   Working directory: {working_directory}")
     print(f"   Prompt: {prompt}")
 
-    # Setup environment with log level from config
-    import os
-
-    env = os.environ.copy()
-    wrapper_log_level = getattr(config, "logging", {}).get("wrapper", {}).get("level", "INFO")
-    if isinstance(wrapper_log_level, str):
-        env["CLAUDE_WRAPPER_LOG_LEVEL"] = wrapper_log_level
-
-    process = subprocess.Popen(
-        [str(config.venv_python), str(config.wrapper_path)],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        bufsize=1,
-        cwd=working_directory,
-        env=env,
-    )
+    env = _setup_environment(config)
+    process = _start_wrapper_process(config, working_directory, env)
 
     try:
         events, conversation_text = _process_wrapper_output(process, prompt, config)
-
-        process.stdin.close()
-        return_code = process.wait(timeout=config.claude_timeout)
-
-        if return_code != 0:
-            stderr = process.stderr.read()
-            raise RuntimeError(f"Wrapper exited with code {return_code}: {stderr}")
+        _validate_process_exit(process, config)
 
         full_response = "\n".join(conversation_text)
-
         _print_summary(full_response, events)
+        _push_results_to_xcom(context, full_response, events)
 
-        context["task_instance"].xcom_push(key="claude_response", value=full_response)
-
-        context["task_instance"].xcom_push(key="events_count", value=len(events))
-
-        return {
-            "status": "success",
-            "response": full_response,
-            "events_count": len(events),
-        }
+        return _build_success_result(full_response, events)
 
     except subprocess.TimeoutExpired:
         process.kill()
