@@ -8,16 +8,19 @@ This DAG demonstrates how Air-Executor jobs appear in Airflow UI:
 """
 
 import json
+import re
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+
+# Add Air-Executor to Python path
+sys.path.insert(0, "/home/rmondo/repos/air-executor")
 
 from airflow import DAG
 from airflow.providers.standard.operators.python import PythonOperator
 from airflow.providers.standard.sensors.python import PythonSensor
 
-# Add Air-Executor to Python path
-sys.path.insert(0, "/home/rmondo/repos/air-executor")
+from scripts.example_python_usage import AirExecutorClient
 
 
 def create_air_executor_job(**context):
@@ -25,10 +28,6 @@ def create_air_executor_job(**context):
     Create Air-Executor job and push job_name to XCom.
     This appears in Airflow logs.
     """
-    import re
-
-    from scripts.example_python_usage import AirExecutorClient
-
     client = AirExecutorClient(base_path="/home/rmondo/repos/air-executor/.air-executor")
 
     # Create unique job name based on DAG run (sanitize for valid characters)

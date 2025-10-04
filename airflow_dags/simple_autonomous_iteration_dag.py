@@ -18,12 +18,11 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from airflow import DAG
-from airflow.providers.standard.operators.python import PythonOperator
-
-# Add project to path
+# Add project to path BEFORE importing local modules
 sys.path.insert(0, "/home/rmondo/repos/air-executor/airflow_dags")
 
+from airflow import DAG
+from airflow.providers.standard.operators.python import PythonOperator
 from simple_autonomous_iteration.simple_orchestrator import SimpleOrchestrator
 
 

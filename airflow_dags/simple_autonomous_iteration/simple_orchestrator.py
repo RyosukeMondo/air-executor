@@ -15,14 +15,14 @@ Safety features:
 
 import re
 import subprocess
-
-# Import Claude client from existing infrastructure
 import sys
 import time
 from pathlib import Path
 from typing import Optional
 
+# Import Claude client from existing infrastructure - add to path first
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from autonomous_fixing.adapters.ai.claude_client import ClaudeClient
 
 

@@ -8,11 +8,13 @@ This is a utility module imported by specialized DAGs (python_cleanup, commit_an
 """
 
 import json
+import os
 import subprocess
 import sys
 
-# Add project to path to import config
+# Add project to path to import config BEFORE importing local modules
 sys.path.insert(0, "/home/rmondo/repos/air-executor/src")
+
 from air_executor.config import load_config
 
 
@@ -144,8 +146,6 @@ def _print_summary(full_response: str, events: list):
 
 def _setup_environment(config) -> dict:
     """Setup environment variables for wrapper process (SRP)"""
-    import os
-
     env = os.environ.copy()
     wrapper_log_level = getattr(config, "logging", {}).get("wrapper", {}).get("level", "INFO")
     if isinstance(wrapper_log_level, str):

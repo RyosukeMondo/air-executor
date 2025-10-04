@@ -8,16 +8,19 @@ This DAG demonstrates how Airflow and Air-Executor share control:
 """
 
 import json
+import re
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+
+sys.path.insert(0, "/home/rmondo/repos/air-executor")
 
 from airflow import DAG
 from airflow.providers.standard.operators.bash import BashOperator
 from airflow.providers.standard.operators.python import PythonOperator
 from airflow.providers.standard.sensors.python import PythonSensor
 
-sys.path.insert(0, "/home/rmondo/repos/air-executor")
+from scripts.example_python_usage import AirExecutorClient
 
 
 def airflow_prepare_data(**context):
@@ -45,10 +48,6 @@ def handoff_to_air_executor(**context):
     """
     HAND OFF TO AIR-EXECUTOR: Create dynamic processing job
     """
-    import re
-
-    from scripts.example_python_usage import AirExecutorClient
-
     manifest = context["task_instance"].xcom_pull(task_ids="airflow_prepare", key="manifest")
 
     print("🤝 [HANDOFF] Airflow → Air-Executor")
