@@ -32,8 +32,8 @@ class ProjectStateManager:
     """
 
     STATE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60  # 30 days
-    EXTERNAL_HOOK_CACHE_DIR = Path('config/precommit-cache')
-    EXTERNAL_TEST_CACHE_DIR = Path('config/test-cache')
+    EXTERNAL_HOOK_CACHE_DIR = Path("config/precommit-cache")
+    EXTERNAL_TEST_CACHE_DIR = Path("config/test-cache")
 
     def __init__(self, project_path: Path):
         """
@@ -113,9 +113,9 @@ config_hash: {config_hash}
 """
 
         # Atomic write: write to temp file, then rename
-        temp_file = state_file.with_suffix('.tmp')
+        temp_file = state_file.with_suffix(".tmp")
         try:
-            temp_file.write_text(content, encoding='utf-8')
+            temp_file.write_text(content, encoding="utf-8")
             temp_file.chmod(0o644)  # User writable, others read
             temp_file.replace(state_file)
             self.logger.info(f"Saved {phase} state to {state_file}")
@@ -184,20 +184,20 @@ config_hash: {config_hash}
     def _validate_state_file(self, state_file):
         """Validate state file format and extract metadata."""
         try:
-            state_content = state_file.read_text(encoding='utf-8')
-            if not state_content.startswith('---'):
+            state_content = state_file.read_text(encoding="utf-8")
+            if not state_content.startswith("---"):
                 self.logger.warning(f"State file corrupted (no frontmatter): {state_file}")
                 state_file.unlink()
                 return None
 
-            parts = state_content.split('---', 2)
+            parts = state_content.split("---", 2)
             if len(parts) < 3:
                 self.logger.warning(f"State file corrupted (invalid frontmatter): {state_file}")
                 state_file.unlink()
                 return None
 
             metadata = yaml.safe_load(parts[1])
-            return metadata.get('config_hash', ''), metadata.get('generated', '')
+            return metadata.get("config_hash", ""), metadata.get("generated", "")
 
         except Exception as e:
             self.logger.error(f"Failed to parse state file {state_file}: {e}")
@@ -242,7 +242,9 @@ config_hash: {config_hash}
         # Hash check
         current_hash = self._get_config_hash(phase)
         if current_hash != stored_hash:
-            self.logger.debug(f"Config hash changed for {phase}: {stored_hash[:8]} -> {current_hash[:8]}")
+            self.logger.debug(
+                f"Config hash changed for {phase}: {stored_hash[:8]} -> {current_hash[:8]}"
+            )
             return (True, "config content changed")
         return None
 
@@ -302,18 +304,18 @@ config_hash: {config_hash}
 
         # Read existing gitignore content
         if gitignore.exists():
-            content = gitignore.read_text(encoding='utf-8')
+            content = gitignore.read_text(encoding="utf-8")
             lines = content.splitlines()
         else:
             lines = []
 
         # Check if .ai-state/ already gitignored
-        if any(line.strip() == '.ai-state/' for line in lines):
+        if any(line.strip() == ".ai-state/" for line in lines):
             return  # Already gitignored
 
         # Add .ai-state/ to gitignore
-        lines.append('.ai-state/')
-        gitignore.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+        lines.append(".ai-state/")
+        gitignore.write_text("\n".join(lines) + "\n", encoding="utf-8")
         self.logger.info(f"Added .ai-state/ to {gitignore}")
 
     def _check_external_cache(self, phase: str) -> Tuple[bool, str]:
