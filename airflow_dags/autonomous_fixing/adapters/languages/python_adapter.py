@@ -71,9 +71,22 @@ class PythonAdapter(LanguageAdapter):
             result.success = result.compute_quality_check()
             result.execution_time = time.time() - start_time
 
-        except Exception as e:
+        except RuntimeError as e:
+            # Configuration errors (tools not installed) - fail fast
+            if "not installed" in str(e).lower() or "no module named" in str(e).lower():
+                raise RuntimeError(
+                    f"Static analysis tool not available: {e}\n"
+                    f"Check linters configuration: {linters}"
+                ) from e
+            # Other runtime errors
             result.success = False
             result.error_message = str(e)
+            result.execution_time = time.time() - start_time
+        except Exception as e:
+            # Unexpected errors - log and fail
+            result.success = False
+            result.error_message = f"Unexpected error in static analysis: {e}"
+            result.execution_time = time.time() - start_time
 
         return result
 
@@ -132,9 +145,18 @@ class PythonAdapter(LanguageAdapter):
         except subprocess.TimeoutExpired:
             result.success = False
             result.error_message = f"Tests timed out after {timeout} seconds"
+            result.execution_time = time.time() - start_time
+        except FileNotFoundError as e:
+            # pytest not installed or not in PATH - fail fast
+            raise RuntimeError(
+                f"pytest not found: {e}\n"
+                f"Install with: pip install pytest"
+            ) from e
         except Exception as e:
+            # Unexpected errors
             result.success = False
-            result.error_message = str(e)
+            result.error_message = f"Unexpected error running tests: {e}"
+            result.execution_time = time.time() - start_time
 
         return result
 
@@ -168,9 +190,18 @@ class PythonAdapter(LanguageAdapter):
         except subprocess.TimeoutExpired:
             result.success = False
             result.error_message = "Coverage analysis timed out"
+            result.execution_time = time.time() - start_time
+        except FileNotFoundError as e:
+            # pytest-cov not installed - fail fast
+            raise RuntimeError(
+                f"pytest-cov not found: {e}\n"
+                f"Install with: pip install pytest-cov"
+            ) from e
         except Exception as e:
+            # Unexpected errors
             result.success = False
-            result.error_message = str(e)
+            result.error_message = f"Unexpected error in coverage analysis: {e}"
+            result.execution_time = time.time() - start_time
 
         return result
 
@@ -201,9 +232,18 @@ class PythonAdapter(LanguageAdapter):
         except subprocess.TimeoutExpired:
             result.success = False
             result.error_message = "E2E tests timed out"
+            result.execution_time = time.time() - start_time
+        except FileNotFoundError as e:
+            # pytest not available - fail fast
+            raise RuntimeError(
+                f"pytest not found for E2E tests: {e}\n"
+                f"Install with: pip install pytest"
+            ) from e
         except Exception as e:
+            # Unexpected errors
             result.success = False
-            result.error_message = str(e)
+            result.error_message = f"Unexpected error in E2E tests: {e}"
+            result.execution_time = time.time() - start_time
 
         return result
 
@@ -454,9 +494,18 @@ class PythonAdapter(LanguageAdapter):
         except subprocess.TimeoutExpired:
             result.success = False
             result.errors = [{"message": "Type checking timed out after 120 seconds"}]
+            result.execution_time = time.time() - start_time
+        except FileNotFoundError as e:
+            # mypy not installed - fail fast
+            raise RuntimeError(
+                f"mypy not found: {e}\n"
+                f"Install with: pip install mypy"
+            ) from e
         except Exception as e:
+            # Unexpected errors
             result.success = False
-            result.errors = [{"message": f"Type check failed: {str(e)}"}]
+            result.errors = [{"message": f"Unexpected type check error: {str(e)}"}]
+            result.execution_time = time.time() - start_time
 
         result.execution_time = time.time() - start_time
         return result
@@ -492,9 +541,16 @@ class PythonAdapter(LanguageAdapter):
             else:
                 result.error_message = f"{len(result.errors)} syntax errors found"
 
+        except FileNotFoundError as e:
+            # Python not available - fail fast
+            raise RuntimeError(
+                f"Python not found for syntax check: {e}\n"
+                f"Python installation may be corrupted"
+            ) from e
         except Exception as e:
+            # Unexpected errors
             result.success = False
-            result.error_message = f"Build check failed: {str(e)}"
+            result.error_message = f"Unexpected build check error: {str(e)}"
             result.errors = [{"message": result.error_message}]
 
         result.execution_time = time.time() - start_time

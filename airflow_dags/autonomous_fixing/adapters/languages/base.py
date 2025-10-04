@@ -1,8 +1,10 @@
 """Base language adapter interface for multi-language support."""
 
+import subprocess
+import time
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, List
+from typing import Callable, Dict, List
 
 from ...domain.interfaces import ILanguageAdapter
 
@@ -50,6 +52,92 @@ class LanguageAdapter(ILanguageAdapter, ABC):
         self.config = config
         self.complexity_threshold = config.get("complexity_threshold", 10)
         self.max_file_lines = config.get("max_file_lines", 500)
+
+    def _execute_with_error_handling(
+        self,
+        operation: Callable,
+        phase: str,
+        project_path: str,
+        tool_name: str = None,
+        install_cmd: str = None
+    ) -> AnalysisResult:
+        """SSOT: Centralized error handling for all analysis operations.
+
+        Args:
+            operation: Function that performs the analysis (returns AnalysisResult)
+            phase: Analysis phase name (e.g., "static", "tests", "coverage")
+            project_path: Path to project being analyzed
+            tool_name: Name of tool (e.g., "pytest", "npm") for error messages
+            install_cmd: Installation command to suggest if tool missing
+
+        Returns:
+            AnalysisResult with proper error handling and timing
+
+        Raises:
+            RuntimeError: For configuration errors (tools not installed)
+        """
+        start_time = time.time()
+
+        try:
+            result = operation()
+            # Ensure execution time is set
+            if not hasattr(result, 'execution_time') or result.execution_time == 0:
+                result.execution_time = time.time() - start_time
+            return result
+
+        except subprocess.TimeoutExpired as e:
+            # Timeout - expected, return failed result
+            result = AnalysisResult(
+                language=self.language_name,
+                phase=phase,
+                project_path=project_path
+            )
+            result.success = False
+            timeout_msg = f"{phase.capitalize()} timed out"
+            if hasattr(e, 'timeout'):
+                timeout_msg += f" after {e.timeout} seconds"
+            result.error_message = timeout_msg
+            result.execution_time = time.time() - start_time
+            return result
+
+        except FileNotFoundError as e:
+            # Tool not found - fail fast with helpful message
+            error_parts = [f"{tool_name or 'Tool'} not found: {e}"]
+            if install_cmd:
+                error_parts.append(f"Install with: {install_cmd}")
+            raise RuntimeError("\n".join(error_parts)) from e
+
+        except RuntimeError as e:
+            # Check if it's a configuration error (tool not installed)
+            error_msg = str(e).lower()
+            if any(phrase in error_msg for phrase in ["not installed", "not found", "no module named"]):
+                # Re-raise with additional context
+                error_parts = [f"{phase.capitalize()} tool error: {e}"]
+                if install_cmd:
+                    error_parts.append(f"Install: {install_cmd}")
+                raise RuntimeError("\n".join(error_parts)) from e
+            # Other runtime errors - create failed result
+            result = AnalysisResult(
+                language=self.language_name,
+                phase=phase,
+                project_path=project_path
+            )
+            result.success = False
+            result.error_message = str(e)
+            result.execution_time = time.time() - start_time
+            return result
+
+        except Exception as e:
+            # Unexpected errors - return failed result
+            result = AnalysisResult(
+                language=self.language_name,
+                phase=phase,
+                project_path=project_path
+            )
+            result.success = False
+            result.error_message = f"Unexpected error in {phase}: {type(e).__name__}: {e}"
+            result.execution_time = time.time() - start_time
+            return result
 
     @property
     @abstractmethod

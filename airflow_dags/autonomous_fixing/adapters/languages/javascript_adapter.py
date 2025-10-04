@@ -63,9 +63,20 @@ class JavaScriptAdapter(LanguageAdapter):
             result.success = result.compute_quality_check()
             result.execution_time = time.time() - start_time
 
-        except Exception as e:
+        except RuntimeError as e:
+            # Configuration errors (tools not installed) - fail fast
+            if "not installed" in str(e).lower() or "not found" in str(e).lower():
+                raise RuntimeError(
+                    f"JavaScript analysis tool not available: {e}\n"
+                    f"Check ESLint/TypeScript configuration"
+                ) from e
             result.success = False
             result.error_message = str(e)
+            result.execution_time = time.time() - start_time
+        except Exception as e:
+            result.success = False
+            result.error_message = f"Unexpected error in static analysis: {e}"
+            result.execution_time = time.time() - start_time
 
         return result
 
@@ -132,9 +143,17 @@ class JavaScriptAdapter(LanguageAdapter):
         except subprocess.TimeoutExpired:
             result.success = False
             result.error_message = f"Tests timed out after {timeout} seconds"
+            result.execution_time = time.time() - start_time
+        except FileNotFoundError as e:
+            # Test runner not installed - fail fast
+            raise RuntimeError(
+                f"Test runner not found: {e}\n"
+                f"Install with: npm install --save-dev jest (or vitest)"
+            ) from e
         except Exception as e:
             result.success = False
-            result.error_message = str(e)
+            result.error_message = f"Unexpected error running tests: {e}"
+            result.execution_time = time.time() - start_time
 
         return result
 
@@ -168,9 +187,17 @@ class JavaScriptAdapter(LanguageAdapter):
         except subprocess.TimeoutExpired:
             result.success = False
             result.error_message = "Coverage analysis timed out"
+            result.execution_time = time.time() - start_time
+        except FileNotFoundError as e:
+            # Coverage tool not installed - fail fast
+            raise RuntimeError(
+                f"Coverage tool not found: {e}\n"
+                f"Install with: npm install --save-dev jest (with coverage) or vitest"
+            ) from e
         except Exception as e:
             result.success = False
-            result.error_message = str(e)
+            result.error_message = f"Unexpected error in coverage analysis: {e}"
+            result.execution_time = time.time() - start_time
 
         return result
 
@@ -219,9 +246,17 @@ class JavaScriptAdapter(LanguageAdapter):
         except subprocess.TimeoutExpired:
             result.success = False
             result.error_message = "E2E tests timed out"
+            result.execution_time = time.time() - start_time
+        except FileNotFoundError as e:
+            # E2E tool not installed - fail fast
+            raise RuntimeError(
+                f"E2E test tool not found: {e}\n"
+                f"Install with: npm install --save-dev @playwright/test (or cypress)"
+            ) from e
         except Exception as e:
             result.success = False
-            result.error_message = str(e)
+            result.error_message = f"Unexpected error in E2E tests: {e}"
+            result.execution_time = time.time() - start_time
 
         return result
 
@@ -481,9 +516,17 @@ class JavaScriptAdapter(LanguageAdapter):
         except subprocess.TimeoutExpired:
             result.success = False
             result.errors = [{"message": "Type checking timed out after 120 seconds"}]
+            result.execution_time = time.time() - start_time
+        except FileNotFoundError as e:
+            # TypeScript/tsc not installed - fail fast
+            raise RuntimeError(
+                f"TypeScript not found: {e}\n"
+                f"Install with: npm install --save-dev typescript"
+            ) from e
         except Exception as e:
             result.success = False
-            result.errors = [{"message": f"Type check failed: {str(e)}"}]
+            result.errors = [{"message": f"Unexpected type check error: {str(e)}"}]
+            result.execution_time = time.time() - start_time
 
         result.execution_time = time.time() - start_time
         return result
@@ -534,10 +577,24 @@ class JavaScriptAdapter(LanguageAdapter):
             result.success = False
             result.error_message = "Build timed out after 300 seconds"
             result.errors = [{"message": result.error_message}]
+            result.execution_time = time.time() - start_time
+        except FileNotFoundError as e:
+            # npm not installed - fail fast
+            raise RuntimeError(
+                f"npm not found: {e}\n"
+                f"Install Node.js and npm: https://nodejs.org/"
+            ) from e
+        except json.JSONDecodeError as e:
+            # package.json malformed - fail fast
+            raise RuntimeError(
+                f"Invalid package.json: {e}\n"
+                f"Fix package.json format"
+            ) from e
         except Exception as e:
             result.success = False
-            result.error_message = f"Build failed: {str(e)}"
+            result.error_message = f"Unexpected build error: {str(e)}"
             result.errors = [{"message": result.error_message}]
+            result.execution_time = time.time() - start_time
 
         result.execution_time = time.time() - start_time
         return result

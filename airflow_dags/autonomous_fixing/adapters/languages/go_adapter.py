@@ -61,9 +61,20 @@ class GoAdapter(LanguageAdapter):
             result.success = result.compute_quality_check()
             result.execution_time = time.time() - start_time
 
-        except Exception as e:
+        except RuntimeError as e:
+            # Configuration errors (go tools not installed) - fail fast
+            if "not installed" in str(e).lower() or "not found" in str(e).lower():
+                raise RuntimeError(
+                    f"Go analysis tool not available: {e}\n"
+                    f"Check Go installation and PATH"
+                ) from e
             result.success = False
             result.error_message = str(e)
+            result.execution_time = time.time() - start_time
+        except Exception as e:
+            result.success = False
+            result.error_message = f"Unexpected error in static analysis: {e}"
+            result.execution_time = time.time() - start_time
 
         return result
 
@@ -93,9 +104,17 @@ class GoAdapter(LanguageAdapter):
         except subprocess.TimeoutExpired:
             result.success = False
             result.error_message = f"Tests timed out after {timeout} seconds"
+            result.execution_time = time.time() - start_time
+        except FileNotFoundError as e:
+            # go command not found - fail fast
+            raise RuntimeError(
+                f"Go not found: {e}\n"
+                f"Install Go: https://golang.org/doc/install"
+            ) from e
         except Exception as e:
             result.success = False
-            result.error_message = str(e)
+            result.error_message = f"Unexpected error running tests: {e}"
+            result.execution_time = time.time() - start_time
 
         return result
 
@@ -158,9 +177,17 @@ class GoAdapter(LanguageAdapter):
         except subprocess.TimeoutExpired:
             result.success = False
             result.error_message = "Coverage analysis timed out"
+            result.execution_time = time.time() - start_time
+        except FileNotFoundError as e:
+            # go command not found - fail fast
+            raise RuntimeError(
+                f"Go not found for coverage: {e}\n"
+                f"Install Go: https://golang.org/doc/install"
+            ) from e
         except Exception as e:
             result.success = False
-            result.error_message = str(e)
+            result.error_message = f"Unexpected error in coverage analysis: {e}"
+            result.execution_time = time.time() - start_time
 
         return result
 
@@ -196,9 +223,17 @@ class GoAdapter(LanguageAdapter):
         except subprocess.TimeoutExpired:
             result.success = False
             result.error_message = "E2E tests timed out"
+            result.execution_time = time.time() - start_time
+        except FileNotFoundError as e:
+            # go command not found - fail fast
+            raise RuntimeError(
+                f"Go not found for E2E tests: {e}\n"
+                f"Install Go: https://golang.org/doc/install"
+            ) from e
         except Exception as e:
             result.success = False
-            result.error_message = str(e)
+            result.error_message = f"Unexpected error in E2E tests: {e}"
+            result.execution_time = time.time() - start_time
 
         return result
 
