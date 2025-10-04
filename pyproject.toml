@@ -66,3 +66,10 @@ python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
 addopts = "-v --cov=air_executor --cov-report=term-missing"
+norecursedirs = [
+    "sample_*",          # Test fixture projects (intentionally broken code)
+    "fixtures",          # Test fixtures
+    "tmp_*",             # Temporary test runs
+    ".git",              # Git directories
+    "node_modules",      # JS dependencies
+]
