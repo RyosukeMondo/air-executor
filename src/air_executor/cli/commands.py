@@ -11,7 +11,7 @@ from typing import Optional
 from rich.console import Console
 from rich.table import Table
 
-from ..core.job import Job, JobState
+from ..core.job import JobState
 from ..core.task import TaskQueue, TaskStatus
 from ..manager.config import Config
 from ..manager.poller import JobPoller
@@ -331,7 +331,7 @@ def run_task_command(job_name: str, task_id: str) -> None:
         # Try to clean up PID file
         try:
             store.remove_pid_file(job_name)
-        except:
+        except Exception:
             pass
         sys.exit(1)
 
