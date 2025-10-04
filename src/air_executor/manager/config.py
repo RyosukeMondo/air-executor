@@ -78,7 +78,7 @@ class Config(BaseModel):
         """Convert string to Path if needed."""
         if isinstance(v, str):
             return Path(v)
-        return v
+        return Path(v)
 
     @classmethod
     def from_file(cls, path: Path) -> "Config":
