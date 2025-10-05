@@ -76,6 +76,8 @@ class TestOrchestratorE2E:
     def fixer(self, config):
         """Create IssueFixer with mocked Claude client via dependency injection."""
         mock_client = Mock()
+        # Configure mock to return dict for query() method
+        mock_client.query.return_value = {"success": True}
         # Use dependency injection instead of patching
         return IssueFixer(config, ai_client=mock_client)
 
@@ -199,7 +201,7 @@ class TestOrchestratorE2E:
             )
 
             # Run hook setup phase
-            iteration_engine._run_hook_setup_phase(projects_by_language)
+            iteration_engine._run_setup_phases(projects_by_language)
 
             # Verify hooks were configured
             assert iteration_engine.fixer.configure_precommit_hooks.called
