@@ -870,6 +870,11 @@ Success:
 
 **Note**: The `autonomous_fixing_dag.py` file already had `encoding='utf-8'` on all `open()` calls (lines 55, 59), so no changes were needed.
 
+**Followup Fix** (2025-10-05):
+- Fixed `air_executor_integration.py` line 121: Added missing `encoding='utf-8'` to tasks_file open()
+- This was overlooked in the original Task 5.1 completion
+- Commit: cbe594b
+
 ---
 
 #### Task 5.2: Add subprocess.run Check Parameter
