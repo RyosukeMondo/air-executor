@@ -4,15 +4,22 @@ Commit Verifier - Verifies that Claude actually committed changes.
 Prevents false success reports by ensuring commits were made.
 """
 
+from typing import Optional
+
 from ..adapters.git.git_verifier import GitVerifier
 
 
 class CommitVerifier:
     """Verifies commits were made after fix operations."""
 
-    def __init__(self):
-        """Initialize commit verifier."""
-        self.git_verifier = GitVerifier()
+    def __init__(self, git_verifier: Optional[GitVerifier] = None):
+        """Initialize commit verifier.
+
+        Args:
+            git_verifier: Optional GitVerifier for dependency injection.
+                If None, creates default GitVerifier.
+        """
+        self.git_verifier = git_verifier or GitVerifier()
 
     def verify_fix_committed(self, project_path: str, before_commit: str, operation: str) -> bool:
         """

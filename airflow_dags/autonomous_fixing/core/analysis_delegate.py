@@ -6,6 +6,7 @@ Delegates analysis and configuration tasks to Claude.
 
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING, Optional
 
 import yaml
 
@@ -13,6 +14,9 @@ from ..adapters.ai.claude_client import ClaudeClient
 from ..config.analysis_delegate_config import AnalysisDelegateConfig
 from ..domain.models import FixResult
 from .prompt_manager import PromptManager
+
+if TYPE_CHECKING:
+    from ..domain.interfaces import IAIClient
 
 
 class AnalysisDelegate:
@@ -23,6 +27,7 @@ class AnalysisDelegate:
         config: dict,
         debug_logger=None,
         delegate_config: AnalysisDelegateConfig | None = None,
+        ai_client: Optional["IAIClient"] = None,
     ):
         """
         Initialize analysis delegate.
@@ -31,22 +36,35 @@ class AnalysisDelegate:
             config: Configuration dict with wrapper settings (backward compat)
             debug_logger: Optional DebugLogger instance
             delegate_config: Optional AnalysisDelegateConfig for paths
+            ai_client: Optional AI client implementing IAIClient.
+                If None, creates default ClaudeClient.
         """
         self.config = config
         self.delegate_config = delegate_config or AnalysisDelegateConfig()
 
-        # Get wrapper settings from delegate_config or fallback to config dict
-        wrapper_settings = self.delegate_config.wrapper_settings
-        wrapper_path = config.get("wrapper", {}).get("path", wrapper_settings["path"])
-        python_exec = config.get("wrapper", {}).get(
-            "python_executable", wrapper_settings["python_executable"]
-        )
-
-        # Initialize Claude client
-        self.claude = ClaudeClient(wrapper_path, python_exec, debug_logger)
+        # Initialize Claude client (use injected or create default)
+        self.claude: "IAIClient" = ai_client or self._create_claude_client(debug_logger)
 
         # Initialize prompt manager
         self.prompt_manager = PromptManager()
+
+    def _create_claude_client(self, debug_logger) -> ClaudeClient:
+        """Create default Claude client from config.
+
+        Args:
+            debug_logger: Optional DebugLogger instance
+
+        Returns:
+            ClaudeClient configured with wrapper settings from config.
+        """
+        # Get wrapper settings from delegate_config or fallback to config dict
+        wrapper_settings = self.delegate_config.wrapper_settings
+        wrapper_path = self.config.get("wrapper", {}).get("path", wrapper_settings["path"])
+        python_exec = self.config.get("wrapper", {}).get(
+            "python_executable", wrapper_settings["python_executable"]
+        )
+
+        return ClaudeClient(wrapper_path, python_exec, debug_logger)
 
     def analyze_static(self, project_path: str, language: str) -> dict:
         """
