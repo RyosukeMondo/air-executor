@@ -8,13 +8,7 @@ from air_executor.core.task import Task, TaskQueue, TaskStatus
 
 def test_task_creation():
     """Test task creation with valid data."""
-    task = Task(
-        id="task-001",
-        job_name="test-job",
-        command="echo",
-        args=["hello"],
-        dependencies=[]
-    )
+    task = Task(id="task-001", job_name="test-job", command="echo", args=["hello"], dependencies=[])
 
     assert task.id == "task-001"
     assert task.job_name == "test-job"
@@ -27,12 +21,7 @@ def test_task_creation():
 
 def test_task_dependency_checking():
     """Test task dependency satisfaction checking."""
-    task = Task(
-        id="task-002",
-        job_name="test-job",
-        command="echo",
-        dependencies=["task-001"]
-    )
+    task = Task(id="task-002", job_name="test-job", command="echo", dependencies=["task-001"])
 
     # Not ready when dependency not completed
     assert task.is_ready(set()) is False
@@ -94,12 +83,7 @@ def test_task_queue_pending_with_dependencies():
 
         # Add tasks with dependencies
         task1 = Task(id="task-001", job_name="test-job", command="echo")
-        task2 = Task(
-            id="task-002",
-            job_name="test-job",
-            command="echo",
-            dependencies=["task-001"]
-        )
+        task2 = Task(id="task-002", job_name="test-job", command="echo", dependencies=["task-001"])
 
         queue.add(task1)
         queue.add(task2)

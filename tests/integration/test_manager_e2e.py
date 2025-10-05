@@ -37,7 +37,7 @@ def setup_components(temp_storage):
         "store": store,
         "runner": runner,
         "spawner": spawner,
-        "poller": poller
+        "poller": poller,
     }
 
 
@@ -54,11 +54,7 @@ def test_job_creation_and_storage(temp_storage):
     assert (job_dir / "logs").exists()
 
     # Create and save job
-    job = Job(
-        id=str(uuid.uuid4()),
-        name=job_name,
-        state=JobState.WAITING
-    )
+    job = Job(id=str(uuid.uuid4()), name=job_name, state=JobState.WAITING)
     store.write_job_state(job)
 
     # Load and verify
@@ -77,18 +73,9 @@ def test_task_queue_with_dependencies(temp_storage):
     queue = TaskQueue(job_name, tasks_file)
 
     # Add tasks with dependencies
-    task1 = Task(
-        id="task-001",
-        job_name=job_name,
-        command="echo",
-        args=["step1"]
-    )
+    task1 = Task(id="task-001", job_name=job_name, command="echo", args=["step1"])
     task2 = Task(
-        id="task-002",
-        job_name=job_name,
-        command="echo",
-        args=["step2"],
-        dependencies=["task-001"]
+        id="task-002", job_name=job_name, command="echo", args=["step2"], dependencies=["task-001"]
     )
 
     queue.add(task1)
@@ -116,11 +103,7 @@ def test_state_persistence_across_restarts(temp_storage):
     # Create job
     job_name = "persistent-job"
     store.create_job_dir(job_name)
-    job = Job(
-        id=str(uuid.uuid4()),
-        name=job_name,
-        state=JobState.WAITING
-    )
+    job = Job(id=str(uuid.uuid4()), name=job_name, state=JobState.WAITING)
     store.write_job_state(job)
 
     # Simulate restart by creating new store instance
@@ -142,21 +125,12 @@ def test_poller_single_cycle(setup_components):
     job_name = "poll-test-job"
     store.create_job_dir(job_name)
 
-    job = Job(
-        id=str(uuid.uuid4()),
-        name=job_name,
-        state=JobState.WAITING
-    )
+    job = Job(id=str(uuid.uuid4()), name=job_name, state=JobState.WAITING)
     store.write_job_state(job)
 
     # Add a simple task
     queue = TaskQueue(job_name, store.jobs_path / job_name / "tasks.json")
-    task = Task(
-        id="task-001",
-        job_name=job_name,
-        command="echo",
-        args=["test"]
-    )
+    task = Task(id="task-001", job_name=job_name, command="echo", args=["test"])
     queue.add(task)
 
     # Run single poll cycle
@@ -176,11 +150,7 @@ def test_job_completion_detection(temp_storage):
     store.create_job_dir(job_name)
 
     # Create job
-    job = Job(
-        id=str(uuid.uuid4()),
-        name=job_name,
-        state=JobState.WORKING
-    )
+    job = Job(id=str(uuid.uuid4()), name=job_name, state=JobState.WORKING)
     store.write_job_state(job)
 
     # Add and complete all tasks

@@ -12,11 +12,7 @@ from air_executor.core.job import Job, JobState
 
 def test_job_creation():
     """Test job creation with valid data."""
-    job = Job(
-        id=str(uuid.uuid4()),
-        name="test-job",
-        state=JobState.WAITING
-    )
+    job = Job(id=str(uuid.uuid4()), name="test-job", state=JobState.WAITING)
 
     assert job.name == "test-job"
     assert job.state == JobState.WAITING
@@ -79,11 +75,7 @@ def test_job_file_serialization():
         path = Path(tmpdir) / "state.json"
 
         # Create and save job
-        original_job = Job(
-            id=str(uuid.uuid4()),
-            name="test-job",
-            state=JobState.WORKING
-        )
+        original_job = Job(id=str(uuid.uuid4()), name="test-job", state=JobState.WORKING)
         original_job.to_file(path)
 
         # Load and verify

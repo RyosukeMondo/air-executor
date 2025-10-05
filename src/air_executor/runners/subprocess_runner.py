@@ -8,6 +8,7 @@ from typing import Optional
 
 try:
     import psutil
+
     HAS_PSUTIL = True
 except ImportError:
     HAS_PSUTIL = False
@@ -53,10 +54,13 @@ class SubprocessRunner:
         # Use python -m to avoid CLI entry point issues
         cmd = [
             "python",
-            "-m", "air_executor.cli.main",
+            "-m",
+            "air_executor.cli.main",
             "run-task",
-            "--job", job.name,
-            "--task", task.id
+            "--job",
+            job.name,
+            "--task",
+            task.id,
         ]
 
         try:
@@ -66,7 +70,7 @@ class SubprocessRunner:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 stdin=subprocess.DEVNULL,
-                start_new_session=True  # Detach from parent
+                start_new_session=True,  # Detach from parent
             )
             return process.pid
 

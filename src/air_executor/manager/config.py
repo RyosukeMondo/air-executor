@@ -16,10 +16,7 @@ class Config(BaseModel):
 
     # Polling settings
     poll_interval: int = Field(
-        default=5,
-        ge=1,
-        le=60,
-        description="Polling interval in seconds (1-60)"
+        default=5, ge=1, le=60, description="Polling interval in seconds (1-60)"
     )
 
     # Runner settings
@@ -27,30 +24,22 @@ class Config(BaseModel):
         default=1800,
         ge=60,
         le=7200,
-        description="Task timeout in seconds (60-7200, default 30 minutes)"
+        description="Task timeout in seconds (60-7200, default 30 minutes)",
     )
     max_concurrent_runners: int = Field(
-        default=10,
-        ge=1,
-        le=50,
-        description="Maximum concurrent task runners (1-50)"
+        default=10, ge=1, le=50, description="Maximum concurrent task runners (1-50)"
     )
 
     # Storage settings
     base_path: Path = Field(
-        default=Path(".air-executor"),
-        description="Base directory for all storage"
+        default=Path(".air-executor"), description="Base directory for all storage"
     )
 
     # Logging settings
     log_level: str = Field(
-        default="INFO",
-        description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)"
+        default="INFO", description="Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)"
     )
-    log_format: str = Field(
-        default="json",
-        description="Log format (json, console)"
-    )
+    log_format: str = Field(default="json", description="Log format (json, console)")
 
     @field_validator("log_level")
     @classmethod
@@ -110,9 +99,10 @@ class Config(BaseModel):
             unknown_keys = set(data.keys()) - known_keys
             if unknown_keys:
                 import sys
+
                 print(
                     f"Warning: Unknown config keys (will be ignored): {', '.join(unknown_keys)}",
-                    file=sys.stderr
+                    file=sys.stderr,
                 )
 
             return cls(**data)
@@ -141,7 +131,11 @@ class Config(BaseModel):
                 return cls.from_file(path)
             except Exception as e:
                 import sys
-                print(f"Warning: Failed to load config from {path}, using defaults: {e}", file=sys.stderr)
+
+                print(
+                    f"Warning: Failed to load config from {path}, using defaults: {e}",
+                    file=sys.stderr,
+                )
                 return cls()
         else:
             return cls()

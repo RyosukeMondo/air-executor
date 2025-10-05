@@ -28,8 +28,12 @@ class Job(BaseModel):
     id: str = Field(..., description="Unique job identifier (UUID)")
     name: str = Field(..., description="Human-readable job name")
     state: JobState = Field(default=JobState.WAITING, description="Current job state")
-    created_at: datetime = Field(default_factory=datetime.utcnow, description="Job creation timestamp")
-    updated_at: datetime = Field(default_factory=datetime.utcnow, description="Last state update timestamp")
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow, description="Job creation timestamp"
+    )
+    updated_at: datetime = Field(
+        default_factory=datetime.utcnow, description="Last state update timestamp"
+    )
 
     @field_validator("name")
     @classmethod
@@ -38,7 +42,9 @@ class Job(BaseModel):
         if not v:
             raise ValueError("Job name cannot be empty")
         if not all(c.isalnum() or c in "-_" for c in v):
-            raise ValueError("Job name must contain only alphanumeric characters, dashes, and underscores")
+            raise ValueError(
+                "Job name must contain only alphanumeric characters, dashes, and underscores"
+            )
         if len(v) > 100:
             raise ValueError("Job name must be 100 characters or less")
         return v
@@ -127,6 +133,7 @@ class Job(BaseModel):
                 f.flush()
                 # Ensure data is written to disk
                 import os
+
                 os.fsync(f.fileno())
 
             # Atomic rename

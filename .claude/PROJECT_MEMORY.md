@@ -6,7 +6,7 @@
 
 **Location**: `/home/rmondo/repos/air-executor/.venv/bin/python3`
 
-**Why**: 
+**Why**:
 - System `python` command not available
 - Virtual environment ensures correct dependencies
 - Avoids "python: コマンドが見つかりません" (command not found) errors
@@ -28,7 +28,7 @@ python3 script.py  # might work but may use wrong environment
 
 ### Completed Work
 - Phase 1-2: Cleanup + Domain layer
-- Phase 3: Import updates + Interface implementation  
+- Phase 3: Import updates + Interface implementation
 - Phase 4: Split PythonAdapter (529 lines → 5 focused modules)
 
 ### Architecture

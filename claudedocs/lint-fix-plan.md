@@ -1397,7 +1397,7 @@ Key workflows to verify:
 - [x] Run fast lint check (ruff: zero errors ✓)
 - [x] Run unit tests (246/246 passed ✓)
 - [x] Run integration tests (44/45 passed - 1 test expectation issue, not a bug)
-- [ ] Run pre-commit hooks (all pass)
+- [x] Run pre-commit hooks (all pass ✓)
 - [ ] Run type checking (zero errors)
 - [ ] Test orchestrator (runs successfully)
 - [ ] Verify no regressions
@@ -1423,6 +1423,23 @@ Key workflows to verify:
 - **Unit tests**: 246/246 passed ✓
 - **Integration tests**: 44/45 passed
   - 1 test failure in `test_orchestrator_accepts_dict_config` - test expectation issue (config.to_dict() now includes empty sections), not a bug in lint fixes
+
+### Pre-commit Hooks
+- **Status**: ✓ All hooks passed
+- **Fixed Issues**:
+  - Removed 6 unused variables in `test_claude_client_parser.py` (F841 errors)
+  - Auto-fixed formatting in 20 files (ruff-format)
+  - Trimmed trailing whitespace in 11 files
+  - Fixed end-of-file markers in 24 files
+- **Hooks Verified**:
+  - ruff (linting)
+  - ruff-format (code formatting)
+  - trailing-whitespace
+  - end-of-file-fixer
+  - check-yaml
+  - check-added-large-files
+  - check-merge-conflicts
+  - mixed-line-ending
 
 ### Quality Improvements
 - **Import errors**: Fixed all critical import errors

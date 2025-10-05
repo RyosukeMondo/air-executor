@@ -30,9 +30,13 @@ class Task(BaseModel):
     job_name: str = Field(..., description="Name of parent job")
     command: str = Field(..., description="Command to execute")
     args: List[str] = Field(default_factory=list, description="Command arguments")
-    dependencies: List[str] = Field(default_factory=list, description="Task IDs this task depends on")
+    dependencies: List[str] = Field(
+        default_factory=list, description="Task IDs this task depends on"
+    )
     status: TaskStatus = Field(default=TaskStatus.PENDING, description="Current task status")
-    created_at: datetime = Field(default_factory=datetime.utcnow, description="Task creation timestamp")
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow, description="Task creation timestamp"
+    )
     started_at: Optional[datetime] = Field(default=None, description="Task start timestamp")
     completed_at: Optional[datetime] = Field(default=None, description="Task completion timestamp")
     error: Optional[str] = Field(default=None, description="Error message if task failed")
@@ -116,6 +120,7 @@ class TaskQueue:
             except (json.JSONDecodeError, ValueError) as e:
                 # Log error but don't crash - start with empty queue
                 import sys
+
                 print(f"Warning: Failed to load tasks from {self.tasks_file}: {e}", file=sys.stderr)
                 self._tasks = []
 

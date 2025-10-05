@@ -135,7 +135,9 @@ class TestAdapterInterfaceCompliance:
     def test_imported_adapter_matches_file_adapter(self):
         """Ensure __init__.py imports the correct PythonAdapter from python_adapter.py."""
         # Import from __init__.py (the way orchestrator does it)
-        from airflow_dags.autonomous_fixing.adapters.languages import PythonAdapter as InitPythonAdapter
+        from airflow_dags.autonomous_fixing.adapters.languages import (
+            PythonAdapter as InitPythonAdapter,
+        )
 
         # Import directly from file
         from airflow_dags.autonomous_fixing.adapters.languages.python_adapter import (

@@ -90,7 +90,10 @@ class RunnerSpawner:
         # Check if job has pending tasks
         try:
             from ..core.task import TaskQueue
-            task_queue = TaskQueue(fresh_job.name, self.store.jobs_path / fresh_job.name / "tasks.json")
+
+            task_queue = TaskQueue(
+                fresh_job.name, self.store.jobs_path / fresh_job.name / "tasks.json"
+            )
             return task_queue.has_pending()
         except Exception as e:
             print(f"Error checking tasks for job {fresh_job.name}: {e}", file=sys.stderr)

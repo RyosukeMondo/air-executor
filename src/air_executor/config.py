@@ -16,9 +16,7 @@ else:
     try:
         import tomli as tomllib
     except ImportError:
-        raise ImportError(
-            "tomli is required for Python < 3.11. Install with: pip install tomli"
-        )
+        raise ImportError("tomli is required for Python < 3.11. Install with: pip install tomli")
 
 
 class Config:
@@ -129,9 +127,7 @@ class Config:
 
         # Claude settings
         if "CLAUDE_TIMEOUT" in os.environ:
-            config.setdefault("claude", {})["timeout_seconds"] = int(
-                os.environ["CLAUDE_TIMEOUT"]
-            )
+            config.setdefault("claude", {})["timeout_seconds"] = int(os.environ["CLAUDE_TIMEOUT"])
 
         if "CLAUDE_PERMISSION_MODE" in os.environ:
             config.setdefault("claude", {})["permission_mode"] = os.environ[

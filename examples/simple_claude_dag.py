@@ -29,7 +29,7 @@ def create_claude_query_job():
         "name": job_name,
         "state": "waiting",
         "created_at": datetime.utcnow().isoformat() + "Z",
-        "updated_at": datetime.utcnow().isoformat() + "Z"
+        "updated_at": datetime.utcnow().isoformat() + "Z",
     }
 
     with open(job_dir / "state.json", "w") as f:
@@ -47,7 +47,7 @@ def create_claude_query_job():
             "created_at": datetime.utcnow().isoformat() + "Z",
             "started_at": None,
             "completed_at": None,
-            "error": None
+            "error": None,
         }
     ]
 
@@ -56,10 +56,10 @@ def create_claude_query_job():
 
     print(f"✅ Created job: {job_name} (ID: {job_id})")
     print(f"📂 Job directory: {job_dir}")
-    print(f"📝 Command: claude -p \"hello, how old are you?\"")
-    print(f"\n🚀 To run this job, start the manager:")
-    print(f"   python scripts/run_manager.py")
-    print(f"\n📊 Output will be in:")
+    print('📝 Command: claude -p "hello, how old are you?"')
+    print("\n🚀 To run this job, start the manager:")
+    print("   python scripts/run_manager.py")
+    print("\n📊 Output will be in:")
     print(f"   {job_dir / 'logs' / 'claude-query-task.log'}")
 
     return job_id

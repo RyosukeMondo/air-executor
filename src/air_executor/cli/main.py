@@ -13,14 +13,11 @@ def cli():
 
 
 @cli.command()
-@click.option(
-    "--config",
-    type=click.Path(exists=True, path_type=Path),
-    help="Path to config file"
-)
+@click.option("--config", type=click.Path(exists=True, path_type=Path), help="Path to config file")
 def start(config):
     """Start job manager in background."""
     from .commands import start_manager
+
     start_manager(config)
 
 
@@ -28,6 +25,7 @@ def start(config):
 def stop():
     """Stop job manager gracefully."""
     from .commands import stop_manager
+
     stop_manager()
 
 
@@ -36,6 +34,7 @@ def stop():
 def status(job):
     """Display job status table."""
     from .commands import show_status
+
     show_status(job)
 
 
@@ -45,6 +44,7 @@ def status(job):
 def logs(job, tail):
     """Display task execution logs."""
     from .commands import show_logs
+
     show_logs(job, tail)
 
 
@@ -54,6 +54,7 @@ def logs(job, tail):
 def reset(job):
     """Reset job to waiting state."""
     from .commands import reset_job
+
     reset_job(job)
 
 
@@ -63,6 +64,7 @@ def reset(job):
 def run_task(job, task):
     """Run a single task (internal command for runners)."""
     from .commands import run_task_command
+
     run_task_command(job, task)
 
 

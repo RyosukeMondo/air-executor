@@ -4,10 +4,11 @@ These tests verify that calculate_complexity returns accurate values
 and doesn't silently fall back to incorrect heuristics.
 """
 
-import pytest
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 from airflow_dags.autonomous_fixing.adapters.languages.python_adapter import PythonAdapter
 
@@ -18,11 +19,9 @@ class TestComplexityCalculation:
     @pytest.fixture
     def adapter(self):
         """Create adapter with standard config."""
-        return PythonAdapter({
-            'complexity_threshold': 15,
-            'max_file_lines': 500,
-            'linters': ['ruff', 'mypy']
-        })
+        return PythonAdapter(
+            {"complexity_threshold": 15, "max_file_lines": 500, "linters": ["ruff", "mypy"]}
+        )
 
     @pytest.fixture
     def test_file(self, tmp_path):
@@ -62,13 +61,10 @@ def complex_function(a, b, c):
     def test_radon_is_available(self):
         """Radon must be available via sys.executable -m radon."""
         result = subprocess.run(
-            [sys.executable, "-m", "radon", "--version"],
-            capture_output=True,
-            text=True
+            [sys.executable, "-m", "radon", "--version"], capture_output=True, text=True
         )
         assert result.returncode == 0, (
-            "Radon not available! Install with: pip install radon\n"
-            f"Error: {result.stderr}"
+            "Radon not available! Install with: pip install radon\n" f"Error: {result.stderr}"
         )
 
     def test_calculate_complexity_with_simple_function(self, adapter, tmp_path):
@@ -126,11 +122,12 @@ def add(a, b):
         result = subprocess.run(
             [sys.executable, "-m", "radon", "cc", str(test_file), "-s", "-n", "A"],
             capture_output=True,
-            text=True
+            text=True,
         )
 
         # Parse radon output to find max complexity
         import re
+
         max_radon_complexity = 0
         for match in re.finditer(r"\((\d+)\)", result.stdout):
             complexity = int(match.group(1))
@@ -145,11 +142,13 @@ def add(a, b):
 
     def test_no_silent_failures(self, adapter, monkeypatch):
         """Complexity calculation should NOT silently fall back on errors."""
+
         def mock_run_fail(*args, **kwargs):
             raise FileNotFoundError("radon not found")
 
         # Mock subprocess.run to simulate radon failure
         import subprocess as sp
+
         monkeypatch.setattr(sp, "run", mock_run_fail)
 
         # Should raise error, NOT silently return wrong value
@@ -167,7 +166,7 @@ class TestComplexityHeuristic:
 
     @pytest.fixture
     def adapter(self):
-        return PythonAdapter({'complexity_threshold': 10})
+        return PythonAdapter({"complexity_threshold": 10})
 
     def test_simple_complexity_counts_control_flow(self, adapter, tmp_path):
         """Simple complexity heuristic counts control flow keywords."""

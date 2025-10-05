@@ -3,7 +3,7 @@
 ## Your Brilliant Insight
 
 **Problem Identified:**
-> "What if repository has hundreds of errors not tested yet? 
+> "What if repository has hundreds of errors not tested yet?
 > How about split pre-commit setting right after each phase P1, P2, P3 passed?
 > After P1, there must be no type check, build error exists, so it's best timing to introduce type check in pre-commit."
 
@@ -17,7 +17,7 @@
 Level 0 (SETUP)
   ↓ Fix type errors
 Level 1 (P1 passed) → Type checking + Build enforced
-  ↓ Create & fix tests  
+  ↓ Create & fix tests
 Level 2 (P2 passed) → + Tests enforced
   ↓ Improve coverage
 Level 3 (P3 passed) → + Coverage + Lint enforced
@@ -55,7 +55,7 @@ result = adapter.run_build(project_path)
 if not result.success:
     print("Cannot upgrade: Build still failing")
     return False
-    
+
 # Only upgrade if both pass!
 ```
 
@@ -68,7 +68,7 @@ levels:
     name: framework_only
     checks: []
     enabled_after: setup_phase
-    
+
   1:
     name: type_safety
     checks: [type_check, build]
@@ -76,7 +76,7 @@ levels:
     requires:
       - type_check_passes
       - build_succeeds
-      
+
   2:
     name: tests
     checks: [type_check, build, unit_tests]
@@ -84,7 +84,7 @@ levels:
     requires:
       - tests_exist
       - tests_pass
-      
+
   3:
     name: full_quality
     checks: [type_check, build, unit_tests, coverage, lint]
@@ -124,10 +124,10 @@ fi
 hooks:
   - id: mypy
     entry: bash -c 'if [ "$(cat .pre-commit-level)" -ge 1 ]; then mypy .; fi'
-    
+
   - id: pytest
     entry: bash -c 'if [ "$(cat .pre-commit-level)" -ge 2 ]; then pytest; fi'
-    
+
   - id: coverage
     entry: bash -c 'if [ "$(cat .pre-commit-level)" -ge 3 ]; then pytest --cov --cov-fail-under=60; fi'
 ```
@@ -142,7 +142,7 @@ hook_manager.upgrade_after_gate_passed(
 )
 # → Verifies type checking + build → Upgrades to Level 1
 
-# After P2 gate passes  
+# After P2 gate passes
 hook_manager.upgrade_after_gate_passed(
     project_path, language, 'p2',
     gate_passed=True, score=0.88, adapter=adapter
@@ -167,7 +167,7 @@ hook_manager.upgrade_after_gate_passed(
 ### 2. Prevents Regression
 ```
 Once P1 passes → Type errors CANNOT return
-Once P2 passes → Test failures CANNOT return  
+Once P2 passes → Test failures CANNOT return
 Once P3 passes → Coverage CANNOT drop below 60%
 ```
 
@@ -210,21 +210,21 @@ Day 1 (Level 0):
   ✅ Commit passes
   → Fix 300 more type errors
   ✅ Commit passes
-  
+
 Day 2 (P1 passes → Level 1):
   🔒 Type checking now enforced
   ✅ Commits with type errors BLOCKED
   ✅ Commits without type errors pass
   → Create tests
   ✅ Commit passes (tests not enforced yet)
-  
+
 Day 3 (P2 passes → Level 2):
   🔒 Tests now enforced
   ✅ Commits that break tests BLOCKED
   ✅ Commits that pass tests succeed
   → Improve coverage
   ✅ Commit passes (coverage not enforced yet)
-  
+
 Day 4 (P3 passes → Level 3):
   🔒 Coverage now enforced
   ✅ Full quality gates enforced

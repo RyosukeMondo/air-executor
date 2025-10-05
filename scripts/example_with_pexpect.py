@@ -14,14 +14,14 @@ from datetime import datetime
 def create_interactive_job(job_name: str, script_path: str):
     """
     Create a job that runs an interactive script using pexpect.
-    
+
     The script will be executed as a task, and pexpect can handle
     interactive input/output within that script.
     """
     job_dir = Path(".air-executor/jobs") / job_name
     job_dir.mkdir(parents=True, exist_ok=True)
     (job_dir / "logs").mkdir(exist_ok=True)
-    
+
     # Create the pexpect wrapper script
     wrapper_script = job_dir / "run_interactive.py"
     wrapper_script.write_text(f'''#!/usr/bin/env python3
@@ -36,7 +36,7 @@ child.close()
 sys.exit(child.exitstatus)
 ''')
     wrapper_script.chmod(0o755)
-    
+
     # Create job state
     state = {
         "id": f"{job_name}-{int(datetime.now().timestamp())}",
@@ -45,10 +45,10 @@ sys.exit(child.exitstatus)
         "created_at": datetime.utcnow().isoformat() + "Z",
         "updated_at": datetime.utcnow().isoformat() + "Z"
     }
-    
+
     with open(job_dir / "state.json", "w") as f:
         json.dump(state, f, indent=2)
-    
+
     # Create tasks
     tasks = [{
         "id": "run-interactive",
@@ -62,10 +62,10 @@ sys.exit(child.exitstatus)
         "completed_at": None,
         "error": None
     }]
-    
+
     with open(job_dir / "tasks.json", "w") as f:
         json.dump(tasks, f, indent=2)
-    
+
     print(f"✅ Created interactive job: {job_name}")
 
 
@@ -81,8 +81,8 @@ sleep 1
 echo "Process complete"
 ''')
     test_script.chmod(0o755)
-    
+
     create_interactive_job("interactive-test", str(test_script))
-    
+
     print("\n💡 Note: You need to install pexpect first:")
     print("   pip install pexpect")

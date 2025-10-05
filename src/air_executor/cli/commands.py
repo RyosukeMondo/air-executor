@@ -175,7 +175,9 @@ def show_status(job_filter: Optional[str] = None) -> None:
                 task_queue = TaskQueue(job_name, store.jobs_path / job_name / "tasks.json")
 
                 # Count pending tasks
-                pending_count = sum(1 for t in task_queue.get_all() if t.status == TaskStatus.PENDING)
+                pending_count = sum(
+                    1 for t in task_queue.get_all() if t.status == TaskStatus.PENDING
+                )
 
                 # Check active runner
                 pid = store.read_pid_file(job_name)
@@ -186,7 +188,7 @@ def show_status(job_filter: Optional[str] = None) -> None:
                     "waiting": "yellow",
                     "working": "blue",
                     "completed": "green",
-                    "failed": "red"
+                    "failed": "red",
                 }
                 state_color = state_colors.get(job.state.value, "white")
                 state_text = f"[{state_color}]{job.state.value}[/{state_color}]"
@@ -196,7 +198,7 @@ def show_status(job_filter: Optional[str] = None) -> None:
                     state_text,
                     str(pending_count),
                     has_runner,
-                    job.updated_at.strftime("%Y-%m-%d %H:%M:%S")
+                    job.updated_at.strftime("%Y-%m-%d %H:%M:%S"),
                 )
 
             except Exception as e:
@@ -305,11 +307,7 @@ def run_task_command(job_name: str, task_id: str) -> None:
         console.print(f"[blue]Running task {task_id}...[/blue]")
 
         # Execute task command
-        result = subprocess.run(
-            [task.command] + task.args,
-            capture_output=True,
-            text=True
-        )
+        result = subprocess.run([task.command] + task.args, capture_output=True, text=True)
 
         # Update task status
         if result.returncode == 0:

@@ -113,10 +113,7 @@ class JobPoller:
         job = self.store.read_job_state(job_name)
 
         # Load task queue
-        task_queue = TaskQueue(
-            job_name,
-            self.store.jobs_path / job_name / "tasks.json"
-        )
+        task_queue = TaskQueue(job_name, self.store.jobs_path / job_name / "tasks.json")
 
         # Check for job completion
         if job.state == JobState.WORKING:
@@ -177,8 +174,7 @@ class JobPoller:
         failed = sum(1 for t in tasks if t.status.value == "failed")
 
         print(
-            f"Job {job.name} completed: "
-            f"{total} tasks ({completed} succeeded, {failed} failed)"
+            f"Job {job.name} completed: " f"{total} tasks ({completed} succeeded, {failed} failed)"
         )
 
     def _handle_error(self, job_name: str, error: Exception) -> None:

@@ -27,12 +27,22 @@ def test_config():
         test_project.mkdir()
 
         # Initialize git repo
-        subprocess.run(['git', 'init'], cwd=test_project, check=True, capture_output=True)
-        subprocess.run(['git', 'config', 'user.name', 'Test User'], cwd=test_project, check=True, capture_output=True)
-        subprocess.run(['git', 'config', 'user.email', 'test@example.com'], cwd=test_project, check=True, capture_output=True)
+        subprocess.run(["git", "init"], cwd=test_project, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "config", "user.name", "Test User"],
+            cwd=test_project,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            cwd=test_project,
+            check=True,
+            capture_output=True,
+        )
 
         # Create a simple Python file with a linting issue
-        (test_project / 'main.py').write_text("""
+        (test_project / "main.py").write_text("""
 def add(a,b):  # Missing space after comma (flake8 E231)
     return a+b  # Missing spaces around operator (flake8 E225)
 
@@ -41,23 +51,23 @@ if __name__ == "__main__":
 """)
 
         # Create a simple test file
-        test_dir = test_project / 'tests'
+        test_dir = test_project / "tests"
         test_dir.mkdir()
-        (test_dir / '__init__.py').touch()
-        (test_dir / 'test_main.py').write_text("""
+        (test_dir / "__init__.py").touch()
+        (test_dir / "test_main.py").write_text("""
 def test_add():
     from main import add
     assert add(1, 2) == 3
 """)
 
         # Create requirements.txt
-        (test_project / 'requirements.txt').write_text("""
+        (test_project / "requirements.txt").write_text("""
 pytest>=7.0.0
 flake8>=5.0.0
 """)
 
         # Create setup.py
-        (test_project / 'setup.py').write_text("""
+        (test_project / "setup.py").write_text("""
 from setuptools import setup, find_packages
 
 setup(
@@ -69,100 +79,93 @@ setup(
 """)
 
         # Initial commit
-        subprocess.run(['git', 'add', '.'], cwd=test_project, check=True, capture_output=True)
-        subprocess.run(['git', 'commit', '-m', 'Initial commit'], cwd=test_project, check=True, capture_output=True)
+        subprocess.run(["git", "add", "."], cwd=test_project, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "Initial commit"],
+            cwd=test_project,
+            check=True,
+            capture_output=True,
+        )
 
         # Create test config file
-        config_file = tmpdir_path / 'test_config.yaml'
+        config_file = tmpdir_path / "test_config.yaml"
         config_data = {
-            'projects': [
-                {
-                    'path': str(test_project),
-                    'language': 'python'
-                }
-            ],
-            'languages': {
-                'enabled': ['python'],
-                'auto_detect': False,
-                'python': {
-                    'linters': ['flake8'],
-                    'test_framework': 'pytest',
-                    'complexity_threshold': 10,
-                    'max_file_lines': 500
-                }
-            },
-            'priorities': {
-                'p1_static': {
-                    'enabled': True,
-                    'max_duration_seconds': 120,
-                    'success_threshold': 0.8
+            "projects": [{"path": str(test_project), "language": "python"}],
+            "languages": {
+                "enabled": ["python"],
+                "auto_detect": False,
+                "python": {
+                    "linters": ["flake8"],
+                    "test_framework": "pytest",
+                    "complexity_threshold": 10,
+                    "max_file_lines": 500,
                 },
-                'p2_tests': {
-                    'enabled': True,
-                    'adaptive_strategy': True,
-                    'success_threshold': 0.8
+            },
+            "priorities": {
+                "p1_static": {
+                    "enabled": True,
+                    "max_duration_seconds": 120,
+                    "success_threshold": 0.8,
                 },
-                'p3_coverage': {'enabled': False},
-                'p4_e2e': {'enabled': False}
+                "p2_tests": {"enabled": True, "adaptive_strategy": True, "success_threshold": 0.8},
+                "p3_coverage": {"enabled": False},
+                "p4_e2e": {"enabled": False},
             },
-            'execution': {
-                'max_concurrent_projects': 1,
-                'max_iterations': 3,
-                'max_duration_hours': 1
+            "execution": {
+                "max_concurrent_projects": 1,
+                "max_iterations": 3,
+                "max_duration_hours": 1,
             },
-            'wrapper': {
-                'path': str(Path(__file__).parent.parent.parent / 'scripts' / 'claude_wrapper.py'),
-                'python_executable': shutil.which('python'),
-                'timeout': 300
+            "wrapper": {
+                "path": str(Path(__file__).parent.parent.parent / "scripts" / "claude_wrapper.py"),
+                "python_executable": shutil.which("python"),
+                "timeout": 300,
             },
-            'state_manager': {
-                'redis_host': 'localhost',
-                'redis_port': 6379,
-                'namespace': 'e2e_test'
-            }
+            "state_manager": {
+                "redis_host": "localhost",
+                "redis_port": 6379,
+                "namespace": "e2e_test",
+            },
         }
 
-        with open(config_file, 'w') as f:
+        with open(config_file, "w") as f:
             yaml.dump(config_data, f)
 
-        yield {
-            'config_file': config_file,
-            'project_path': test_project,
-            'tmpdir': tmpdir_path
-        }
+        yield {"config_file": config_file, "project_path": test_project, "tmpdir": tmpdir_path}
 
 
 @pytest.fixture
 def cleanup_state():  # noqa: C901
     """Cleanup state markers and caches before test."""
     # Clean up state directory
-    state_dir = Path('.ai-state')
+    state_dir = Path(".ai-state")
     if state_dir.exists():
-        for marker in state_dir.glob('*.marker'):
-            if 'simple_python_project' in marker.name or 'e2e_test' in marker.name:
+        for marker in state_dir.glob("*.marker"):
+            if "simple_python_project" in marker.name or "e2e_test" in marker.name:
                 marker.unlink()
 
     # Clean up cache directories
-    hook_cache_dir = Path('config/precommit-cache')
-    test_cache_dir = Path('config/test-cache')
+    hook_cache_dir = Path("config/precommit-cache")
+    test_cache_dir = Path("config/test-cache")
 
     if hook_cache_dir.exists():
-        for cache_file in hook_cache_dir.glob('*.yaml'):
-            if 'simple_python_project' in cache_file.name:
+        for cache_file in hook_cache_dir.glob("*.yaml"):
+            if "simple_python_project" in cache_file.name:
                 cache_file.unlink()
 
     if test_cache_dir.exists():
-        for cache_file in test_cache_dir.glob('*.yaml'):
-            if 'simple_python_project' in cache_file.name:
+        for cache_file in test_cache_dir.glob("*.yaml"):
+            if "simple_python_project" in cache_file.name:
                 cache_file.unlink()
 
     # Clean up Redis (if available)
     try:
         import redis
-        r = redis.Redis(host='localhost', port=6379, decode_responses=True)
+
+        r = redis.Redis(host="localhost", port=6379, decode_responses=True)
         r.ping()
         # Delete test keys
-        for key in r.scan_iter(match='setup:e2e_test:*'):
+        for key in r.scan_iter(match="setup:e2e_test:*"):
             r.delete(key)
     except Exception:
         pass  # Redis not available, that's fine
@@ -171,8 +174,8 @@ def cleanup_state():  # noqa: C901
 
     # Cleanup after test
     if state_dir.exists():
-        for marker in state_dir.glob('*.marker'):
-            if 'simple_python_project' in marker.name or 'e2e_test' in marker.name:
+        for marker in state_dir.glob("*.marker"):
+            if "simple_python_project" in marker.name or "e2e_test" in marker.name:
                 marker.unlink()
 
 
@@ -182,13 +185,12 @@ class TestAutonomousFixingCache:
     """End-to-end tests for autonomous fixing with caching."""
 
     @pytest.mark.skipif(
-        not Path('scripts/autonomous_fix.sh').exists(),
-        reason="autonomous_fix.sh script not found"
+        not Path("scripts/autonomous_fix.sh").exists(), reason="autonomous_fix.sh script not found"
     )
     def test_autonomous_fix_cache_hit(self, test_config, cleanup_state):
         """Test that second run skips setup phases and is significantly faster."""
-        config_file = test_config['config_file']
-        project_path = test_config['project_path']
+        config_file = test_config["config_file"]
+        project_path = test_config["project_path"]
 
         # === FIRST RUN (cache miss) ===
 
@@ -196,10 +198,10 @@ class TestAutonomousFixingCache:
         start_time1 = time.time()
 
         result1 = subprocess.run(
-            ['bash', 'scripts/autonomous_fix.sh', str(config_file)],
+            ["bash", "scripts/autonomous_fix.sh", str(config_file)],
             capture_output=True,
             text=True,
-            timeout=600  # 10 minute timeout
+            timeout=600,  # 10 minute timeout
         )
 
         duration1 = time.time() - start_time1
@@ -213,27 +215,31 @@ class TestAutonomousFixingCache:
         combined_output1 = result1.stdout + result1.stderr
 
         # Look for hook configuration activity (should NOT be skipped)
-        has_hook_setup = any([
-            'configure_precommit_hooks' in combined_output1,
-            'Hook configuration' in combined_output1,
-            'pre-commit' in combined_output1.lower(),
-            'hook' in combined_output1.lower()
-        ])
+        has_hook_setup = any(
+            [
+                "configure_precommit_hooks" in combined_output1,
+                "Hook configuration" in combined_output1,
+                "pre-commit" in combined_output1.lower(),
+                "hook" in combined_output1.lower(),
+            ]
+        )
 
         # Look for test discovery activity (should NOT be skipped)
-        has_test_discovery = any([
-            'discover_test_config' in combined_output1,
-            'Test discovery' in combined_output1,
-            'pytest' in combined_output1.lower(),
-            'test framework' in combined_output1.lower()
-        ])
+        has_test_discovery = any(
+            [
+                "discover_test_config" in combined_output1,
+                "Test discovery" in combined_output1,
+                "pytest" in combined_output1.lower(),
+                "test framework" in combined_output1.lower(),
+            ]
+        )
 
         print(f"Hook setup detected: {has_hook_setup}")
         print(f"Test discovery detected: {has_test_discovery}")
 
         # Verify cache files were created
-        hook_cache = Path('config/precommit-cache') / f'{project_path.name}-hooks.yaml'
-        test_cache = Path('config/test-cache') / f'{project_path.name}-tests.yaml'
+        hook_cache = Path("config/precommit-cache") / f"{project_path.name}-hooks.yaml"
+        test_cache = Path("config/test-cache") / f"{project_path.name}-tests.yaml"
 
         print(f"Hook cache exists: {hook_cache.exists()}")
         print(f"Test cache exists: {test_cache.exists()}")
@@ -246,10 +252,10 @@ class TestAutonomousFixingCache:
         start_time2 = time.time()
 
         result2 = subprocess.run(
-            ['bash', 'scripts/autonomous_fix.sh', str(config_file)],
+            ["bash", "scripts/autonomous_fix.sh", str(config_file)],
             capture_output=True,
             text=True,
-            timeout=600
+            timeout=600,
         )
 
         duration2 = time.time() - start_time2
@@ -260,27 +266,33 @@ class TestAutonomousFixingCache:
         combined_output2 = result2.stdout + result2.stderr
 
         # Look for skip messages
-        has_hook_skip = any([
-            '⏭️' in combined_output2 and 'hook' in combined_output2.lower(),
-            'Skipped hook' in combined_output2,
-            'saved 60s' in combined_output2
-        ])
+        has_hook_skip = any(
+            [
+                "⏭️" in combined_output2 and "hook" in combined_output2.lower(),
+                "Skipped hook" in combined_output2,
+                "saved 60s" in combined_output2,
+            ]
+        )
 
-        has_test_skip = any([
-            '⏭️' in combined_output2 and 'test' in combined_output2.lower(),
-            'Skipped test' in combined_output2,
-            'saved 90s' in combined_output2
-        ])
+        has_test_skip = any(
+            [
+                "⏭️" in combined_output2 and "test" in combined_output2.lower(),
+                "Skipped test" in combined_output2,
+                "saved 90s" in combined_output2,
+            ]
+        )
 
         print(f"Hook skip detected: {has_hook_skip}")
         print(f"Test skip detected: {has_test_skip}")
 
         # Look for skip summary
-        has_skip_summary = any([
-            'Skipped setup' in combined_output2,
-            'savings:' in combined_output2.lower(),
-            'saved:' in combined_output2.lower()
-        ])
+        has_skip_summary = any(
+            [
+                "Skipped setup" in combined_output2,
+                "savings:" in combined_output2.lower(),
+                "saved:" in combined_output2.lower(),
+            ]
+        )
 
         print(f"Skip summary detected: {has_skip_summary}")
 
@@ -302,7 +314,9 @@ class TestAutonomousFixingCache:
 
         # Cache files should exist after first run
         if not (hook_cache.exists() or test_cache.exists()):
-            pytest.skip("Cache files not created - setup phases may have been skipped or not executed")
+            pytest.skip(
+                "Cache files not created - setup phases may have been skipped or not executed"
+            )
 
         # If we have real setup optimization implemented, verify skip behavior
         # Note: These assertions are conditional based on actual implementation
@@ -314,26 +328,25 @@ class TestAutonomousFixingCache:
         print(f"Cache hit indicators present: {has_hook_skip or has_test_skip or has_skip_summary}")
 
     @pytest.mark.skipif(
-        not Path('scripts/autonomous_fix.sh').exists(),
-        reason="autonomous_fix.sh script not found"
+        not Path("scripts/autonomous_fix.sh").exists(), reason="autonomous_fix.sh script not found"
     )
     def test_cache_invalidation_on_changes(self, test_config, cleanup_state):
         """Test that cache is invalidated when project files change significantly."""
-        config_file = test_config['config_file']
-        project_path = test_config['project_path']
+        config_file = test_config["config_file"]
+        project_path = test_config["project_path"]
 
         # First run
         result1 = subprocess.run(
-            ['bash', 'scripts/autonomous_fix.sh', str(config_file)],
+            ["bash", "scripts/autonomous_fix.sh", str(config_file)],
             capture_output=True,
             text=True,
-            timeout=600
+            timeout=600,
         )
 
         assert result1.returncode == 0
 
         # Modify project significantly (add new language/framework)
-        (project_path / 'package.json').write_text("""
+        (project_path / "package.json").write_text("""
 {
   "name": "test-project",
   "version": "1.0.0",
@@ -343,20 +356,22 @@ class TestAutonomousFixingCache:
 }
 """)
 
-        subprocess.run(['git', 'add', 'package.json'], cwd=project_path, check=True, capture_output=True)
         subprocess.run(
-            ['git', 'commit', '-m', 'Add JavaScript'],
+            ["git", "add", "package.json"], cwd=project_path, check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "Add JavaScript"],
             cwd=project_path,
             check=True,
-            capture_output=True
+            capture_output=True,
         )
 
         # Second run after changes
         result2 = subprocess.run(
-            ['bash', 'scripts/autonomous_fix.sh', str(config_file)],
+            ["bash", "scripts/autonomous_fix.sh", str(config_file)],
             capture_output=True,
             text=True,
-            timeout=600
+            timeout=600,
         )
 
         assert result2.returncode == 0
@@ -365,28 +380,28 @@ class TestAutonomousFixingCache:
         # This test documents expected behavior when project structure changes significantly
 
     @pytest.mark.skipif(
-        not Path('scripts/autonomous_fix.sh').exists(),
-        reason="autonomous_fix.sh script not found"
+        not Path("scripts/autonomous_fix.sh").exists(), reason="autonomous_fix.sh script not found"
     )
     def test_stale_cache_handling(self, test_config, cleanup_state):
         """Test that stale cache (>7 days) is properly invalidated."""
-        config_file = test_config['config_file']
-        project_path = test_config['project_path']
+        config_file = test_config["config_file"]
+        project_path = test_config["project_path"]
 
         # First run to create cache
         result1 = subprocess.run(
-            ['bash', 'scripts/autonomous_fix.sh', str(config_file)],
+            ["bash", "scripts/autonomous_fix.sh", str(config_file)],
             capture_output=True,
             text=True,
-            timeout=600
+            timeout=600,
         )
 
         assert result1.returncode == 0
 
         # Simulate stale cache by modifying file timestamps
         import os
-        hook_cache = Path('config/precommit-cache') / f'{project_path.name}-hooks.yaml'
-        test_cache = Path('config/test-cache') / f'{project_path.name}-tests.yaml'
+
+        hook_cache = Path("config/precommit-cache") / f"{project_path.name}-hooks.yaml"
+        test_cache = Path("config/test-cache") / f"{project_path.name}-tests.yaml"
 
         if hook_cache.exists():
             eight_days_ago = time.time() - (8 * 24 * 60 * 60)
@@ -399,10 +414,10 @@ class TestAutonomousFixingCache:
         # Second run with stale cache
         start_time = time.time()
         result2 = subprocess.run(
-            ['bash', 'scripts/autonomous_fix.sh', str(config_file)],
+            ["bash", "scripts/autonomous_fix.sh", str(config_file)],
             capture_output=True,
             text=True,
-            timeout=600
+            timeout=600,
         )
         duration = time.time() - start_time
 
@@ -411,11 +426,13 @@ class TestAutonomousFixingCache:
         combined_output = result2.stdout + result2.stderr
 
         # Should detect stale cache and re-run setup
-        has_stale_detection = any([
-            'cache stale' in combined_output.lower(),
-            'stale' in combined_output.lower(),
-            '8d old' in combined_output.lower()
-        ])
+        has_stale_detection = any(
+            [
+                "cache stale" in combined_output.lower(),
+                "stale" in combined_output.lower(),
+                "8d old" in combined_output.lower(),
+            ]
+        )
 
         print(f"Stale cache detection: {has_stale_detection}")
         print(f"Duration with stale cache: {duration:.1f}s")
@@ -430,7 +447,7 @@ class TestSetupOptimizationIntegration:
         """Test that setup state persists correctly across autonomous fixing runs."""
         from airflow_dags.autonomous_fixing.core.setup_tracker import SetupTracker
 
-        project_path = str(test_config['project_path'])
+        project_path = str(test_config["project_path"])
 
         # Create tracker instance
         tracker = SetupTracker(redis_config=None)
@@ -455,7 +472,7 @@ class TestSetupOptimizationIntegration:
         from airflow_dags.autonomous_fixing.core.setup_tracker import SetupTracker
         from airflow_dags.autonomous_fixing.core.validators.preflight import PreflightValidator
 
-        project_path = test_config['project_path']
+        project_path = test_config["project_path"]
 
         tracker = SetupTracker(redis_config=None)
         validator = PreflightValidator(tracker)
@@ -466,18 +483,18 @@ class TestSetupOptimizationIntegration:
         assert "setup state not tracked" in reason
 
         # Create minimal cache and state
-        hook_cache_dir = Path('config/precommit-cache')
+        hook_cache_dir = Path("config/precommit-cache")
         hook_cache_dir.mkdir(parents=True, exist_ok=True)
-        hook_cache = hook_cache_dir / f'{project_path.name}-hooks.yaml'
+        hook_cache = hook_cache_dir / f"{project_path.name}-hooks.yaml"
 
-        with open(hook_cache, 'w') as f:
-            yaml.dump({'hook_framework': {'installed': True}}, f)
+        with open(hook_cache, "w") as f:
+            yaml.dump({"hook_framework": {"installed": True}}, f)
 
         # Create hook files
-        (project_path / '.pre-commit-config.yaml').touch()
-        git_hooks = project_path / '.git' / 'hooks'
+        (project_path / ".pre-commit-config.yaml").touch()
+        git_hooks = project_path / ".git" / "hooks"
         git_hooks.mkdir(parents=True, exist_ok=True)
-        (git_hooks / 'pre-commit').touch()
+        (git_hooks / "pre-commit").touch()
 
         # Mark state
         tracker.mark_setup_complete(str(project_path), "hooks")

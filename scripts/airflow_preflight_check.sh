@@ -54,7 +54,7 @@ echo ""
 echo "5️⃣ Checking DAG registration..."
 if airflow dags list 2>/dev/null | grep -q "claude_query_sdk"; then
     echo "   ✅ claude_query_sdk registered in Airflow"
-    
+
     # Check if paused
     if airflow dags list 2>/dev/null | grep "claude_query_sdk" | grep -q "False"; then
         echo "   ✅ claude_query_sdk is unpaused (ready to run)"
