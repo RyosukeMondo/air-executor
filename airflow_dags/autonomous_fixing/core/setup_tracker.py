@@ -97,7 +97,7 @@ class SetupTracker(ISetupTracker):
 
         if not REDIS_AVAILABLE:
             self.logger.warning(
-                "SetupTracker: Redis library not installed, " "using filesystem fallback"
+                "SetupTracker: Redis library not installed, using filesystem fallback"
             )
             return
 
@@ -125,7 +125,7 @@ class SetupTracker(ISetupTracker):
             return client
         except (redis.ConnectionError, redis.TimeoutError, OSError) as e:
             self.logger.warning(
-                "SetupTracker: Redis connection failed, " "using filesystem fallback: %s", e
+                "SetupTracker: Redis connection failed, using filesystem fallback: %s", e
             )
             return None
         except redis.RedisError as e:
