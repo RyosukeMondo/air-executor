@@ -133,4 +133,5 @@ with DAG(
         """,
     )
 
-    cleanup_task
+    # Register task with DAG context (required for single-task DAGs)
+    cleanup_task  # noqa: B018

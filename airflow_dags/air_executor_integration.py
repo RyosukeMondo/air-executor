@@ -221,5 +221,5 @@ with DAG(
         """,
     )
 
-    # Define task dependencies
-    create_job >> wait_for_job >> get_results
+    # Define task dependency flow (Airflow DAG task sequence)
+    create_job >> wait_for_job >> get_results  # noqa: B018

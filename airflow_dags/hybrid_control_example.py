@@ -326,5 +326,5 @@ with DAG(
         """,
     )
 
-    # Define flow
-    prepare >> handoff >> wait >> post_process >> notify
+    # Define task dependency flow (Airflow DAG task sequence)
+    prepare >> handoff >> wait >> post_process >> notify  # noqa: B018

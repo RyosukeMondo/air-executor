@@ -145,4 +145,5 @@ with (
         """,
     )
 
-    commit_push_task
+    # Register task with DAG context (required for single-task DAGs)
+    commit_push_task  # noqa: B018

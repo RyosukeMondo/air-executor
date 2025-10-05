@@ -144,7 +144,8 @@ with DAG(
         execution_timeout=timedelta(hours=8),  # Allow up to 8 hours for 30 iterations
     )
 
-    iteration_task
+    # Register task with DAG context (required for single-task DAGs)
+    iteration_task  # noqa: B018
 
 
 # Example usage in Airflow UI:

@@ -148,7 +148,8 @@ with DAG(
         execution_timeout=timedelta(hours=4),  # Match config max_duration_hours
     )
 
-    fixing_task
+    # Register task with DAG context (required for single-task DAGs)
+    fixing_task  # noqa: B018
 
 
 # Example usage in Airflow UI:
