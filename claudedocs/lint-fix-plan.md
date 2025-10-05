@@ -974,7 +974,16 @@ Success:
 - No resource leaks
 ```
 
-**Status**: [ ]
+**Status**: [x] COMPLETED
+
+**Changes Made**:
+- Fixed `autonomous_fixing_dag.py` line 85:
+  - Converted `process = subprocess.Popen(...)` to `with subprocess.Popen(...) as process:`
+  - Subprocess resources now properly managed with context manager
+  - Exception handling preserved - process.kill() still called on error
+  - All cleanup paths maintained (temp config deletion)
+- Ruff linter: All checks passed ✓
+- Resource cleanup guaranteed by context manager protocol
 
 ---
 
@@ -1306,7 +1315,7 @@ Key workflows to verify:
 ### Phase 5: Resource Management & Safety 🟡
 - [x] Task 5.1: Add Encoding to File Operations
 - [x] Task 5.2: Add subprocess.run Check Parameter
-- [ ] Task 5.3: Fix Resource Allocation
+- [x] Task 5.3: Fix Resource Allocation
 
 ### Phase 6: Code Quality & Maintenance 🟢
 - [ ] Task 6.1: Remove Unused Imports & Variables

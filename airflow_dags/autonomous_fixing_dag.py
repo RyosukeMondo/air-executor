@@ -82,45 +82,44 @@ def run_autonomous_fixing(**context):
     print()
 
     # Run orchestrator with streaming output
-    process = subprocess.Popen(
+    with subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,  # Combine stderr with stdout
         text=True,
         bufsize=1,  # Line buffered for real-time output
         universal_newlines=True,
-    )
+    ) as process:
+        # Stream output line by line (appears in Airflow UI)
+        try:
+            for line in process.stdout:
+                # Print to Airflow logs (visible in web UI)
+                print(line, end="", flush=True)
 
-    # Stream output line by line (appears in Airflow UI)
-    try:
-        for line in process.stdout:
-            # Print to Airflow logs (visible in web UI)
-            print(line, end="", flush=True)
+            # Wait for completion
+            process.wait()
 
-        # Wait for completion
-        process.wait()
+            print()
+            print("=" * 80)
+            if process.returncode == 0:
+                print("✅ Autonomous fixing completed successfully!")
+            else:
+                print(f"❌ Autonomous fixing failed with exit code {process.returncode}")
+            print("=" * 80)
 
-        print()
-        print("=" * 80)
-        if process.returncode == 0:
-            print("✅ Autonomous fixing completed successfully!")
-        else:
-            print(f"❌ Autonomous fixing failed with exit code {process.returncode}")
-        print("=" * 80)
+            # Cleanup temp config if created
+            if target_project:
+                config_path.unlink(missing_ok=True)
 
-        # Cleanup temp config if created
-        if target_project:
-            config_path.unlink(missing_ok=True)
+            if process.returncode != 0:
+                raise OrchestratorExitError(process.returncode)
 
-        if process.returncode != 0:
-            raise OrchestratorExitError(process.returncode)
-
-    except Exception:
-        process.kill()
-        # Cleanup temp config
-        if target_project:
-            config_path.unlink(missing_ok=True)
-        raise
+        except Exception:
+            process.kill()
+            # Cleanup temp config
+            if target_project:
+                config_path.unlink(missing_ok=True)
+            raise
 
 
 # Default DAG arguments
