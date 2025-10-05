@@ -169,7 +169,7 @@ class IterationEngine:
         """Access setup_runner from grouped components."""
         return self._components.setup_runner
 
-    def _run_static_analysis_phase(self, projects_by_language: dict, iteration: int) -> tuple:
+    def _run_static_analysis_phase(self, projects_by_language: dict, _iteration: int) -> tuple:
         """Run P1 static analysis phase (SRP)"""
         print(f"\n{'='*80}")
         print("📍 PRIORITY 1: Fast Static Analysis")

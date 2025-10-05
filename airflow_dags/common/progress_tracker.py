@@ -186,7 +186,7 @@ class ProgressTracker:
         self.state = ProgressState()
 
     # Compatibility methods for GitVerifier interface
-    def get_head_commit(self, project_path: Optional[str] = None) -> Optional[str]:
+    def get_head_commit(self, _project_path: Optional[str] = None) -> Optional[str]:
         """
         Get current HEAD commit hash (GitVerifier compatibility).
 
@@ -199,7 +199,7 @@ class ProgressTracker:
         return self.get_current_commit_id()
 
     def verify_commit_made(
-        self, project_path: str, before_commit: Optional[str], operation: str
+        self, _project_path: str, before_commit: Optional[str], operation: str
     ) -> dict:
         """
         Verify that a new commit was made (GitVerifier compatibility).
@@ -255,7 +255,7 @@ class ProgressTracker:
             "message": f"Commit verified: {after_commit[:8]}",
         }
 
-    def get_commit_message(self, project_path: str, commit_hash: str) -> Optional[str]:
+    def get_commit_message(self, _project_path: str, commit_hash: str) -> Optional[str]:
         """
         Get commit message for a commit (GitVerifier compatibility).
 

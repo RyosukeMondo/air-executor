@@ -41,7 +41,7 @@ class TestResultParser(ABC):
     """Abstract base for test result parsers."""
 
     @abstractmethod
-    def parse(self, output: str, output_file: Path | None = None) -> TestCounts | None:
+    def parse(self, _output: str, _output_file: Path | None = None) -> TestCounts | None:
         """
         Parse test output and return counts.
 
@@ -63,17 +63,17 @@ class TestResultParser(ABC):
 class JestJSONParser(TestResultParser):
     """Parse Jest JSON output - PREFERRED."""
 
-    def parse(self, output: str, output_file: Path | None = None) -> TestCounts | None:
+    def parse(self, _output: str, _output_file: Path | None = None) -> TestCounts | None:
         """Parse Jest --json output."""
         try:
             # Try file first (cleanest)
-            if output_file and output_file.exists():
-                with open(output_file, encoding="utf-8") as f:
+            if _output_file and _output_file.exists():
+                with open(_output_file, encoding="utf-8") as f:
                     data = json.load(f)
                 return self._parse_json_data(data)
 
             # Try finding JSON in output (last line usually)
-            for line in reversed(output.splitlines()):
+            for line in reversed(_output.splitlines()):
                 try:
                     data = json.loads(line)
                     return self._parse_json_data(data)
@@ -97,15 +97,15 @@ class JestJSONParser(TestResultParser):
 class JestTextParser(TestResultParser):
     """Parse Jest text output - FALLBACK."""
 
-    def parse(self, output: str, output_file: Path | None = None) -> TestCounts | None:
+    def parse(self, _output: str, _output_file: Path | None = None) -> TestCounts | None:
         """Parse Jest text summary with regex."""
         try:
             # Jest final summary: "Tests: 28 failed, 5 skipped, 64 passed, 97 total"
             # Use findall to get all matches, take last (final summary)
 
-            passed_matches = re.findall(r"(\d+) passed", output)
-            failed_matches = re.findall(r"(\d+) failed", output)
-            skipped_matches = re.findall(r"(\d+) skipped", output)
+            passed_matches = re.findall(r"(\d+) passed", _output)
+            failed_matches = re.findall(r"(\d+) failed", _output)
+            skipped_matches = re.findall(r"(\d+) skipped", _output)
 
             if not (passed_matches or failed_matches):
                 return None  # No test output found
@@ -123,15 +123,15 @@ class JestTextParser(TestResultParser):
 class VitestJSONParser(TestResultParser):
     """Parse Vitest JSON output."""
 
-    def parse(self, output: str, output_file: Path | None = None) -> TestCounts | None:
+    def parse(self, _output: str, _output_file: Path | None = None) -> TestCounts | None:
         """Parse Vitest --reporter=json output."""
         try:
-            if output_file and output_file.exists():
-                with open(output_file, encoding="utf-8") as f:
+            if _output_file and _output_file.exists():
+                with open(_output_file, encoding="utf-8") as f:
                     data = json.load(f)
             else:
                 # Find JSON in output
-                data = json.loads(output)
+                data = json.loads(_output)
 
             results = data.get("testResults", {})
             return TestCounts(
@@ -152,13 +152,13 @@ class VitestJSONParser(TestResultParser):
 class PytestJUnitXMLParser(TestResultParser):
     """Parse pytest JUnit XML output - PREFERRED."""
 
-    def parse(self, output: str, output_file: Path | None = None) -> TestCounts | None:
+    def parse(self, _output: str, _output_file: Path | None = None) -> TestCounts | None:
         """Parse pytest --junitxml output."""
         try:
-            if not output_file or not output_file.exists():
+            if not _output_file or not _output_file.exists():
                 return None
 
-            tree = ET.parse(output_file)
+            tree = ET.parse(_output_file)
             root = tree.getroot()
 
             total = int(root.attrib.get("tests", 0))
@@ -177,13 +177,13 @@ class PytestJUnitXMLParser(TestResultParser):
 class PytestTextParser(TestResultParser):
     """Parse pytest text output - FALLBACK."""
 
-    def parse(self, output: str, output_file: Path | None = None) -> TestCounts | None:
+    def parse(self, _output: str, _output_file: Path | None = None) -> TestCounts | None:
         """Parse pytest text summary."""
         try:
             # pytest: "= 42 passed, 3 failed, 1 skipped in 1.23s ="
-            passed_match = re.search(r"(\d+) passed", output)
-            failed_match = re.search(r"(\d+) failed", output)
-            skipped_match = re.search(r"(\d+) skipped", output)
+            passed_match = re.search(r"(\d+) passed", _output)
+            failed_match = re.search(r"(\d+) failed", _output)
+            skipped_match = re.search(r"(\d+) skipped", _output)
 
             if not (passed_match or failed_match):
                 return None
@@ -206,7 +206,7 @@ class PytestTextParser(TestResultParser):
 class GoTestJSONParser(TestResultParser):
     """Parse Go test -json output - PREFERRED."""
 
-    def parse(self, output: str, output_file: Path | None = None) -> TestCounts | None:
+    def parse(self, _output: str, _output_file: Path | None = None) -> TestCounts | None:
         """Parse go test -json output (NDJSON format)."""
         try:
             passed = 0
@@ -214,7 +214,7 @@ class GoTestJSONParser(TestResultParser):
             skipped = 0
 
             # Parse newline-delimited JSON
-            for line in output.splitlines():
+            for line in _output.splitlines():
                 try:
                     event = json.loads(line)
                     action = event.get("Action")
@@ -245,12 +245,12 @@ class GoTestJSONParser(TestResultParser):
 class GoTestTextParser(TestResultParser):
     """Parse Go test text output - FALLBACK."""
 
-    def parse(self, output: str, output_file: Path | None = None) -> TestCounts | None:
+    def parse(self, _output: str, _output_file: Path | None = None) -> TestCounts | None:
         """Parse go test text output."""
         try:
             # Count PASS/FAIL lines
-            passed = len(re.findall(r"^PASS", output, re.MULTILINE))
-            failed = len(re.findall(r"^FAIL", output, re.MULTILINE))
+            passed = len(re.findall(r"^PASS", _output, re.MULTILINE))
+            failed = len(re.findall(r"^FAIL", _output, re.MULTILINE))
 
             if passed + failed == 0:
                 return None
@@ -269,7 +269,7 @@ class GoTestTextParser(TestResultParser):
 class FlutterTestJSONParser(TestResultParser):
     """Parse Flutter test --machine output - PREFERRED."""
 
-    def parse(self, output: str, output_file: Path | None = None) -> TestCounts | None:
+    def parse(self, _output: str, _output_file: Path | None = None) -> TestCounts | None:
         """Parse flutter test --machine output."""
         try:
             passed = 0
@@ -277,7 +277,7 @@ class FlutterTestJSONParser(TestResultParser):
             skipped = 0
 
             # Flutter outputs NDJSON
-            for line in output.splitlines():
+            for line in _output.splitlines():
                 try:
                     event = json.loads(line)
                     event_type = event.get("type")

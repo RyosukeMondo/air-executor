@@ -75,7 +75,7 @@ class StateManager(IStateStore, ITaskRepository):
 
         print(f"✅ Completed task: {task_id}")
 
-    def mark_task_failed(self, task_id: str, error: str):
+    def mark_task_failed(self, task_id: str, _error: str):
         """Mark task as failed and requeue with lower priority"""
         task_key = f"{self.prefix}task:{task_id}"
         task_data = self.redis.get(task_key)

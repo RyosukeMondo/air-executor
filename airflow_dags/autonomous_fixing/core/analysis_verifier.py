@@ -51,7 +51,7 @@ class AnalysisVerifier:
         # Note: Modern tools like ruff (Rust) can be legitimately fast (<0.05s)
         self.min_execution_time = 0.01  # Lowered for fast tools like ruff
 
-    def verify_analysis_result(self, result, project_path: str) -> VerificationResult:
+    def verify_analysis_result(self, result, _project_path: str) -> VerificationResult:
         """
         Verify a single analysis result for validity.
 
