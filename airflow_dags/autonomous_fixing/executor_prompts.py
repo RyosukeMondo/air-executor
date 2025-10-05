@@ -62,7 +62,7 @@ class PromptGenerator:
     @staticmethod
     def _format_files_list(related_issues: list, max_display: int = 15) -> tuple[list, str]:
         """Format list of unique files from issues"""
-        files = list(set(issue["file"] for issue in related_issues if issue.get("file")))
+        files = list({issue["file"] for issue in related_issues if issue.get("file")})
         files_text = "\n".join([f"  - {f}" for f in files[:max_display]])
         if len(files) > max_display:
             files_text += f"\n  ... and {len(files) - max_display} more files"
@@ -145,7 +145,7 @@ DO NOT skip any issues. DO NOT skip the commit step.
 
         by_category = PromptGenerator._group_issues_by_category(related_issues)
         issues_by_category = PromptGenerator._format_categorized_issues(by_category)
-        files = list(set(issue["file"] for issue in related_issues if issue.get("file")))
+        files = list({issue["file"] for issue in related_issues if issue.get("file")})
 
         prompt = f"""COMPREHENSIVE FIX: Fix ALL {len(related_issues)} issues in Flutter project.
 

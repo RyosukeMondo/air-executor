@@ -152,7 +152,7 @@ class IssueGrouper:
             {"file": t.file, "line": t.line, "message": t.message, "type": t.type} for t in tasks
         ]
 
-        unique_files = list(set(t.file for t in tasks if t.file))
+        unique_files = list({t.file for t in tasks if t.file})
 
         # Create categorized summary
         by_type = defaultdict(list)
@@ -237,7 +237,7 @@ class IssueGrouper:
 
             related_issues = [{"file": t.file, "line": t.line, "message": t.message} for t in chunk]
 
-            unique_files = list(set(t.file for t in chunk if t.file))
+            unique_files = list({t.file for t in chunk if t.file})
             context_summary = self._create_context_summary(chunk)
 
             batch_task = BatchTask(
@@ -294,7 +294,7 @@ class IssueGrouper:
                         {"file": t.file, "line": t.line, "message": t.message} for t in chunk
                     ]
 
-                    unique_files = list(set(t.file for t in chunk if t.file))
+                    unique_files = list({t.file for t in chunk if t.file})
                     context_summary = self._create_context_summary(chunk)
 
                     # Create friendly name for directory

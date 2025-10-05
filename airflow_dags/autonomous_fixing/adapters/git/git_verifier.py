@@ -18,7 +18,8 @@ class GitVerifier:
     """
     Verify that fixes result in git commits.
 
-    DEPRECATED: This is now a compatibility wrapper. Use common.progress_tracker.ProgressTracker directly.
+    DEPRECATED: This is now a compatibility wrapper.
+    Use common.progress_tracker.ProgressTracker directly.
 
     Responsibilities:
     - Get current HEAD commit before fix

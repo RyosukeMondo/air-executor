@@ -32,8 +32,7 @@ def handle_analysis_errors(phase_name: str, tool_name: str = None, install_comma
 
             try:
                 # Call the original method
-                result = func(self, project_path, *args, **kwargs)
-                return result
+                return func(self, project_path, *args, **kwargs)
 
             except subprocess.TimeoutExpired as e:
                 # Timeout is expected - set result to failed

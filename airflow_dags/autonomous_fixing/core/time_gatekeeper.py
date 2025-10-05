@@ -110,15 +110,13 @@ class TimeGatekeeper:
             self.rapid_iterations.append(iteration)
 
         # Build result
-        result = {
+        return {
             "iteration": iteration,
             "duration": timing.duration,
             "too_fast": too_fast,
             "wait_needed": max(0, self.min_iteration_duration - timing.duration) if too_fast else 0,
             "should_abort": self._check_should_abort(),
         }
-
-        return result
 
     def _check_should_abort(self) -> bool:
         """

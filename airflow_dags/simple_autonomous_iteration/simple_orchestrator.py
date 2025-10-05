@@ -57,7 +57,8 @@ class SimpleOrchestrator:
         Initialize simple orchestrator.
 
         Args:
-            config: Configuration object (SimpleOrchestratorConfig) or dict for backward compatibility
+            config: Configuration object (SimpleOrchestratorConfig) or dict
+                for backward compatibility
         """
         # Support both config object and dict for backward compatibility
         if isinstance(config, dict):
@@ -220,7 +221,9 @@ class SimpleOrchestrator:
                     "iterations_completed": iterations_completed,
                     "total_duration": total_duration,
                     "final_result": final_result,
-                    "iterations_without_progress": self._progress_tracker.state.iterations_without_progress,
+                    "iterations_without_progress": (
+                        self._progress_tracker.state.iterations_without_progress
+                    ),
                 }
 
             # Wait a bit before next iteration (avoid rapid loops)

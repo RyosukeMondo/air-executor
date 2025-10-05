@@ -248,8 +248,7 @@ class FixOrchestrator:
 
         # Group similar issues for batch processing
         if raw_tasks:
-            grouped_tasks = self.issue_grouper.group_tasks(raw_tasks)
-            return grouped_tasks
+            return self.issue_grouper.group_tasks(raw_tasks)
 
         return raw_tasks
 
