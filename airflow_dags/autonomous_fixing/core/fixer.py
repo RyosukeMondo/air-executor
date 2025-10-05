@@ -41,6 +41,8 @@ class IssueFixer:
         config: "OrchestratorConfig | dict",
         debug_logger=None,
         ai_client: Optional["IAIClient"] = None,
+        language_adapters: Optional[dict] = None,
+        git_verifier=None,
     ):
         """
         Args:
@@ -48,6 +50,10 @@ class IssueFixer:
             debug_logger: Optional DebugLogger instance
             ai_client: Optional AI client implementing IAIClient.
                 If None, creates default ClaudeClient.
+            language_adapters: Optional dict of language adapters for test validation.
+                If None, will create adapters on-demand (less efficient for testing).
+            git_verifier: Optional GitVerifier for commit verification.
+                If None, creates default GitVerifier.
         """
         # Support both OrchestratorConfig and dict
         if isinstance(config, dict):
@@ -61,16 +67,19 @@ class IssueFixer:
 
         self.debug_logger = debug_logger
 
+        # Store language adapters for test validation
+        self.language_adapters = language_adapters or {}
+
         # Initialize helpers
         self.prompt_manager = PromptManager()
-        self.commit_verifier = CommitVerifier()
+        self.commit_verifier = CommitVerifier(git_verifier=git_verifier)
         self.issue_extractor = IssueExtractor()
 
         # Initialize Claude client (use injected or create default)
         self.claude: "IAIClient" = ai_client or self._create_claude_client()
 
-        # Initialize analysis delegate
-        self.analysis_delegate = AnalysisDelegate(self.config, debug_logger)
+        # Initialize analysis delegate (pass AI client for consistency)
+        self.analysis_delegate = AnalysisDelegate(self.config, debug_logger, ai_client=self.claude)
 
     def _create_claude_client(self) -> ClaudeClient:
         """Create default Claude client from config.
@@ -344,7 +353,17 @@ class IssueFixer:
         return False
 
     def _get_adapter(self, language: str):
-        """Get language adapter instance for running tests."""
+        """Get language adapter instance for running tests.
+
+        Returns:
+            Language adapter from injected adapters if available,
+            otherwise creates new instance (backward compatibility).
+        """
+        # Use injected adapter if available (preferred for testing)
+        if language in self.language_adapters:
+            return self.language_adapters[language]
+
+        # Fallback: create on-demand (backward compatibility)
         try:
             if language == "python":
                 from ..adapters.languages.python_adapter import PythonAdapter

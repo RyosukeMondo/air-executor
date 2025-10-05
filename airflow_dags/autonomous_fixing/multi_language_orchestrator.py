@@ -79,7 +79,7 @@ class MultiLanguageOrchestrator:
         # Initialize core modules (SRP: each module has one job)
         # Use config property (dict) for components until they're updated
         self.analyzer = ProjectAnalyzer(self.adapters, self.config)
-        self.fixer = IssueFixer(self.config)
+        self.fixer = IssueFixer(self.config, language_adapters=self.adapters)
         self.scorer = HealthScorer(self.config)
 
         # Create iteration engine with dependency injection

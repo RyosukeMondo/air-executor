@@ -95,7 +95,10 @@ class IterationEngine:
         from .fixer import IssueFixer
         from .scorer import HealthScorer
 
-        self.fixer: "IssueFixer" = fixer or IssueFixer(self.config)
+        # Pass language_adapters to fixer for test validation
+        self.fixer: "IssueFixer" = fixer or IssueFixer(
+            self.config, language_adapters=analyzer.adapters
+        )
         self.scorer: "HealthScorer" = scorer or HealthScorer(self.config)
         self.hook_manager: HookLevelManager = hook_manager or HookLevelManager()
 
