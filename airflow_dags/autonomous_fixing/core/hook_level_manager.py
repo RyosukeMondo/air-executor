@@ -16,6 +16,7 @@ from pathlib import Path
 import yaml
 
 from ..config.hook_level_config import HookLevelConfig
+from ..domain.interfaces.language_adapter import ILanguageAdapter
 
 
 @dataclass
@@ -104,7 +105,9 @@ class HookLevelManager:
             return False, f"Already at level {current_level}"
         return True, ""
 
-    def _verify_type_check_and_build(self, project_path: str, adapter) -> tuple[bool, str]:
+    def _verify_type_check_and_build(
+        self, project_path: str, adapter: ILanguageAdapter
+    ) -> tuple[bool, str]:
         """Verify type checking and build succeed (SRP for level 1)"""
         print("      🔍 Verifying type checking...")
         result = adapter.run_type_check(project_path)
@@ -118,7 +121,7 @@ class HookLevelManager:
 
         return True, ""
 
-    def _verify_tests(self, project_path: str, adapter) -> tuple[bool, str]:
+    def _verify_tests(self, project_path: str, adapter: ILanguageAdapter) -> tuple[bool, str]:
         """Verify tests exist and pass (SRP for level 2)"""
         print("      🧪 Verifying tests...")
         test_result = adapter.run_tests(project_path, strategy="minimal")
@@ -128,7 +131,9 @@ class HookLevelManager:
             return False, "No tests found"
         return True, ""
 
-    def _verify_coverage_and_linting(self, project_path: str, adapter) -> tuple[bool, str]:
+    def _verify_coverage_and_linting(
+        self, project_path: str, adapter: ILanguageAdapter
+    ) -> tuple[bool, str]:
         """Verify coverage meets threshold and linting passes (SRP for level 3)"""
         print("      📈 Verifying coverage...")
         cov_result = adapter.analyze_coverage(project_path)
@@ -145,18 +150,19 @@ class HookLevelManager:
         return True, ""
 
     def can_upgrade_to_level(
-        self, project_path: str, language: str, target_level: int, adapter
+        self, project_path: str, language: str, target_level: int, adapter: ILanguageAdapter
     ) -> tuple[bool, str]:
         """
         Check if project quality allows upgrading to target level.
 
         Args:
-            project_path: Project directory
-            language: Project language
-            target_level: Target hook level (1-3)
-            adapter: Language adapter for running checks
+            project_path (str): Project directory
+            language (str): Project language
+            target_level (int): Target hook level (1-3)
+            adapter (ILanguageAdapter): Language adapter for running checks
 
-        Returns: (can_upgrade, reason)
+        Returns:
+            tuple[bool, str]: (can_upgrade, reason)
         """
         current_level = self.get_current_level(project_path, language)
         valid, reason = self._validate_level_range(target_level, current_level)
@@ -354,16 +360,19 @@ class HookLevelManager:
         print("   1. Fix the quality issues immediately")
         print(f"   2. Or consider rolling back to Level {current_level - 1}")
 
-    def detect_regression(self, project_path: str, language: str, adapter) -> bool:
+    def detect_regression(
+        self, project_path: str, language: str, adapter: ILanguageAdapter
+    ) -> bool:
         """
         Detect if quality has regressed below current hook level.
 
         Args:
-            project_path: Project directory
-            language: Project language
-            adapter: Language adapter for checks
+            project_path (str): Project directory
+            language (str): Project language
+            adapter (ILanguageAdapter): Language adapter for checks
 
-        Returns: True if regression detected
+        Returns:
+            bool: True if regression detected
         """
         current_level = self.get_current_level(project_path, language)
         if current_level == 0:

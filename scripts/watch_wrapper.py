@@ -23,6 +23,7 @@ ADVANCED USAGE (piping from other sources):
 """
 
 import json
+import os
 import select
 import sys
 from collections import deque
@@ -801,8 +802,6 @@ class WrapperMonitor:
 
 def main():
     """Main entry point."""
-    import os
-
     # Check if being run directly from terminal (not piped)
     if sys.stdin.isatty():
         print("\n⚠️  ERROR: Don't run watch_wrapper.py directly!", file=sys.stderr)
