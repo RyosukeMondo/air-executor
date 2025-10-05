@@ -118,7 +118,7 @@ def get_job_result(**context):
     with open(state_file, encoding="utf-8") as f:
         state = json.load(f)
 
-    with open(tasks_file) as f:
+    with open(tasks_file, encoding="utf-8") as f:
         tasks = json.load(f)
 
     print("\n" + "=" * 60)
