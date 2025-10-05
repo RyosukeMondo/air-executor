@@ -14,7 +14,6 @@ Safety features:
 """
 
 import re
-import subprocess
 import sys
 import time
 from dataclasses import dataclass
@@ -25,16 +24,7 @@ from typing import Optional
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from autonomous_fixing.adapters.ai.claude_client import ClaudeClient
-
-
-@dataclass
-class _CircuitBreakerState:
-    """Circuit breaker state tracking."""
-
-    threshold: int
-    require_git_changes: bool
-    iterations_without_progress: int = 0
-    last_git_diff_hash: Optional[str] = None
+from common.progress_tracker import ProgressTracker
 
 
 @dataclass
@@ -90,9 +80,10 @@ class SimpleOrchestrator:
         # Session ID for continuity
         self.session_id: Optional[str] = None
 
-        # Circuit breaker state tracking
-        self._breaker = _CircuitBreakerState(
-            threshold=config.circuit_breaker_threshold,
+        # Progress tracking with unified circuit breaker
+        self._progress_tracker = ProgressTracker(
+            project_path=self.project_path,
+            circuit_breaker_threshold=config.circuit_breaker_threshold,
             require_git_changes=config.require_git_changes,
         )
 
@@ -100,69 +91,6 @@ class SimpleOrchestrator:
     def claude(self) -> ClaudeClient:
         """Access Claude client."""
         return self._claude
-
-    def get_git_diff_hash(self) -> Optional[str]:
-        """
-        Get hash of current git diff to detect changes.
-
-        Returns:
-            Hash of git diff, or None if not a git repo or error
-        """
-        try:
-            result = subprocess.run(
-                ["git", "diff", "HEAD"],
-                cwd=self.project_path,
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            if result.returncode == 0:
-                import hashlib
-
-                return hashlib.md5(result.stdout.encode()).hexdigest()
-            return None
-        except Exception:
-            return None
-
-    def check_git_changes(self) -> tuple[bool, str]:
-        """
-        Check if git changes were made since last check.
-
-        Returns:
-            Tuple of (has_changes, message)
-        """
-        if not self._breaker.require_git_changes:
-            return True, "Git change tracking disabled"
-
-        current_hash = self.get_git_diff_hash()
-
-        if current_hash is None:
-            return True, "Not a git repo or git error (skipping check)"
-
-        if self._breaker.last_git_diff_hash is None:
-            self._breaker.last_git_diff_hash = current_hash
-            return True, "First iteration (baseline established)"
-
-        if current_hash != self._breaker.last_git_diff_hash:
-            self._breaker.last_git_diff_hash = current_hash
-            self._breaker.iterations_without_progress = 0
-            return True, "Git changes detected"
-
-        return False, "No git changes detected"
-
-    def check_circuit_breaker(self) -> tuple[bool, str]:
-        """
-        Check if circuit breaker should trigger.
-
-        Returns:
-            Tuple of (should_abort, reason)
-        """
-        if self._breaker.iterations_without_progress >= self._breaker.threshold:
-            return True, (
-                f"Circuit breaker: {self._breaker.iterations_without_progress} iterations "
-                f"without progress (threshold: {self._breaker.threshold})"
-            )
-        return False, "Circuit breaker OK"
 
     def check_completion(self) -> tuple[bool, str]:
         """
@@ -278,14 +206,11 @@ class SimpleOrchestrator:
                 }
 
             # Check for git changes (progress detection)
-            has_changes, change_msg = self.check_git_changes()
-            print(f"📝 Progress check: {change_msg}")
-
-            if not has_changes:
-                self._breaker.iterations_without_progress += 1
+            has_progress, progress_msg = self._progress_tracker.check_progress()
+            print(f"📝 Progress check: {progress_msg}")
 
             # Check circuit breaker
-            should_abort, abort_reason = self.check_circuit_breaker()
+            should_abort, abort_reason = self._progress_tracker.should_trigger_circuit_breaker()
             if should_abort:
                 print(f"\n❌ {abort_reason}")
                 total_duration = time.time() - start_time
@@ -295,7 +220,7 @@ class SimpleOrchestrator:
                     "iterations_completed": iterations_completed,
                     "total_duration": total_duration,
                     "final_result": final_result,
-                    "iterations_without_progress": self._breaker.iterations_without_progress,
+                    "iterations_without_progress": self._progress_tracker.state.iterations_without_progress,
                 }
 
             # Wait a bit before next iteration (avoid rapid loops)

@@ -67,6 +67,7 @@ class WrapperMonitor:
         self.project_name = None
         self.cwd = None
         self.filter_cwd = filter_cwd  # Set from command line or first event
+        self.current_run_id = None  # Track run_id of matching runs
 
         # Event history (recent events)
         self.events: deque = deque(maxlen=max_events)
@@ -99,15 +100,24 @@ class WrapperMonitor:
         if self.filter_cwd is None and "cwd" in event:
             self.filter_cwd = event["cwd"]
 
-        # Update project name when we see matching cwd event
-        if "cwd" in event and event["cwd"] == self.filter_cwd and not self.project_name:
-            self.project_name = event.get("project", os.path.basename(self.filter_cwd))
-            self.cwd = self.filter_cwd
+        # Track run_id when we see run_started with matching cwd
+        if event_type == "run_started" and event.get("cwd") == self.filter_cwd:
+            self.current_run_id = event.get("run_id")
+            if not self.project_name:
+                self.project_name = event.get("project", os.path.basename(self.filter_cwd))
+                self.cwd = self.filter_cwd
 
-        # Filter: Only process events matching our cwd
+        # Filter: Only process events matching our cwd or belonging to current run
         event_cwd = event.get("cwd")
+        event_run_id = event.get("run_id")
+
+        # Skip if event has different cwd (and is not from current run)
         if event_cwd and self.filter_cwd and event_cwd != self.filter_cwd:
-            return  # Skip events from different projects
+            return  # Different project entirely
+
+        # Skip if event has run_id but doesn't match our current run
+        if event_run_id and self.current_run_id and event_run_id != self.current_run_id:
+            return  # Different run in same or different project
 
         # Store raw event for navigation
         self.raw_events.append(event)
