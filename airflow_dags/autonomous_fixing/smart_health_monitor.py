@@ -179,6 +179,7 @@ class SmartHealthMonitor:
                 capture_output=True,
                 text=True,
                 timeout=30,
+                check=False,  # Failure handled by parsing stdout/stderr
             )
 
             for line in result.stdout.splitlines():

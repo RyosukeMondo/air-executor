@@ -916,7 +916,21 @@ Success:
 - Failure handling explicit and correct
 ```
 
-**Status**: [ ]
+**Status**: [x] COMPLETED
+
+**Changes Made**:
+- Fixed `smart_health_monitor.py` (1 instance):
+  - Added `check=False` with justification comment "Failure handled by parsing stdout/stderr"
+  - Line 182: Flutter analyze subprocess call
+- Fixed `issue_discovery.py` (3 instances):
+  - Added `check=False` to all subprocess.run calls with justification comments
+  - Line 54: `discover_build_issues()` - Flutter analyze call
+  - Line 82: `discover_test_failures()` - Flutter test call with comment "Failure handled by parsing test results"
+  - Line 116: `discover_lint_issues()` - Flutter analyze call
+- All calls use `check=False` because they manually parse output and handle failures gracefully
+- Ruff linter: All checks passed ✓
+
+**Note**: The task plan mentioned `simple_orchestrator.py` but that file does not contain subprocess.run calls. The actual affected files were `smart_health_monitor.py` and `issue_discovery.py` which have been fixed.
 
 ---
 
@@ -1291,7 +1305,7 @@ Key workflows to verify:
 
 ### Phase 5: Resource Management & Safety 🟡
 - [x] Task 5.1: Add Encoding to File Operations
-- [ ] Task 5.2: Add subprocess.run Check Parameter
+- [x] Task 5.2: Add subprocess.run Check Parameter
 - [ ] Task 5.3: Fix Resource Allocation
 
 ### Phase 6: Code Quality & Maintenance 🟢

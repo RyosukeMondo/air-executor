@@ -51,6 +51,7 @@ class IssueDiscovery:
                 capture_output=True,
                 text=True,
                 timeout=120,
+                check=False,  # Failure handled by parsing stdout/stderr
             )
 
             tasks = []
@@ -78,6 +79,7 @@ class IssueDiscovery:
                 capture_output=True,
                 text=True,
                 timeout=300,
+                check=False,  # Failure handled by parsing test results
             )
 
             tasks = []
@@ -111,6 +113,7 @@ class IssueDiscovery:
                 capture_output=True,
                 text=True,
                 timeout=120,
+                check=False,  # Failure handled by parsing stdout/stderr
             )
 
             tasks = []
