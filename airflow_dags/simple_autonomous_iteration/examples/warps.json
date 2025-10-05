@@ -1,0 +1,11 @@
+{
+  "prompt": "Resume work on @claudedocs/warps-add-test-ids.md. Work incrementally with commits:\n\n**THIS ITERATION - Complete ONE task only:**\n1. Check the plan - find the NEXT uncompleted task\n2. Implement ONLY that task (or couple tightly related tasks)\n3. Make/update tests for what you changed\n4. Run linter and fix any issues (adjust lint command for the project)\n5. Update the tasks document with progress (mark task complete)\n6. Commit changes with descriptive message\n7. DONE - End this iteration (next iteration will continue with next task)\n\n**Critical:**\n- Complete ONLY ONE task per iteration (not multiple tasks)\n- After commit, this iteration is DONE\n- Orchestrator will automatically start next iteration\n- Each iteration = one task cycle\n- ONLY mark '**[x] ALL TASKS COMPLETE' when ALL phases are truly complete\n\nCurrent completion marker in plan: **[ ] ALL TASKS COMPLETE",
+  "completion_file": "/home/rmondo/repos/warps/claudedocs/warps-add-test-ids.md",
+  "completion_regex": "\\*\\*\\[x\\] ALL TASKS COMPLETE",
+  "max_iterations": 50,
+  "project_path": "/home/rmondo/repos/warps",
+  "wrapper_path": "/home/rmondo/repos/air-executor/scripts/claude_wrapper.py",
+  "python_exec": "/home/rmondo/repos/air-executor/.venv/bin/python3",
+  "circuit_breaker_threshold": 3,
+  "require_git_changes": true
+}

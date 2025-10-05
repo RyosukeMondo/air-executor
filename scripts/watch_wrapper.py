@@ -76,6 +76,8 @@ class WrapperMonitor:
         # Interactive navigation state
         self.cursor_position = 0  # Visual position from top (0 = top row)
         self.paused = False  # Pause auto-scrolling
+        self.detail_scroll_offset = 0  # Scroll position in detail panel
+        self.detail_scroll_mode = False  # Whether in detail scroll mode
 
         # Tool tracking
         self.tools_used = deque(maxlen=10)
@@ -416,13 +418,32 @@ class WrapperMonitor:
             item = content_items[0] if isinstance(content_items, list) else content_items
 
             if isinstance(item, dict):
-                # Show all fields from content item (text, content, tool_use_id, etc.)
-                for key, value in item.items():
-                    value_str = str(value)
-                    # Truncate long values
-                    if len(value_str) > 300:
-                        value_str = value_str[:300] + "..."
-                    lines.append(f"{key}: {value_str}")
+                # Special handling for text field - preserve newlines
+                if "text" in item:
+                    text_content = item["text"]
+                    lines.append(f"text:\n{text_content}")
+                    # Show other fields except text
+                    for key, value in item.items():
+                        if key == "text":
+                            continue
+                        value_str = str(value)
+                        if len(value_str) > 300:
+                            value_str = value_str[:300] + "..."
+                        lines.append(f"{key}: {value_str}")
+                else:
+                    # No text field, show JSON structure
+                    lines.append("content:")
+                    import json
+                    try:
+                        json_str = json.dumps(item, indent=2)
+                        lines.append(json_str)
+                    except Exception:
+                        # Fallback to field-by-field display
+                        for key, value in item.items():
+                            value_str = str(value)
+                            if len(value_str) > 300:
+                                value_str = value_str[:300] + "..."
+                            lines.append(f"{key}: {value_str}")
 
         return "\n".join(lines)
 
@@ -479,6 +500,30 @@ class WrapperMonitor:
     def toggle_pause(self) -> None:
         """Toggle pause state for auto-scrolling."""
         self.paused = not self.paused
+        if not self.paused:
+            # Exiting pause mode - reset detail scroll
+            self.detail_scroll_mode = False
+            self.detail_scroll_offset = 0
+
+    def enter_detail_scroll_mode(self) -> None:
+        """Enter detail scroll mode (only when paused)."""
+        if self.paused:
+            self.detail_scroll_mode = True
+            self.detail_scroll_offset = 0
+
+    def exit_detail_scroll_mode(self) -> None:
+        """Exit detail scroll mode, return to event navigation."""
+        self.detail_scroll_mode = False
+        self.detail_scroll_offset = 0
+
+    def scroll_detail_up(self) -> None:
+        """Scroll detail panel content up."""
+        if self.detail_scroll_offset > 0:
+            self.detail_scroll_offset -= 1
+
+    def scroll_detail_down(self) -> None:
+        """Scroll detail panel content down."""
+        self.detail_scroll_offset += 1
 
     def _update_selected_detail(self) -> None:
         """Update detail panel based on cursor position (visual position from top)."""
@@ -627,15 +672,33 @@ class WrapperMonitor:
     def _build_detail_panel(self) -> Panel:
         """Build the event detail panel."""
         if self.last_event_detail:
-            detail_content = Text.from_markup(self.last_event_detail)
+            # Split content into lines for scrolling
+            lines = self.last_event_detail.split('\n')
+
+            # Apply scroll offset when in detail scroll mode
+            if self.detail_scroll_mode and self.paused:
+                # Show from offset onwards (simulate scrolling)
+                visible_lines = lines[self.detail_scroll_offset:]
+                detail_content = Text.from_markup('\n'.join(visible_lines))
+            else:
+                detail_content = Text.from_markup(self.last_event_detail)
         else:
             detail_content = Text("Waiting for events...", style="dim")
 
+        # Build title based on mode
         detail_title = f"🔍 Event Detail [Row {self.cursor_position + 1}/{len(self.raw_events)}]"
-        if len(self.raw_events) > 0:
-            detail_title += " | ↑↓:Navigate SPACE:Pause Q:Quit"
 
-        return Panel(detail_content, title=detail_title, border_style="magenta", box=box.ROUNDED)
+        if len(self.raw_events) > 0:
+            if self.paused:
+                if self.detail_scroll_mode:
+                    detail_title += f" | [SCROLL ⬍{self.detail_scroll_offset}] ↑↓:Scroll TAB:Events SPACE:Resume Q:Quit"
+                else:
+                    detail_title += " | ↑↓:Navigate TAB:ScrollDetail SPACE:Resume Q:Quit"
+            else:
+                detail_title += " | ↑↓:Navigate SPACE:Pause Q:Quit"
+
+        border_style = "yellow" if self.detail_scroll_mode else ("magenta" if self.paused else "magenta")
+        return Panel(detail_content, title=detail_title, border_style=border_style, box=box.ROUNDED)
 
     def build_dashboard(self) -> Layout:
         """Build the live dashboard layout."""
@@ -704,15 +767,32 @@ class WrapperMonitor:
             live.update(self.build_dashboard())
             return False
 
+        # TAB key - toggle between event navigation and detail scroll mode
+        if key == "\t":
+            if self.paused:
+                if self.detail_scroll_mode:
+                    self.exit_detail_scroll_mode()
+                else:
+                    self.enter_detail_scroll_mode()
+                live.update(self.build_dashboard())
+            return False
+
+        # Arrow keys - behavior depends on mode
         if key == "\x1b":  # Escape sequence for arrow keys
             next1 = keyboard_fd.read(1)
             next2 = keyboard_fd.read(1)
             if next1 == "[":
                 if next2 == "A":  # Up arrow
-                    self.navigate_up()
+                    if self.detail_scroll_mode and self.paused:
+                        self.scroll_detail_up()
+                    else:
+                        self.navigate_up()
                     live.update(self.build_dashboard())
                 elif next2 == "B":  # Down arrow
-                    self.navigate_down()
+                    if self.detail_scroll_mode and self.paused:
+                        self.scroll_detail_down()
+                    else:
+                        self.navigate_down()
                     live.update(self.build_dashboard())
 
         return False

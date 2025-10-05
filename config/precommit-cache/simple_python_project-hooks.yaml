@@ -1,26 +1,2 @@
-project_name: simple_python_project
-language: python
-levels:
-  1:
-    enabled_at: '2025-10-04T23:35:14.775851'
-    status: active
-    checks:
-    - id: type_check
-      javascript: npm run type-check
-      python: mypy .
-      go: go vet ./...
-      flutter: flutter analyze
-      blocking: true
-      rationale: P1 gate passed - no type errors should return
-    - id: build
-      javascript: npm run build
-      python: python -m py_compile src/**/*.py
-      go: go build ./...
-      flutter: flutter build --debug
-      blocking: true
-      rationale: P1 gate passed - build must succeed
-progression_history:
-- level: 1
-  timestamp: '2025-10-04T23:35:14.775863'
-  reason: Phase P1 gate passed
-current_level: 1
+hook_framework:
+  installed: true
