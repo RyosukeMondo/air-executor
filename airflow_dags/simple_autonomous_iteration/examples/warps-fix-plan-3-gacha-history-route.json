@@ -1,0 +1,10 @@
+{
+  "prompt": "Resume Gacha History Route DI Migration. Complete as many steps as possible.\n\n**FIX PLAN:** /tmp/FIX_PLAN_3_GachaHistoryRoute.md (Steps 1-5)\n\n**PROGRESS CHECK:**\n1. Check: `git log --oneline --all --grep=\"Part of gacha/history route DI migration\"`\n2. Identify completed vs remaining steps\n\n**EXECUTION:**\n- Complete ALL remaining steps in this iteration\n- For each step: Execute Actions → Check Checklist → Commit (if required)\n- Step 1: Analysis only (no commit), proceed to Step 2\n- Steps 2-5: MUST commit with exact message from plan\n- Continue until all 5 steps done OR blocker hit\n\n**SUCCESS:** \n- All 5 steps complete\n- 4 commits made (Steps 2-5)\n- Route uses container.resolve<IGachaRepository>()\n- No direct Prisma imports\n\n**PROJECT:** /home/rmondo/repos/warps",
+  "completion_file": "",
+  "max_iterations": 8,
+  "project_path": "/home/rmondo/repos/warps",
+  "wrapper_path": "/home/rmondo/repos/air-executor/scripts/claude_wrapper.py",
+  "python_exec": "/home/rmondo/repos/air-executor/.venv/bin/python3",
+  "circuit_breaker_threshold": 1,
+  "require_git_changes": true
+}

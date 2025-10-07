@@ -1,0 +1,10 @@
+{
+  "prompt": "Resume BattleSessionService DI Migration. Complete as many steps as possible.\n\n**FIX PLAN:** /tmp/FIX_PLAN_1_BattleSessionService.md (Steps 1-8)\n\n**PROGRESS CHECK:**\n1. Check: `git log --oneline --all --grep=\"Part of BattleSessionService DI migration\"`\n2. Identify completed vs remaining steps\n\n**EXECUTION:**\n- Complete ALL remaining steps in this iteration\n- For each step: Execute Actions → Check Checklist → Commit (if required)\n- Step 1: Analysis only (no commit), proceed to Step 2\n- Steps 2-7: MUST commit with exact message from plan\n- Step 8: Verification (run tests, no commit)\n- Continue until all 8 steps done OR blocker hit\n\n**SUCCESS:**\n- All 8 steps complete\n- 6 commits made (Steps 2-7)\n- Service uses @injectable() and IBattleRepository\n- No getInstance() calls, no direct Prisma\n- Tests pass\n\n**PROJECT:** /home/rmondo/repos/warps",
+  "completion_file": "",
+  "max_iterations": 12,
+  "project_path": "/home/rmondo/repos/warps",
+  "wrapper_path": "/home/rmondo/repos/air-executor/scripts/claude_wrapper.py",
+  "python_exec": "/home/rmondo/repos/air-executor/.venv/bin/python3",
+  "circuit_breaker_threshold": 1,
+  "require_git_changes": true
+}

@@ -1,0 +1,10 @@
+{
+  "prompt": "Resume Cards Registered Route DI Migration. Complete as many steps as possible in this iteration.\n\n**FIX PLAN:** /tmp/FIX_PLAN_2_CardsRegisteredRoute.md (Steps 1-6)\n\n**PROGRESS CHECK:**\n1. Check completed steps: `git log --oneline --all --grep=\"Part of cards/registered route DI migration\"`\n2. Identify which steps are DONE (have commits) vs TODO (no commits)\n3. Start from first incomplete step\n\n**EXECUTION STRATEGY:**\n- Work through ALL remaining steps (don't stop after one!)\n- For each step:\n  1. Execute all Actions\n  2. Complete all Checklist items  \n  3. If step requires commit: Stage files + commit with exact message from plan\n  4. If analysis only: Complete analysis, move to next step\n- Continue until ALL 6 steps are complete OR you hit a blocker\n- Make commits as you complete each step that requires one\n\n**COMMIT REQUIREMENTS:**\n- Step 1: NO commit (analysis only)\n- Steps 2-6: MUST commit with exact message from plan\n- Format: `feat(repository): Add findRegisteredByUserId to ICardRepository\\n\\nAdd method to...\\n\\nPart of cards/registered route DI migration (Step 2/6)\\n\\n🤖 Generated with Claude Code\\nCo-Authored-By: Claude <noreply@anthropic.com>`\n\n**SUCCESS CRITERIA:**\n- All 6 steps completed\n- 5 commits made (Steps 2-6)\n- Route uses container.resolve(), no direct Prisma\n- When all done: Report \"ALL STEPS COMPLETE\" and stop\n\n**PROJECT:** /home/rmondo/repos/warps",
+  "completion_file": "",
+  "max_iterations": 10,
+  "project_path": "/home/rmondo/repos/warps",
+  "wrapper_path": "/home/rmondo/repos/air-executor/scripts/claude_wrapper.py",
+  "python_exec": "/home/rmondo/repos/air-executor/.venv/bin/python3",
+  "circuit_breaker_threshold": 1,
+  "require_git_changes": true
+}

@@ -134,10 +134,10 @@ class ProgressTracker:
 
         # Check for new commits (most reliable indicator)
         if current_commit != self.state.last_commit_id:
+            prev_commit = self.state.last_commit_id[:8] if self.state.last_commit_id else "unknown"
             self.state.last_commit_id = current_commit
             self.state.last_diff_hash = current_diff_hash
             self.state.iterations_without_progress = 0
-            prev_commit = self.state.last_commit_id[:8] if self.state.last_commit_id else "unknown"
             return (
                 True,
                 f"New commit detected: {current_commit[:8]} (was {prev_commit})",

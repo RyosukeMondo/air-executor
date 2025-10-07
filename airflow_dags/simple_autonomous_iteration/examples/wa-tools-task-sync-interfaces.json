@@ -1,0 +1,11 @@
+{
+  "prompt": "Resume work on task-sync-interfaces specification. Work incrementally with commits:\n\n**THIS ITERATION - Complete ONE task only:**\n1. Use MCP tool spec-workflow to check status: Call spec-status with projectPath='/home/rmondo/repos/wa-tools/worktrees/task-sync-interfaces' and specName='task-sync-interfaces'\n2. Read the tasks.md file to find the NEXT uncompleted task (look for [ ] markers)\n3. If you need guidance, use MCP tool spec-workflow-guide to understand the workflow\n4. Implement ONLY that one task (or couple tightly related tasks in same section)\n5. Make/update tests for what you changed (if applicable - interfaces have no tests)\n6. Run linter and fix any issues: `./vendor/bin/phpstan analyse app/TaskSync/Contracts/ --level=8`\n7. Update tasks.md: mark the completed task with [x]\n8. Commit changes with descriptive message (include task number and description)\n9. DONE - End this iteration (next iteration will continue with next task)\n\n**Critical:**\n- Complete ONLY ONE task per iteration (not multiple tasks)\n- Use spec-workflow MCP tools for status checking and guidance\n- After commit, this iteration is DONE\n- Orchestrator will automatically start next iteration\n- Each iteration = one task cycle\n- ONLY mark the final completion checkboxes when ALL tasks are truly complete\n\nCurrent completion detection: Check tasks.md for all completion checkboxes marked [x]",
+  "completion_file": "/home/rmondo/repos/wa-tools/worktrees/task-sync-interfaces/.spec-workflow/specs/task-sync-interfaces/tasks.md",
+  "completion_regex": "- \\[x\\] All interfaces end with 'Interface' suffix",
+  "max_iterations": 40,
+  "project_path": "/home/rmondo/repos/wa-tools/worktrees/task-sync-interfaces",
+  "wrapper_path": "/home/rmondo/repos/air-executor/scripts/claude_wrapper.py",
+  "python_exec": "/home/rmondo/repos/air-executor/.venv/bin/python3",
+  "circuit_breaker_threshold": 3,
+  "require_git_changes": true
+}

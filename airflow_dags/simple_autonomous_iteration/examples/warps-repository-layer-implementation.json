@@ -1,0 +1,11 @@
+{
+  "prompt": "Resume work on repository-layer-implementation specification. Work incrementally with commits:\n\n**THIS ITERATION - Complete ONE task only:**\n1. Use MCP tool spec-workflow to check status: Call spec-status with projectPath='/home/rmondo/repos/warps' and specName='repository-layer-implementation'\n2. Read the tasks.md file to find the NEXT uncompleted task (look for [ ] markers)\n3. If you need guidance, use MCP tool spec-workflow-guide to understand the workflow\n4. Implement ONLY that one task following the _Prompt field guidance\n5. Test the implementation (run tests, verify functionality)\n6. Update tasks.md: change [ ] to [-] when starting, then to [x] when complete\n7. Commit changes with descriptive message (include task number and description)\n8. DONE - End this iteration (next iteration will continue with next task)\n\n**Critical:**\n- Complete ONLY ONE task per iteration (not multiple tasks)\n- Use spec-workflow MCP tools for status checking and guidance\n- Follow the _Prompt field in each task (Role | Task | Restrictions | Success)\n- After commit, this iteration is DONE\n- Orchestrator will automatically start next iteration\n- Each iteration = one task cycle\n- This is Phase 1B: Repository pattern implementation\n- Requires IPrismaService from Phase 1A (dependency-injection-setup must be complete first)\n- Working on main branch at project root\n- ONLY mark final completion checklist when ALL tasks are truly complete\n\nCurrent completion detection: Check tasks.md for final task marked [x]\n\n**Reference Docs:**\n- Plan: /home/rmondo/repos/warps/claudedocs/PARALLEL-IMPLEMENTATION-PLAN.md\n- Spec: /home/rmondo/repos/warps/.spec-workflow/specs/repository-layer-implementation/",
+  "completion_file": "/home/rmondo/repos/warps/.spec-workflow/specs/repository-layer-implementation/tasks.md",
+  "completion_regex": "\\[x\\] 20\\. Prepare",
+  "max_iterations": 25,
+  "project_path": "/home/rmondo/repos/warps",
+  "wrapper_path": "/home/rmondo/repos/air-executor/scripts/claude_wrapper.py",
+  "python_exec": "/home/rmondo/repos/air-executor/.venv/bin/python3",
+  "circuit_breaker_threshold": 3,
+  "require_git_changes": true
+}

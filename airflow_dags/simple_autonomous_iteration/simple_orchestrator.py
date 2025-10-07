@@ -100,6 +100,12 @@ class SimpleOrchestrator:
         Returns:
             Tuple of (is_complete, reason)
         """
+        # If no completion file specified (empty string or just "."), skip file-based check
+        # Rely purely on git commit detection via circuit breaker
+        completion_file_str = str(self.completion_check_file)
+        if not completion_file_str or completion_file_str == "." or completion_file_str == "":
+            return False, "No completion file specified - relying on git commit detection"
+
         if not self.completion_check_file.exists():
             return False, f"File not found: {self.completion_check_file}"
 
