@@ -43,6 +43,7 @@ if [ $# -lt 1 ]; then
     echo ""
     echo "Usage: $0 <plan_document> [project_path] [max_iterations]"
     echo "   OR: $0 <config.json> [project_path]"
+    echo "   OR: $0 --spec-workflow --spec <spec_name> --project <project_path> [options]"
     echo ""
     echo "Examples:"
     echo "  # Use plan document directly (recommended)"
@@ -53,25 +54,174 @@ if [ $# -lt 1 ]; then
     echo "  $0 airflow_dags/simple_autonomous_iteration/examples/testability_iteration.json"
     echo "  $0 config.json /path/to/project"
     echo ""
+    echo "  # Use spec-workflow mode"
+    echo "  $0 --spec-workflow --spec dev-quality-agent --project /path/to/project"
+    echo "  $0 --spec-workflow --spec my-spec --project /path/to/project --max-iterations 50"
+    echo ""
     echo "Arguments:"
     echo "  plan_document  - Markdown plan with '- [ ] everything done' marker"
     echo "  project_path   - (Optional) Working directory (default: current dir)"
     echo "  max_iterations - (Optional) Max iterations (default: 30)"
+    echo ""
+    echo "Spec-workflow options:"
+    echo "  --spec-workflow      - Enable spec-workflow mode"
+    echo "  --spec <name>        - Spec name (required in spec-workflow mode)"
+    echo "  --project <path>     - Project path (required in spec-workflow mode)"
+    echo "  --max-iterations <n> - Max iterations (default: 50)"
+    echo "  --completion-task <n>- Final task number for completion (optional)"
     echo ""
     echo "Tip: Run ./scripts/monitor.sh in another terminal to see real-time progress"
     echo ""
     exit 1
 fi
 
-FIRST_ARG="$1"
-OVERRIDE_PROJECT_PATH="${2:-}"
-OVERRIDE_MAX_ITERATIONS="${3:-}"
+# Check for spec-workflow mode
+if [[ "$1" == "--spec-workflow" ]]; then
+    SPEC_WORKFLOW_MODE=true
+    SPEC_NAME=""
+    SPEC_PROJECT_PATH=""
+    SPEC_MAX_ITERATIONS="50"
+    SPEC_COMPLETION_TASK=""
+
+    shift  # Remove --spec-workflow from args
+
+    # Parse spec-workflow arguments
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --spec)
+                SPEC_NAME="$2"
+                shift 2
+                ;;
+            --project)
+                SPEC_PROJECT_PATH="$2"
+                shift 2
+                ;;
+            --max-iterations)
+                SPEC_MAX_ITERATIONS="$2"
+                shift 2
+                ;;
+            --completion-task)
+                SPEC_COMPLETION_TASK="$2"
+                shift 2
+                ;;
+            *)
+                echo -e "${RED}❌ Unknown argument: $1${NC}"
+                exit 1
+                ;;
+        esac
+    done
+
+    # Validate required arguments
+    if [ -z "$SPEC_NAME" ]; then
+        echo -e "${RED}❌ --spec argument is required in spec-workflow mode${NC}"
+        exit 1
+    fi
+
+    if [ -z "$SPEC_PROJECT_PATH" ]; then
+        echo -e "${RED}❌ --project argument is required in spec-workflow mode${NC}"
+        exit 1
+    fi
+
+    # Validate project path exists
+    if [ ! -d "$SPEC_PROJECT_PATH" ]; then
+        echo -e "${RED}❌ Project path does not exist: $SPEC_PROJECT_PATH${NC}"
+        exit 1
+    fi
+
+    # Validate spec exists
+    SPEC_DIR="${SPEC_PROJECT_PATH}/.spec-workflow/specs/${SPEC_NAME}"
+    if [ ! -d "$SPEC_DIR" ]; then
+        echo -e "${RED}❌ Spec not found: $SPEC_DIR${NC}"
+        echo -e "${YELLOW}💡 Available specs:${NC}"
+        if [ -d "${SPEC_PROJECT_PATH}/.spec-workflow/specs" ]; then
+            ls -1 "${SPEC_PROJECT_PATH}/.spec-workflow/specs/" 2>/dev/null || echo "  (none)"
+        else
+            echo "  .spec-workflow directory not found in project"
+        fi
+        exit 1
+    fi
+
+    # Validate tasks.md exists
+    TASKS_FILE="${SPEC_DIR}/tasks.md"
+    if [ ! -f "$TASKS_FILE" ]; then
+        echo -e "${RED}❌ Tasks file not found: $TASKS_FILE${NC}"
+        echo -e "${YELLOW}💡 Expected file structure:${NC}"
+        echo "  ${SPEC_DIR}/"
+        echo "  ├── requirements.md"
+        echo "  ├── design.md"
+        echo "  └── tasks.md  <- missing"
+        exit 1
+    fi
+
+    # Create temporary config for spec-workflow mode
+    CONFIG_FILE="/tmp/simple_autonomous_iteration_spec_$$.json"
+    TEMP_CONFIG_CREATED=true
+
+    SPEC_WORKFLOW_PROMPT="Work on spec: ${SPEC_NAME}
+
+**THIS ITERATION - Complete ONE task only:**
+1. Use spec-workflow to fetch the next pending task from ${SPEC_NAME} spec
+2. Implement ONLY that task
+3. Make/update tests for what you changed
+4. Run linter and fix any issues if applicable
+5. Use spec-workflow to update task status to completed
+6. Commit changes with descriptive message
+7. Use spec-workflow to check remaining tasks
+8. DONE - End this iteration (next iteration will continue with next task)
+
+**Critical:**
+- Complete ONLY ONE task per iteration (not multiple tasks)
+- Use spec-workflow MCP tools to fetch, update, and check tasks
+- After commit, this iteration is DONE
+- Orchestrator will automatically start next iteration
+- Each iteration = one task cycle
+- End session without asking for further actions"
+
+    COMPLETION_FILE="${SPEC_PROJECT_PATH}/.spec-workflow/specs/${SPEC_NAME}/tasks.md"
+
+    # Determine completion regex (properly escaped for JSON)
+    if [ -n "$SPEC_COMPLETION_TASK" ]; then
+        COMPLETION_REGEX="\\\\[x\\\\] ${SPEC_COMPLETION_TASK}\\\\."
+    else
+        # Default: look for any final task completion pattern
+        COMPLETION_REGEX="\\\\[x\\\\] [0-9]+\\\\. Final integration testing and bug fixes"
+    fi
+
+    cat > "$CONFIG_FILE" <<EOF
+{
+  "prompt": $(echo "$SPEC_WORKFLOW_PROMPT" | python3 -c 'import json, sys; print(json.dumps(sys.stdin.read()))'),
+  "completion_file": "$COMPLETION_FILE",
+  "completion_regex": "$COMPLETION_REGEX",
+  "max_iterations": $SPEC_MAX_ITERATIONS,
+  "project_path": "$SPEC_PROJECT_PATH",
+  "wrapper_path": "$PROJECT_ROOT/scripts/claude_wrapper.py",
+  "python_exec": "$PROJECT_ROOT/.venv/bin/python3",
+  "circuit_breaker_threshold": 3,
+  "require_git_changes": true
+}
+EOF
+
+    echo -e "${GREEN}✓${NC} Spec-workflow mode: $SPEC_NAME"
+    echo -e "${GREEN}✓${NC} Project: $SPEC_PROJECT_PATH"
+    echo -e "${GREEN}✓${NC} Generated temporary config: $CONFIG_FILE"
+    echo ""
+
+    OVERRIDE_PROJECT_PATH=""
+    OVERRIDE_MAX_ITERATIONS=""
+
+else
+    # Original modes
+    SPEC_WORKFLOW_MODE=false
+    FIRST_ARG="$1"
+    OVERRIDE_PROJECT_PATH="${2:-}"
+    OVERRIDE_MAX_ITERATIONS="${3:-}"
+fi
 
 # Determine mode: plan document (.md) or config file (.json)
-CONFIG_FILE=""
-TEMP_CONFIG_CREATED=false
+CONFIG_FILE="${CONFIG_FILE:-}"
+TEMP_CONFIG_CREATED="${TEMP_CONFIG_CREATED:-false}"
 
-if [[ "$FIRST_ARG" == *.md ]]; then
+if [[ "$SPEC_WORKFLOW_MODE" == false ]] && [[ "$FIRST_ARG" == *.md ]]; then
     # Plan document mode - create temporary config
     PLAN_DOCUMENT="$FIRST_ARG"
 
@@ -127,7 +277,7 @@ EOF
     echo -e "${GREEN}✓${NC} Generated temporary config: $CONFIG_FILE"
     echo ""
 
-elif [[ "$FIRST_ARG" == *.json ]]; then
+elif [[ "$SPEC_WORKFLOW_MODE" == false ]] && [[ "$FIRST_ARG" == *.json ]]; then
     # Config file mode
     CONFIG_FILE="$FIRST_ARG"
 
@@ -139,8 +289,8 @@ elif [[ "$FIRST_ARG" == *.json ]]; then
     echo -e "${GREEN}✓${NC} Config file: $CONFIG_FILE"
     echo ""
 
-else
-    echo -e "${RED}❌ Invalid argument: must be .md (plan document) or .json (config file)${NC}"
+elif [[ "$SPEC_WORKFLOW_MODE" == false ]]; then
+    echo -e "${RED}❌ Invalid argument: must be .md (plan document), .json (config file), or --spec-workflow${NC}"
     echo "Got: $FIRST_ARG"
     exit 1
 fi
