@@ -3,3 +3,4 @@ pyyaml==6.0.1
 click==8.1.7
 rich==13.7.0
 psutil==5.9.8
+claude-code-sdk>=0.0.25  # Claude Code SDK (deprecated but required for wrapper)
